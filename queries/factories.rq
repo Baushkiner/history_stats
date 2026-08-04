@@ -1,0 +1,22 @@
+# @layer factories
+# @title Заводы и фабрики
+# @qid Q83405 фабрика
+#
+# Промышленные предприятия с годом основания: куда уходили на заработки.
+SELECT ?item ?itemLabel ?coord ?start ?end ?adminLabel ?typeLabel ?article ?image ?description WHERE {
+  SERVICE wikibase:box {
+    ?item wdt:P625 ?coord .
+    bd:serviceParam wikibase:cornerSouthWest "Point(18 35)"^^geo:wktLiteral .
+    bd:serviceParam wikibase:cornerNorthEast "Point(180 82)"^^geo:wktLiteral .
+  }
+  ?item wdt:P31/wdt:P279* wd:Q83405 .
+  OPTIONAL { ?item wdt:P571 ?start . }
+  OPTIONAL { ?item wdt:P576 ?end . }
+  OPTIONAL { ?item wdt:P131 ?admin . }
+  OPTIONAL { ?item wdt:P31 ?type . }
+  OPTIONAL { ?item wdt:P18 ?image . }
+  OPTIONAL { ?article schema:about ?item ; schema:isPartOf <https://ru.wikipedia.org/> . }
+  OPTIONAL { ?item schema:description ?description . FILTER(LANG(?description) = "ru") }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "ru,en". }
+}
+ORDER BY ?item

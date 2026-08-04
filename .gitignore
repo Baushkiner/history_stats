@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# Кэш ответов SPARQL — восстанавливается повторным запросом
+data/cache/
+
+# Крупные выгрузки пересобираются скриптами; в репозиторий идут
+# только отчёт и небольшие GeoJSON-слои.
+data/out/*.xlsx
+data/out/context.jsonl
+data/out/jsonl/
+data/out/xlsx/
+
+.DS_Store
