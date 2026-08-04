@@ -5,6 +5,7 @@
 """
 
 import sys
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -40,7 +41,7 @@ def event(**kw) -> ContextRecord:
 # --- целостность подборки -------------------------------------------------
 
 def test_dataset_is_not_empty():
-    assert len(EVENTS) >= 60, "подборка событий подозрительно мала"
+    assert len(EVENTS) >= 150, "подборка событий подозрительно мала"
 
 
 def test_every_event_is_dated_and_usable():
@@ -68,6 +69,25 @@ def test_categories_are_closed_list():
 def test_every_category_is_used():
     """Пустая категория в списке — либо забытые события, либо лишняя строка."""
     assert {rec.category for rec in EVENTS} == set(CATEGORIES)
+
+
+def test_no_category_is_left_half_filled():
+    """Категория из двух событий обещает больше, чем даёт: либо наполнить, либо убрать."""
+    counts = Counter(rec.category for rec in EVENTS)
+    thin = {c: n for c, n in counts.items() if n < 5}
+    assert not thin, thin
+
+
+def test_timeline_has_no_empty_decades():
+    """Дыра в ленте времени — это не «тогда ничего не происходило», а незаполненный период."""
+    covered = {y // 10 * 10 for rec in EVENTS for y in range(rec.year_from, rec.year_to + 1)}
+    gaps = [d for d in range(1620, 1960, 10) if d not in covered]
+    assert not gaps, f"десятилетия без единого события: {gaps}"
+
+
+def test_regions_are_not_repeated_inside_event():
+    for rec in EVENTS:
+        assert len(rec.regions) == len(set(rec.regions)), rec.title
 
 
 def test_summaries_explain_what_to_look_for():
@@ -99,7 +119,9 @@ def test_key_events_are_present():
     """Опоры периода: без них слой бесполезен для генеалогии."""
     titles = " | ".join(rec.title for rec in EVENTS)
     for needle in ("X ревизия", "Отмена крепостного права", "Всеобщая воинская повинность",
-                   "Первая всеобщая перепись", "Голод 1891", "Раскулачивание"):
+                   "Первая всеобщая перепись", "Голод 1891", "Раскулачивание",
+                   "Генеральное межевание", "Клировые ведомости", "Паспорта и отход",
+                   "Ссылка в Сибирь", "Гибель архивов", "Районирование"):
         assert needle in titles, needle
 
 
