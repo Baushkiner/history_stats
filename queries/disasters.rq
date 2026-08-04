@@ -1,4 +1,5 @@
 # @layer disasters
+# @kind event
 # @title Пожары, наводнения, катастрофы
 # @qid Q3839081 стихийное бедствие
 #
@@ -10,8 +11,14 @@ SELECT ?item ?itemLabel ?coord ?start ?end ?adminLabel ?typeLabel ?article ?imag
     bd:serviceParam wikibase:cornerNorthEast "Point(180 82)"^^geo:wktLiteral .
   }
   ?item wdt:P31/wdt:P279* wd:Q3839081 .
-  OPTIONAL { ?item wdt:P571 ?start . }
-  OPTIONAL { ?item wdt:P576 ?end . }
+  # У события даты лежат в P580/P582 (начало и конец) или в P585 (дата
+  # события целиком). P571/P576 — про здания и учреждения; для эпидемии или
+  # восстания они почти всегда пусты, и слой приходит без датировки.
+  OPTIONAL { ?item wdt:P580 ?startTime . }
+  OPTIONAL { ?item wdt:P582 ?endTime . }
+  OPTIONAL { ?item wdt:P585 ?pointInTime . }
+  BIND(COALESCE(?startTime, ?pointInTime) AS ?start)
+  BIND(COALESCE(?endTime, ?pointInTime) AS ?end)
   OPTIONAL { ?item wdt:P131 ?admin . }
   OPTIONAL { ?item wdt:P31 ?type . }
   OPTIONAL { ?item wdt:P18 ?image . }

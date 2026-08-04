@@ -61,6 +61,12 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * EARTH_R_KM * math.asin(math.sqrt(a))
 
 
+# Женский род: «в Костромской губернии» -> «Костромская губерния». Без этого
+# одна и та же губерния попадает в данные двумя написаниями и считается дважды.
+_FEM_NOMINATIVE = {"ой": "ая", "ою": "ая", "ую": "ая", "ей": "яя", "ею": "яя", "юю": "яя"}
+_FEMININE_UNITS = {"губерния", "область", "волость"}
+
+
 def extract_region(text: Optional[str]) -> Optional[str]:
     """Достаёт «Нижегородская губерния» из «Нижегородская губерния (Сергач), Заволжье»."""
     if not text:
@@ -73,8 +79,55 @@ def extract_region(text: Optional[str]) -> Optional[str]:
             "окру": "округ", "намес": "наместничество", "войск": "войско"}
     for pref, word in base.items():
         if kind.startswith(pref):
-            return f"{m.group(1)} {word}"
+            return f"{_nominative(m.group(1), word)} {word}"
     return f"{m.group(1)} {m.group(2)}"
+
+
+def _nominative(adjective: str, unit: str) -> str:
+    """Согласует прилагательное с приведённым к именительному падежу словом.
+
+    Только для женского рода: у «край» и «округ» окончание «-ой» само по себе
+    именительное («Донской»), и трогать его нельзя.
+    """
+    if unit not in _FEMININE_UNITS:
+        return adjective
+    ending = _FEM_NOMINATIVE.get(adjective[-2:].lower())
+    return adjective[:-2] + ending if ending else adjective
+
+
+# Слова, обозначающие тип единицы. Для сопоставления территорий они лишние:
+# одно и то же место называлось губернией, потом округом, потом областью.
+_UNIT_WORDS = {
+    "губерния", "губернии", "губ", "область", "области", "обл",
+    "край", "края", "округ", "округа", "наместничество", "наместничества",
+    "войско", "войска", "республика", "республики", "асср", "сср",
+    "уезд", "уезда", "район", "района",
+}
+# Окончания прилагательных: «Самарская» и «Самарской» — одна и та же губерния.
+# Только короткие окончания: если снимать «ская» целиком, «Донская область» и
+# «Область войска Донского» дадут разные ключи и перестанут совпадать.
+_RE_ADJ_TAIL = re.compile(r"(ого|ому|ыми|ими|ая|яя|ое|ее|ые|ие|ый|ий|ой|ей|ую|юю|ых|их|ья|ье)$")
+
+
+def region_key(name: Optional[str]) -> Optional[str]:
+    """Ключ для сопоставления территорий.
+
+    «Самарская губерния», «Самарская область» и «Самарская губ.» дают один
+    ключ: за полтора века тип единицы менялся чаще, чем сама территория, и
+    для подбора контекста важно название, а не то, как её назвали в бумаге.
+    """
+    if not name:
+        return None
+    text = re.sub(r"[^а-яёa-z\s-]", " ", str(name).lower().replace("ё", "е"))
+    words = [w for w in text.split() if w and w not in _UNIT_WORDS]
+    stems = [_RE_ADJ_TAIL.sub("", w) or w for w in words]
+    return " ".join(stems) or None
+
+
+def same_region(a: Optional[str], b: Optional[str]) -> bool:
+    """Одна ли это территория с точностью до типа единицы и падежа."""
+    ka, kb = region_key(a), region_key(b)
+    return bool(ka) and ka == kb
 
 
 def extract_district(text: Optional[str]) -> Optional[str]:

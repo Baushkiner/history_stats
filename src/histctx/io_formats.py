@@ -24,6 +24,30 @@ def write_geojson(records: Iterable[ContextRecord], path: Path, *, layer_title: 
     return len(feats)
 
 
+def write_records_json(records: Iterable[ContextRecord], path: Path, *, title: str = "") -> int:
+    """Пишет записи без геометрии одним JSON-массивом.
+
+    Нужен для событий, у которых нет точки: голод по губерниям, ревизия,
+    воинская повинность. В GeoJSON их не положить, а карте они нужны —
+    лентой времени рядом с фактом.
+    """
+    rows = []
+    for rec in records:
+        # Пустые поля опускаются, как и в GeoJSON: у события без точки их
+        # заведомо много, и файл читается вдвое легче.
+        row = {k: v for k, v in rec.to_row().items() if v is not None and v != ""}
+        if rec.regions:
+            row["regions"] = list(rec.regions)
+        if rec.extra:
+            row["extra"] = rec.extra
+        rows.append(row)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"name": title or path.stem, "count": len(rows), "records": rows}
+    with path.open("w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False, indent=1)
+    return len(rows)
+
+
 def write_xlsx(records: Sequence[ContextRecord], path: Path, *, sheet_name: str = "Данные",
                russian_headers: bool = True) -> int:
     """Пишет XLSX с русскими заголовками, как в текущих выгрузках проекта."""

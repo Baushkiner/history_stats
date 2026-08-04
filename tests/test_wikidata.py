@@ -103,6 +103,52 @@ def test_open_ended_dating_gets_upper_bound():
     assert r.date_approx is True
 
 
+def test_event_with_open_end_stays_in_its_year():
+    """Регрессия: холера 1848 года не должна тянуться до 1960 года.
+
+    Правило «основан и не упразднён — значит, существует до конца периода»
+    верно для здания и губительно для события: эпидемия с одной датой
+    оказывалась подходящей к любому факту следующих ста лет.
+    """
+    rows = [_row(item="http://www.wikidata.org/entity/Q4", itemLabel="Холера",
+                 coord="Point(37.6 55.7)", start="1848-01-01T00:00:00Z")]
+    r = rows_to_records(rows, SPEC, kind="event")[0]
+    assert (r.year_from, r.year_to) == (1848, 1848)
+    assert r.date_precision == "year"
+    assert r.date_approx is False
+    # В источнике конца нет — так и записано; числовые границы это наше решение.
+    assert r.period_raw == "с 1848"
+
+
+def test_event_with_only_end_date():
+    rows = [_row(item="http://www.wikidata.org/entity/Q5", itemLabel="Восстание",
+                 coord="Point(37.6 55.7)", end="1774-01-01T00:00:00Z")]
+    r = rows_to_records(rows, SPEC, kind="event")[0]
+    assert (r.year_from, r.year_to) == (1774, 1774)
+
+
+def test_object_dating_unchanged_by_event_mode():
+    rows = [_row(item="http://www.wikidata.org/entity/Q6", itemLabel="Храм",
+                 coord="Point(37.6 55.7)", start="1800-01-01T00:00:00Z")]
+    assert rows_to_records(rows, SPEC)[0].year_to == 1960
+
+
+def test_event_queries_declare_kind_and_ask_for_event_dates():
+    """Слои событий должны спрашивать P580/P582/P585, а не P571/P576."""
+    mod = _harvest_module()
+    for name in ("epidemics", "uprisings", "disasters"):
+        meta = mod.parse_query(ROOT / "queries" / f"{name}.rq")
+        assert meta["kind"] == "event", name
+        assert "P585" in meta["sparql"] and "P580" in meta["sparql"], name
+        assert "wdt:P571" not in meta["sparql"], name
+
+
+def test_kind_defaults_to_object_for_places():
+    mod = _harvest_module()
+    for name in ("churches", "settlements", "railway_stations"):
+        assert mod.parse_query(ROOT / "queries" / f"{name}.rq")["kind"] == "object"
+
+
 def test_url_falls_back_to_wikidata():
     rows = [_row(item="http://www.wikidata.org/entity/Q3", itemLabel="Храм",
                  coord="Point(37.6 55.7)")]
