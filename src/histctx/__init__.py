@@ -5,17 +5,17 @@
 родословной можно было подобрать обстановку вокруг него.
 """
 
-from .schema import SCHEMA_VERSION, ContextRecord, LayerSpec, GROUPS
+from .schema import SCHEMA_VERSION, SCOPES, ContextRecord, LayerSpec, GROUPS
 from .periods import Period, parse_period, parse_year
 from .enrich import ContextEngine, Fact, Match
-from .geo import haversine_km, SpatialIndex
+from .geo import haversine_km, same_region, SpatialIndex
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "SCHEMA_VERSION", "__version__",
-    "ContextRecord", "LayerSpec", "GROUPS",
+    "ContextRecord", "LayerSpec", "GROUPS", "SCOPES",
     "Period", "parse_period", "parse_year",
     "ContextEngine", "Fact", "Match",
-    "haversine_km", "SpatialIndex",
+    "haversine_km", "same_region", "SpatialIndex",
 ]

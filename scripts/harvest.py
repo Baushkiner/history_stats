@@ -51,6 +51,8 @@ def parse_query(path: Path) -> dict:
     meta["sparql"] = "\n".join(body).strip()
     meta.setdefault("layer", path.stem)
     meta.setdefault("title", path.stem)
+    # @kind event — слой событий: открытая дата не дотягивается до 1960 года.
+    meta.setdefault("kind", "object")
     return meta
 
 
@@ -95,8 +97,10 @@ def harvest(client: SparqlClient, meta: dict, spec: LayerSpec, out_dir: Path,
         rows = client.query(meta["sparql"])
     print(f"  получено строк: {len(rows)}")
 
-    records = rows_to_records(rows, spec)
+    records = rows_to_records(rows, spec, kind=meta["kind"])
     print(f"  с координатами в границах РИ/СССР: {len(records)}")
+    dated = sum(1 for r in records if r.has_time)
+    print(f"  с датировкой: {dated}")
 
     slug = spec.slug
     write_geojson(records, out_dir / "geojson" / f"{slug}.geojson", layer_title=spec.title)

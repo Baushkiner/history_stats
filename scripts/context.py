@@ -44,6 +44,12 @@ def load_records(out_dir: Path) -> list[ContextRecord]:
 def _from_row(row: dict) -> ContextRecord:
     row = {k: v for k, v in row.items() if k != "extra"}
     row["date_approx"] = row.get("date_approx") in (True, "да")
+    # В выгрузке перечень губерний — строка «А; Б»; в записи это список.
+    regions = row.get("regions")
+    if isinstance(regions, str):
+        row["regions"] = [part.strip() for part in regions.split(";") if part.strip()]
+    elif regions is None:
+        row["regions"] = []
     allowed = set(ContextRecord.__dataclass_fields__)
     return ContextRecord(**{k: v for k, v in row.items() if k in allowed})
 
@@ -53,6 +59,10 @@ def main() -> int:
     ap.add_argument("--lat", type=float, required=True)
     ap.add_argument("--lon", type=float, required=True)
     ap.add_argument("--year", type=int, help="год факта; без него подбор идёт только по месту")
+    ap.add_argument("--region", help="губерния факта: «Самарская губерния». "
+                                     "Без неё определяется по ближайшим записям")
+    ap.add_argument("--no-territorial", action="store_true",
+                    help="не показывать события без точки: ревизии, реформы, голод")
     ap.add_argument("--radius", type=float, default=50.0, help="радиус, км")
     ap.add_argument("--window", type=int, default=25, help="окно по годам")
     ap.add_argument("--layer", action="append", help="ограничить слоем (можно повторять)")
@@ -68,15 +78,19 @@ def main() -> int:
         return 1
 
     engine = ContextEngine(records)
+    fact = Fact(lat=args.lat, lon=args.lon, year=args.year, region=args.region)
     matches = engine.find(
-        Fact(lat=args.lat, lon=args.lon, year=args.year),
+        fact,
         radius_km=args.radius, year_window=args.window,
         layers=args.layer, limit=args.limit, per_layer_cap=args.per_layer,
+        include_territorial=not args.no_territorial,
     )
+    region, region_source = engine.resolve_region(fact)
 
     if args.json:
         print(json.dumps({
-            "fact": {"lat": args.lat, "lon": args.lon, "year": args.year},
+            "fact": {"lat": args.lat, "lon": args.lon, "year": args.year,
+                     "region": region, "region_source": region_source},
             "summary": engine.summarize(matches),
             "matches": [{
                 "score": m.score, "distance_km": m.distance_km,
@@ -89,8 +103,10 @@ def main() -> int:
     where = f"{args.lat}, {args.lon}"
     when = args.year if args.year is not None else "год не задан"
     print(f"\nКонтекст вокруг факта: {where}, {when}")
-    print(f"В индексе {len(engine)} записей; найдено {len(matches)} "
-          f"(радиус {args.radius:g} км, окно {args.window} лет)\n")
+    print(f"Губерния: {region or 'не определена'} ({region_source})"
+          + ("" if region else " — губернские события пропущены, задайте --region"))
+    print(f"В индексе {len(engine)} записей, из них {len(engine.territorial)} без точки; "
+          f"найдено {len(matches)} (радиус {args.radius:g} км, окно {args.window} лет)\n")
 
     if not matches:
         print("Ничего не найдено. Попробуйте увеличить --radius или --window.")

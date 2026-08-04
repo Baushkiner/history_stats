@@ -3,12 +3,14 @@
 from .bookplaces import load_literary_places, load_tenishev
 from .battles import load_battles
 from .prokudin_gorsky import load_prokudin_gorsky
+from .state_events import load_state_events
 
 ADAPTERS = {
     "literary_places": load_literary_places,
     "tenishev": load_tenishev,
     "battles": load_battles,
     "prokudin_gorsky": load_prokudin_gorsky,
+    "state_events": load_state_events,
 }
 
 __all__ = [
@@ -17,4 +19,5 @@ __all__ = [
     "load_tenishev",
     "load_battles",
     "load_prokudin_gorsky",
+    "load_state_events",
 ]

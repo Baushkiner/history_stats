@@ -149,6 +149,18 @@ def test_extract_region(text, region):
     assert extract_region(text) == region
 
 
+@pytest.mark.parametrize("text,region", [
+    ("в Костромской губернии", "Костромская губерния"),
+    ("родился в Ростовской области", "Ростовская область"),
+    # У края и округа «-ой» — само по себе именительный падеж.
+    ("Донской округ", "Донской округ"),
+    ("Приморский край", "Приморский край"),
+])
+def test_extract_region_normalizes_case(text, region):
+    """Иначе «Костромская губерния» и «Костромской губерния» считаются разными."""
+    assert extract_region(text) == region
+
+
 def test_extract_district():
     assert extract_district("Нижегородская губерния, Сергачский уезд") == "Сергачский уезд"
 

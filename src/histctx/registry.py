@@ -17,8 +17,9 @@ from .schema import LayerSpec
 from .adapters.battles import BATTLES                     # noqa: E402
 from .adapters.bookplaces import LITERARY, TENISHEV        # noqa: E402
 from .adapters.prokudin_gorsky import PROKUDIN             # noqa: E402
+from .adapters.state_events import STATE_EVENTS            # noqa: E402
 
-CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN]
+CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
 # --- слои для сбора из Викиданных ----------------------------------------
 # Поле `query` указывает на файл в каталоге queries/.
@@ -85,8 +86,10 @@ PLANNED = [
         slug="famines", title="Голод и неурожаи", group="hardship",
         source="Викиданные + справочная литература", license=WD_CC0, status="planned", expected_rows=120,
         description=(
-            "Голодные годы с охватом территорий: 1891–92, 1921–22, 1932–33, 1946–47. "
-            "Объясняет разрывы в записях, переселения и всплески смертности."
+            "Местные неурожаи по уездам. Четыре больших голода — 1891–92, 1921–22, "
+            "1932–33, 1946–47 — уже собраны вручную в слое «Указы, реформы и "
+            "потрясения» с перечнем затронутых губерний: в Викиданных у них нет "
+            "ни координат, ни территориальной привязки."
         ),
     ),
     LayerSpec(

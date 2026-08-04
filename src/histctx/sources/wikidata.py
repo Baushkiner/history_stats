@@ -27,6 +27,10 @@ from ..schema import ContextRecord, LayerSpec, clean_text
 
 ENDPOINT = "https://query.wikidata.org/sparql"
 
+# Верхняя граница интересующего периода. До неё дотягиваются объекты с
+# открытой датировкой: храм основан в 1800 году и не упразднён.
+OPEN_END_YEAR = 1960
+
 # Викимедиа требует содержательный User-Agent и блокирует запросы без него.
 # Только ASCII: заголовки HTTP кодируются latin-1, кириллица здесь падает.
 USER_AGENT = (
@@ -140,12 +144,19 @@ def verify_qids(client: SparqlClient, qids: list[str]) -> dict[str, Optional[str
 
 
 def rows_to_records(rows: list[dict], spec: LayerSpec, *,
-                    require_bbox: bool = True) -> list[ContextRecord]:
+                    require_bbox: bool = True, kind: str = "object") -> list[ContextRecord]:
     """Преобразует ответ SPARQL в записи единой схемы.
 
     Ожидаемые переменные запроса: ?item ?itemLabel ?coord ?start ?end
     ?admin ?adminLabel ?typeLabel ?article ?image ?description.
+
+    `kind` различает два способа существовать во времени. Здание стоит от
+    основания до упразднения, и открытый конец разумно дотянуть до конца
+    интересующего периода. Событие — эпидемия, восстание, пожар — случается
+    и заканчивается; дотягивать его до 1960 года нельзя, иначе холера 1848
+    года окажется «подходящей» к факту 1950 года.
     """
+    is_event = kind == "event"
     out: list[ContextRecord] = []
     for row in rows:
         lat, lon = _point(_val(row, "coord"))
@@ -158,13 +169,18 @@ def rows_to_records(rows: list[dict], spec: LayerSpec, *,
         year_to = _year(_val(row, "end"))
         precision = "year" if (year_from or year_to) else "unknown"
         if year_from and not year_to:
-            # Объект основан и не упразднён — считаем его существующим до конца
-            # интересующего нас периода, иначе он выпадет из подбора по времени.
-            year_to = 1960
-            precision = "part"
+            if is_event:
+                # У события известно только начало: считаем его однолетним,
+                # а не длящимся до конца периода.
+                year_to = year_from
+            else:
+                # Объект основан и не упразднён — считаем его существующим до
+                # конца интересующего нас периода, иначе он выпадет из подбора.
+                year_to = OPEN_END_YEAR
+                precision = "part"
         if year_to and not year_from:
-            year_from = min(year_to, 1800)
-            precision = "part"
+            year_from = year_to if is_event else min(year_to, 1800)
+            precision = "year" if is_event else "part"
 
         qid = _qid(_val(row, "item"))
         out.append(spec.new_record(
@@ -225,7 +241,7 @@ def _year(literal: Optional[str]) -> Optional[int]:
 def _raw_period(start: Optional[str], end: Optional[str]) -> Optional[str]:
     a, b = _year(start), _year(end)
     if a and b:
-        return f"{a}–{b}"
+        return str(a) if a == b else f"{a}–{b}"
     if a:
         return f"с {a}"
     if b:
