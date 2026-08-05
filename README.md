@@ -48,6 +48,20 @@
 монастыри, кладбища, населённые места, губернии, станции, заводы, рудники,
 эпидемии, восстания, бедствия (`docs/CATALOG.md`).
 
+**Источники помимо Викиданных.** Викиданные удобны — CC0 и машинный ответ, —
+но самое ценное собрано людьми в других проектах, и каталог перекосило в их
+сторону. Раздел 3 в `docs/CATALOG.md` и список `EXTERNAL` в `registry.py`
+исправляют это: снимки [PastVu](https://pastvu.com/) и
+[История России в фотографиях](https://russiainphoto.ru/), лагерные управления
+с [Карты ГУЛАГа](https://gulagmap.ru/), полигоны губерний и уездов переписей
+1897 и 1926 годов ([heiDATA](https://heidata.uni-heidelberg.de/dataset.xhtml?persistentId=doi:10.11588/DATA/10064),
+[RISTAT](https://ristat.org/)), границы государств по годам
+([CShapes 2.0](https://icr.ethz.ch/data/cshapes/)). Права у каждого свои и
+записаны как есть: где нужна договорённость — так и написано. Для PastVu
+сбор уже написан (`scripts/harvest_pastvu.py`), полигоны уездов — следующий
+по ценности слой: он меняет сам способ подбора, с сопоставления названий
+губерний на определение уезда по координате и году.
+
 ## Быстрый старт
 
 ```bash
@@ -62,6 +76,10 @@ python3 scripts/harvest.py --check
 # 3. Собрать новые слои
 python3 scripts/harvest.py --layer churches
 python3 scripts/harvest.py --all --paged
+
+# 4. Фотографии из PastVu: сначала проба, она же проверка формата ответа
+python3 scripts/harvest_pastvu.py --probe
+python3 scripts/harvest_pastvu.py --all --step 0.5
 
 # посмотреть, что покажется рядом с конкретным фактом
 python3 scripts/context.py --lat 53.20 --lon 50.15 --year 1891 \
@@ -126,12 +144,12 @@ src/histctx/
   enrich.py       подбор контекста вокруг факта
   normalize.py    приведение жанров, названий войн, отсев не-событий
   io_formats.py   выгрузка в GeoJSON, XLSX, JSONL
-  registry.py     каталог слоёв
+  registry.py     каталог слоёв: собранные, запросы, внешние проекты
   adapters/       исходные файлы проекта -> единая схема
-  sources/        сбор из внешних источников
+  sources/        сбор из внешних источников: wikidata.py, pastvu.py
 data/curated/     подборки, которые ведутся вручную (state_events.json)
 queries/          SPARQL-запросы к Викиданным
-scripts/          build_core.py, harvest.py, context.py
+scripts/          build_core.py, harvest.py, harvest_pastvu.py, context.py
 docs/             CATALOG.md, SCHEMA.md, ENRICHMENT.md
 ```
 
@@ -142,3 +160,9 @@ docs/             CATALOG.md, SCHEMA.md, ENRICHMENT.md
 но ни один не выполнялся против живого сервиса. Первый запуск делайте с
 `--check`: он сверит Q-номера классов с Викиданными и не даст собрать не тот
 класс. Оценки объёма в `docs/CATALOG.md` — ориентировочные.
+
+То же и с PastVu: `api.pastvu.com` из этой среды недоступен, имена полей взяты
+из документации сервиса. Разбор ответа покрыт тестами на образце, а первый
+запуск делайте с `--probe` — он печатает, что пришло на самом деле, и
+останавливается, если обязательных полей нет. Оба ограничения устроены
+одинаково: сбор либо идёт по проверенному формату, либо не идёт вовсе.

@@ -1,8 +1,17 @@
 """Каталог слоёв контекста: что собираем, откуда и на каких правах.
 
-Слои разделены на два вида:
-  * `curated` — уже собраны и лежат в data/raw;
-  * `planned`  — есть готовый запрос в queries/, собираются скриптом harvest.py.
+Слои разделены на три вида:
+  * `CURATED`  — уже собраны и лежат в data/raw или data/curated;
+  * `PLANNED`  — есть готовый запрос в queries/, собираются скриптом harvest.py;
+  * `EXTERNAL` — данные уже собраны другими проектами: свой сбор у каждого,
+    и главное препятствие не техническое, а правовое.
+
+Третий список появился поздно, и это была ошибка. Викиданные удобны — CC0,
+SPARQL, машинный ответ, — но удобство источника не то же самое, что его
+ценность: снимок улицы, полигон уезда 1897 года и карточка лагеря собраны
+людьми в других проектах и в Викиданные не попадут. Правовые условия у них
+разные и в поле `license` записаны честно: там, где нужно согласование, так
+и написано.
 
 `expected_rows` — грубая оценка порядка величины, а не обещание. Реальное
 число станет известно после первого сбора и должно быть вписано сюда.
@@ -18,6 +27,7 @@ from .adapters.battles import BATTLES                     # noqa: E402
 from .adapters.bookplaces import LITERARY, TENISHEV        # noqa: E402
 from .adapters.prokudin_gorsky import PROKUDIN             # noqa: E402
 from .adapters.state_events import STATE_EVENTS            # noqa: E402
+from .sources.pastvu import PASTVU_PHOTOS                  # noqa: E402
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -157,7 +167,67 @@ PLANNED = [
     ),
 ]
 
-ALL_LAYERS = CURATED + PLANNED
+# --- слои из внешних проектов --------------------------------------------
+# Не Викиданные: у каждого источника свой сбор и свои условия. Оценки объёма
+# взяты из описаний самих проектов и подлежат проверке при первом сборе.
+
+EXTERNAL = [
+    PASTVU_PHOTOS,
+    LayerSpec(
+        slug="photos_russiainphoto", title="История России в фотографиях", group="culture",
+        source="russiainphoto.ru (Мультимедиа Арт Музей)",
+        license="права музея и правообладателей — нужна договорённость, выгрузка «как есть» недопустима",
+        status="planned", expected_rows=200000,
+        url="https://russiainphoto.ru/",
+        description=(
+            "Архив с датировкой и указанием места по каждому снимку, включая частные "
+            "и семейные фотографии XIX — XX веков. Публичного API нет; условия "
+            "использования выясняются с музеем, а не выводятся из открытости сайта."
+        ),
+    ),
+    LayerSpec(
+        slug="gulag_camps", title="Лагеря и лагерные управления ГУЛАГа", group="hardship",
+        source="Карта ГУЛАГа (Музей истории ГУЛАГа), справочник «Мемориала» по системе ИТЛ",
+        license="условия у каждого проекта свои — проверять до использования",
+        status="planned", expected_rows=600,
+        url="https://gulagmap.ru/",
+        description=(
+            "Лагерные управления 1918–1960 годов с координатами, годами работы и "
+            "производственным профилем. Закрывает разрыв в слое репрессий: "
+            "территориальные события говорят, что человека осудили, а этот слой — куда "
+            "именно он уехал и где искать личное дело."
+        ),
+    ),
+    LayerSpec(
+        slug="admin_1897_gis", title="Губернии и уезды переписей 1897 и 1926 годов", group="admin",
+        source="heiDATA, «Transcultural Empire» (Гейдельбергский университет); "
+               "RISTAT, Russian Empire Historical GIS Maps",
+        license="научная публикация с указанной лицензией — сверить в карточке набора",
+        status="planned", expected_rows=800,
+        url="https://heidata.uni-heidelberg.de/dataset.xhtml?persistentId=doi:10.11588/DATA/10064",
+        description=(
+            "Границы губерний и уездов в виде полигонов, с итогами переписей по языку, "
+            "вероисповеданию и сословию. Единственный слой, который снимает главное "
+            "ограничение подбора: сейчас губерния сопоставляется по названию из текста, "
+            "а с полигонами определяется по координатам факта — и на нужный год."
+        ),
+    ),
+    LayerSpec(
+        slug="state_borders", title="Границы государств 1886–1960", group="admin",
+        source="CShapes 2.0, ETH Zurich",
+        license="CC BY-NC-SA 4.0 — некоммерческая: для коммерческой карты не годится",
+        status="planned", expected_rows=200,
+        url="https://icr.ethz.ch/data/cshapes/",
+        description=(
+            "Государственные границы по годам. Отвечает на вопрос, гражданином какой "
+            "страны был предок в год записи: Вильно, Кишинёв и Львов за одну жизнь "
+            "меняли государство по три раза. Ограничение лицензии — жёсткое, и "
+            "прежде чем брать, надо решить, коммерческая ли карта."
+        ),
+    ),
+]
+
+ALL_LAYERS = CURATED + PLANNED + EXTERNAL
 BY_SLUG = {spec.slug: spec for spec in ALL_LAYERS}
 
 
@@ -167,3 +237,7 @@ def layers_in_group(group: str) -> list[LayerSpec]:
 
 def planned_slugs() -> list[str]:
     return [s.slug for s in PLANNED]
+
+
+def external_slugs() -> list[str]:
+    return [s.slug for s in EXTERNAL]
