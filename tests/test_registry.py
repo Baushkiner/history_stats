@@ -13,7 +13,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from histctx.registry import ALL_LAYERS, CURATED, EXTERNAL, PLANNED, BY_SLUG  # noqa: E402
+from histctx.registry import (  # noqa: E402
+    ALL_LAYERS, BY_SLUG, CURATED, EXTERNAL, HARVESTED, PLANNED,
+)
 from histctx.schema import GROUPS  # noqa: E402
 
 RE_SLUG = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -61,6 +63,7 @@ def test_statuses_are_from_a_closed_list():
     for spec in ALL_LAYERS:
         assert spec.status in {"planned", "harvested", "curated"}, spec.slug
     assert all(s.status == "curated" for s in CURATED)
+    assert all(s.status == "harvested" for s in HARVESTED)
 
 
 def test_catalog_is_not_only_wikidata():

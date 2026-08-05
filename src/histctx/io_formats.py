@@ -9,9 +9,28 @@ from typing import Iterable, Sequence
 from .schema import COLUMNS, COLUMNS_RU, ContextRecord
 
 
-def write_geojson(records: Iterable[ContextRecord], path: Path, *, layer_title: str = "") -> int:
-    """Пишет FeatureCollection. Записи без координат пропускаются."""
+# Свойства, одинаковые у всех записей слоя: название слоя, источник, права.
+# У слоя в тысячу точек они занимают место, у слоя в семнадцать тысяч —
+# больше половины файла.
+HOISTABLE = ("layer", "layer_title", "group", "source", "license", "confidence",
+             "date_precision", "date_approx")
+
+
+def write_geojson(records: Iterable[ContextRecord], path: Path, *, layer_title: str = "",
+                  hoist_shared: bool = False) -> int:
+    """Пишет FeatureCollection. Записи без координат пропускаются.
+
+    `hoist_shared` выносит свойства, одинаковые у всех записей, на уровень
+    коллекции — в поле `layer`. Для больших слоёв это разница в разы, но
+    читателю файла нужно знать про это поле, поэтому по умолчанию выключено:
+    молча менять формат уже отданных слоёв нельзя.
+    """
     feats = [r.to_feature() for r in records if r.has_point]
+    shared = _shared_properties(feats) if hoist_shared else {}
+    for feat in feats:
+        for key in shared:
+            feat["properties"].pop(key, None)
+
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "type": "FeatureCollection",
@@ -19,9 +38,31 @@ def write_geojson(records: Iterable[ContextRecord], path: Path, *, layer_title: 
         "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3/CRS84"}},
         "features": feats,
     }
+    if shared:
+        # Читается как «свойства слоя»: то же самое, что было бы у каждой
+        # точки, вынесенное один раз.
+        payload["layer"] = shared
     with path.open("w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, separators=(",", ":"))
     return len(feats)
+
+
+def _shared_properties(feats: Sequence[dict]) -> dict:
+    """Свойства из HOISTABLE, значение которых одинаково во всех записях."""
+    if not feats:
+        return {}
+    first = feats[0]["properties"]
+    out = {}
+    for key in HOISTABLE:
+        if key not in first:
+            continue
+        value = first[key]
+        if all(f["properties"].get(key, _MISSING) == value for f in feats):
+            out[key] = value
+    return out
+
+
+_MISSING = object()
 
 
 def write_records_json(records: Iterable[ContextRecord], path: Path, *, title: str = "") -> int:

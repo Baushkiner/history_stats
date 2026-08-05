@@ -1,9 +1,10 @@
 """Каталог слоёв контекста: что собираем, откуда и на каких правах.
 
-Слои разделены на три вида:
-  * `CURATED`  — уже собраны и лежат в data/raw или data/curated;
-  * `PLANNED`  — есть готовый запрос в queries/, собираются скриптом harvest.py;
-  * `EXTERNAL` — данные уже собраны другими проектами: свой сбор у каждого,
+Слои разделены на четыре вида:
+  * `CURATED`   — ведутся вручную, лежат в data/raw или data/curated;
+  * `HARVESTED` — собраны сборщиком и лежат в data/out, пересобираются командой;
+  * `PLANNED`   — есть готовый запрос в queries/, собираются скриптом harvest.py;
+  * `EXTERNAL`  — данные уже собраны другими проектами: свой сбор у каждого,
     и главное препятствие не техническое, а правовое.
 
 Третий список появился поздно, и это была ошибка. Викиданные удобны — CC0,
@@ -27,10 +28,15 @@ from .adapters.battles import BATTLES                     # noqa: E402
 from .adapters.bookplaces import LITERARY, TENISHEV        # noqa: E402
 from .adapters.prokudin_gorsky import PROKUDIN             # noqa: E402
 from .adapters.state_events import STATE_EVENTS            # noqa: E402
+from .sources.geonames import SETTLEMENTS                  # noqa: E402
 from .sources.pastvu import PASTVU_PHOTOS                  # noqa: E402
 from .sources.weather import WEATHER_REGIONS, WEATHER_STATIONS  # noqa: E402
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
+
+# Слои, собранные сборщиком и лежащие в data/out. От CURATED отличаются
+# происхождением: их не ведут вручную, их пересобирают командой.
+HARVESTED = [SETTLEMENTS]
 
 # --- слои для сбора из Викиданных ----------------------------------------
 # Поле `query` указывает на файл в каталоге queries/.
@@ -67,14 +73,6 @@ PLANNED = [
     ),
 
     # Группа: административное деление и населённые места
-    LayerSpec(
-        slug="settlements", title="Населённые места", group="admin",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=60000,
-        description=(
-            "Города, сёла, деревни, посады, станицы, слободы. Скелет всей карты: "
-            "к населённому месту привязываются остальные слои и сами факты из метрик."
-        ),
-    ),
     LayerSpec(
         slug="admin_units", title="Губернии, уезды, волости", group="admin",
         source="Викиданные", license=WD_CC0, status="planned", expected_rows=3000,
@@ -270,7 +268,7 @@ EXTERNAL = [
     ),
 ]
 
-ALL_LAYERS = CURATED + PLANNED + EXTERNAL
+ALL_LAYERS = CURATED + HARVESTED + PLANNED + EXTERNAL
 BY_SLUG = {spec.slug: spec for spec in ALL_LAYERS}
 
 

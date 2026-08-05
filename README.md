@@ -115,7 +115,12 @@ python3 scripts/harvest.py --all --paged
 python3 scripts/harvest_pastvu.py --probe
 python3 scripts/harvest_pastvu.py --all --step 0.5
 
-# 5. Погода: ряды наблюдений -> слой аномалий (см. docs/HARVEST.md)
+# 5. Населённые места из GeoNames (сети не требует, набор идёт с пакетом)
+pip install geonamescache
+python3 scripts/harvest_geonames.py --probe
+python3 scripts/harvest_geonames.py --build
+
+# 6. Погода: ряды наблюдений -> слой аномалий (см. docs/HARVEST.md)
 python3 scripts/harvest_weather.py --probe data/raw/meteo/*.csv --map "ГОД=year,МЕС=month"
 python3 scripts/harvest_weather.py --build data/raw/meteo/*.csv --map "..." \
     --source "ВНИИГМИ-МЦД, meteo.ru" --url "http://meteo.ru/data"
@@ -137,7 +142,13 @@ python3 -m pytest tests/ -q
 | Сражения и военные события | 1850 | 57% | 66% | 32% |
 | Фотографии Прокудина-Горского | 304 | 100% | 100% | 96% |
 | Указы, реформы и потрясения | 166 | — точки нет | 100% | 100% |
-| **Итого** | **5115** | **81%** | **88%** | **75%** |
+| Населённые места (GeoNames) | 17 523 | 100% | — даты нет | — |
+| **Итого** | **22 638** | **96%** | **20%** | **17%** |
+
+Населённые места собираются отдельной командой и в `report.md` не входят:
+это скелет карты, а не датированный слой. Год основания в наборе GeoNames
+отсутствует, поэтому в подборе по времени слой участвует с пониженным весом —
+как место, а не как событие.
 
 Подробный разбор — `data/out/report.md`, пересобирается вместе с данными.
 
@@ -185,11 +196,12 @@ src/histctx/
   io_formats.py   выгрузка в GeoJSON, XLSX, JSONL
   registry.py     каталог слоёв: собранные, запросы, внешние проекты
   adapters/       исходные файлы проекта -> единая схема
-  sources/        внешние источники: wikidata.py, pastvu.py, weather.py
+  sources/        внешние источники: wikidata.py, pastvu.py, weather.py,
+                  geonames.py
 data/curated/     подборки, которые ведутся вручную (state_events.json)
 queries/          SPARQL-запросы к Викиданным
 scripts/          build_core.py, harvest.py, harvest_pastvu.py,
-                  harvest_weather.py, context.py
+                  harvest_geonames.py, harvest_weather.py, context.py
 docs/             CATALOG.md, HARVEST.md, SCHEMA.md, ENRICHMENT.md
 ```
 

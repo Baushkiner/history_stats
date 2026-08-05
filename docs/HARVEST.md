@@ -49,13 +49,24 @@ python3 scripts/harvest.py --all --paged
 python3 scripts/harvest_pastvu.py --probe
 python3 scripts/harvest_pastvu.py --all --step 0.5
 
-# 3. Погода: сначала проба ряда, потом сборка слоёв
+# 3. Населённые места: сети не требуют, набор идёт вместе с пакетом
+pip install geonamescache
+python3 scripts/harvest_geonames.py --probe
+python3 scripts/harvest_geonames.py --build
+
+# 4. Погода: сначала проба ряда, потом сборка слоёв
 python3 scripts/harvest_weather.py --probe data/raw/meteo/*.csv --map "..."
 python3 scripts/harvest_weather.py --build data/raw/meteo/*.csv --map "..." \
     --source "ВНИИГМИ-МЦД, meteo.ru" --url "http://meteo.ru/data"
 ```
 
-Общее правило у всех трёх: **первый запуск — проверочный**. `--check` сверяет
+Населённые места — единственный слой, который собирается в закрытом
+окружении: реестры пакетов (`pypi.org`, `files.pythonhosted.org`) открыты там,
+где закрыты сайты источников, а набор GeoNames приезжает внутри пакета
+`geonamescache`. Данные под CC BY 4.0 — ссылка на GeoNames проставляется в
+каждой записи.
+
+Общее правило у всех четырёх: **первый запуск — проверочный**. `--check` сверяет
 Q-номера классов с Викиданными, `--probe` печатает реальный ответ сервиса или
 реальные колонки файла. Собрать не то молча хуже, чем остановиться: ошибку
 формата в выгрузке на сотни тысяч записей потом не найти.
