@@ -28,6 +28,7 @@ from .adapters.bookplaces import LITERARY, TENISHEV        # noqa: E402
 from .adapters.prokudin_gorsky import PROKUDIN             # noqa: E402
 from .adapters.state_events import STATE_EVENTS            # noqa: E402
 from .sources.pastvu import PASTVU_PHOTOS                  # noqa: E402
+from .sources.weather import WEATHER_REGIONS, WEATHER_STATIONS  # noqa: E402
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -173,6 +174,8 @@ PLANNED = [
 
 EXTERNAL = [
     PASTVU_PHOTOS,
+    WEATHER_STATIONS,
+    WEATHER_REGIONS,
     LayerSpec(
         slug="photos_russiainphoto", title="История России в фотографиях", group="culture",
         source="russiainphoto.ru (Мультимедиа Арт Музей)",
