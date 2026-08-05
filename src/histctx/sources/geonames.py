@@ -167,3 +167,54 @@ def size_of(population: int) -> str:
         if population >= limit:
             return label
     return "село"
+
+
+# Письменности, которые для поиска по русским документам ничего не дают.
+# Иврит, армянский, грузинский и арабица оставлены намеренно: метрические
+# книги велись и на них, и написание из документа надо с чем-то сверять.
+_RE_USELESS_SCRIPT = re.compile(
+    r"[　-鿿가-힯぀-ヿ฀-๿ऀ-ॿ]"
+)
+
+
+def name_variants(cities: Iterable[dict], *, max_per_place: int = 12) -> dict:
+    """Собирает написания названий: как место называли в разных языках и эпохах.
+
+    Для генеалогии это отдельная ценность, а не украшение. Село в метрической
+    книге названо не так, как на нынешней карте: Совєташен вместо Зангакатуна,
+    Dorpat вместо Тарту, Вильна вместо Вильнюса. Поиск по одному написанию
+    такой род теряет.
+
+    Возвращает словарь по местам, а не обратный индекс: одно и то же название
+    носят десятки деревень, и обратный индекс собирается из этого одной
+    строкой на стороне карты — а обратно точность уже не вернуть.
+    """
+    out = {}
+    for city in cities:
+        gid = city.get("geonameid")
+        if gid is None:
+            continue
+        title = pick_russian_name(city) or clean_text(city.get("name"))
+        if not title:
+            continue
+        seen = {title.casefold()}
+        names = []
+        for raw in city.get("alternatenames") or []:
+            name = clean_text(raw)
+            if not name or name.casefold() in seen:
+                continue
+            if _RE_USELESS_SCRIPT.search(name):
+                continue
+            seen.add(name.casefold())
+            names.append(name)
+            if len(names) >= max_per_place:
+                break
+        if not names:
+            continue
+        out[str(gid)] = {
+            "title": title,
+            "lat": round(float(city["latitude"]), 5),
+            "lon": round(float(city["longitude"]), 5),
+            "names": names,
+        }
+    return out

@@ -23,9 +23,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+import json  # noqa: E402
+
 from histctx.io_formats import write_geojson, write_jsonl  # noqa: E402
 from histctx.sources.geonames import (  # noqa: E402
-    COUNTRIES, SETTLEMENTS, GeoNamesError, load_cities, pick_russian_name, select, to_records,
+    COUNTRIES, SETTLEMENTS, GeoNamesError, load_cities, name_variants, pick_russian_name,
+    select, to_records,
 )
 
 
@@ -64,6 +67,23 @@ def build(dataset: str, min_population: int, out_dir: Path) -> int:
     print(f"Собрано {len(records)} населённых мест, на карту пойдут {n}.")
     for size, count in sizes.most_common():
         print(f"  {size}: {count}")
+
+    # Написания названий — отдельный файл: это не слой карты, а указатель
+    # для поиска, и на карту он не идёт.
+    variants = name_variants(selected)
+    total = sum(len(v["names"]) for v in variants.values())
+    path = out_dir / "name_variants.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fh:
+        json.dump({
+            "name": "Названия населённых мест: варианты написания",
+            "source": SETTLEMENTS.source,
+            "license": SETTLEMENTS.license,
+            "places": len(variants),
+            "names": total,
+            "items": variants,
+        }, fh, ensure_ascii=False, separators=(",", ":"))
+    print(f"  name_variants.json: {total} написаний у {len(variants)} мест")
     return 0
 
 

@@ -133,3 +133,46 @@ def test_hoisting_is_off_by_default(tmp_path):
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert "layer" not in payload
     assert payload["features"][0]["properties"]["source"] == SETTLEMENTS.source
+
+
+# --- написания названий -------------------------------------------------------
+
+def test_name_variants_collect_other_spellings():
+    """Село в метрике названо иначе, чем на карте: Дерпт, Юрьев, Тарту."""
+    from histctx.sources.geonames import name_variants
+
+    out = name_variants([city(geonameid=588335, name="Tartu", alternatenames=[
+        "Dorpat", "Derpt", "Yur'yev", "Tartu", "Тарту"])])
+    item = out["588335"]
+    assert item["title"] == "Тарту"
+    assert "Dorpat" in item["names"] and "Yur'yev" in item["names"]
+    # Заголовок в списке написаний не повторяется.
+    assert "Тарту" not in item["names"]
+
+
+def test_name_variants_drop_scripts_useless_for_russian_documents():
+    from histctx.sources.geonames import name_variants
+
+    out = name_variants([city(alternatenames=["Бугуруслан", "Buguruslan", "ブグルスラン", "布古鲁斯兰"])])
+    assert out["1"]["names"] == ["Buguruslan"]
+
+
+def test_name_variants_are_capped_per_place():
+    from histctx.sources.geonames import name_variants
+
+    many = [f"Name{i}" for i in range(40)]
+    out = name_variants([city(alternatenames=["Бугуруслан", *many])], max_per_place=5)
+    assert len(out["1"]["names"]) == 5
+
+
+def test_place_without_other_spellings_is_skipped():
+    from histctx.sources.geonames import name_variants
+
+    assert name_variants([city(alternatenames=["Бугуруслан"])]) == {}
+
+
+def test_name_variants_keep_coordinates_for_lookup():
+    from histctx.sources.geonames import name_variants
+
+    item = name_variants([city()])["1"]
+    assert (item["lat"], item["lon"]) == (53.65, 52.43)
