@@ -34,6 +34,8 @@
 
 Что уже приведено к общему виду и что на очереди — `docs/CATALOG.md`.
 Как это собирать и какие домены для этого нужны — `docs/HARVEST.md`.
+Как ищутся новые источники — `docs/DISCOVERY.md`: поиск ведётся постоянно,
+каждый проверенный кандидат записывается в журнал с вердиктом.
 
 ## Что сделано
 
@@ -209,7 +211,8 @@ data/curated/     подборки, которые ведутся вручную
 queries/          SPARQL-запросы к Викиданным
 scripts/          build_core.py, harvest.py, harvest_pastvu.py,
                   harvest_geonames.py, harvest_weather.py, context.py
-docs/             CATALOG.md, HARVEST.md, SCHEMA.md, ENRICHMENT.md
+docs/             CATALOG.md, DISCOVERY.md, HARVEST.md, SCHEMA.md,
+                  ENRICHMENT.md
 ```
 
 ## Ограничение текущей сборки
