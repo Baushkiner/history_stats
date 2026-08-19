@@ -19,11 +19,11 @@
 | `www.ncei.noaa.gov` | GHCN: месячные и суточные ряды станций, в том числе российских |
 | `psl.noaa.gov` | Реанализ 20CRv3 (с 1836 года) — там, где станций нет |
 | `crudata.uea.ac.uk` | CRU TS: сеточные ряды температуры и осадков |
-| `heidata.uni-heidelberg.de`, `doi.org` | Полигоны губерний и уездов переписей 1897 и 1926 годов |
-| `ristat.org`, `datasets.iisg.amsterdam` | Тот же слой границ, альтернативный источник |
+| `heidata.uni-heidelberg.de`, `doi.org` | Полигоны губерний 1897 и 1926 годов с итогами переписей (CC BY 4.0) |
+| `datasets.iisg.amsterdam`, `ristat.org` | RISTAT: границы уездов 1897 года (CC0) и статистические таблицы ERRHS |
 | `icr.ethz.ch` | CShapes 2.0 — границы государств по годам |
-| `gulagmap.ru` | Лагерные управления 1918–1960 годов |
-| `russiainphoto.ru` | Фотоархив МАММ — **только после договорённости**, см. `docs/CATALOG.md` |
+| `gulagmap.ru` | Лагерные управления 1918–1960 годов: `/api/camps` и три справочника к нему |
+| `russiainphoto.ru` | Фотоархив МАММ — снимки только после договорённости, см. `docs/CATALOG.md` |
 
 Без части доменов работает часть сбора: Викиданные, PastVu и погода
 независимы друг от друга.
@@ -34,7 +34,8 @@
 домен в этой таблице. Строка сюда добавляется вместе с самим сборщиком — чтобы не
 выяснять задним числом, зачем окружению понадобился очередной адрес.
 Ближайшие кандидаты: `www.ncei.noaa.gov` (реконструкция засух по годичным
-кольцам, NOAA Paleoclimatology) и `ristat.org` — оба уже в таблице выше.
+кольцам, NOAA Paleoclimatology) и статистические таблицы ERRHS с
+`datasets.iisg.amsterdam` — оба домена уже в таблице выше.
 
 ## Порядок
 
@@ -59,6 +60,14 @@ python3 scripts/harvest_geonames.py --build
 python3 scripts/harvest_weather.py --probe data/raw/meteo/*.csv --map "..."
 python3 scripts/harvest_weather.py --build data/raw/meteo/*.csv --map "..." \
     --source "ВНИИГМИ-МЦД, meteo.ru" --url "http://meteo.ru/data"
+
+# 5. Лагерные управления: сначала проверка ответа API
+python3 scripts/harvest_gulag.py --check
+python3 scripts/harvest_gulag.py --build
+
+# 6. Границы и итоги переписей: heiDATA (CC BY 4.0) и RISTAT (CC0)
+python3 scripts/harvest_admin_gis.py --check
+python3 scripts/harvest_admin_gis.py --build
 ```
 
 Населённые места — единственный слой, который собирается в закрытом
@@ -67,7 +76,11 @@ python3 scripts/harvest_weather.py --build data/raw/meteo/*.csv --map "..." \
 `geonamescache`. Данные под CC BY 4.0 — ссылка на GeoNames проставляется в
 каждой записи.
 
-Общее правило у всех четырёх: **первый запуск — проверочный**. `--check` сверяет
+Границы и переписи скачиваются один раз и остаются в `data/cache/boundaries/`:
+наборы весят мегабайты и с 2015 года не менялись. Кэш в репозиторий не идёт
+(`data/cache/` в `.gitignore`), пересобрать его — тот же `--build`.
+
+Общее правило у всех шести: **первый запуск — проверочный**. `--check` сверяет
 Q-номера классов с Викиданными, `--probe` печатает реальный ответ сервиса или
 реальные колонки файла. Собрать не то молча хуже, чем остановиться: ошибку
 формата в выгрузке на сотни тысяч записей потом не найти.
@@ -137,3 +150,13 @@ python3 scripts/harvest_weather.py --probe data/raw/meteo/samara.csv \
 `registry.py` условие записано в поле `license` каждого слоя. Общее правило
 прав — условие 3 раздела «Каталог открыт»: невыясненная лицензия сбор не
 отменяет, а ограничивает его фактами и ссылкой, без выгрузки чужих файлов.
+
+Собраны два набора, и они не заменяют друг друга: heiDATA (CC BY 4.0) даёт
+99 губерний 1897 года и 67 союзных единиц 1926-го с итогами переписи, RISTAT
+(CC0) — 824 уезда и 103 губернии 1897 года без чисел. Файлы:
+`boundaries_1897`, `boundaries_1926`, `provinces_1897`, `districts_1897` —
+все в `data/out/geojson/`. Шейпфайл и GeoPackage читаются своим разбором на
+стандартной библиотеке: `src/histctx/sources/shapefile.py` и `geopackage.py`,
+чтобы не тянуть geopandas с fiona ради двух файлов.
+
+Обрезка по охвату РИ/СССР этим наборам не нужна: они и составлены по нему.
