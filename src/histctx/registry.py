@@ -172,7 +172,7 @@ PLANNED = [
     # Группа: экономика и пути сообщения
     LayerSpec(
         slug="factories", title="Заводы и фабрики", group="economy",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=3500,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=1400,
         description=(
             "Промышленные предприятия с годом основания. Объясняет, куда уходили "
             "на заработки и почему род перебрался в город."
@@ -196,7 +196,7 @@ PLANNED = [
     ),
     LayerSpec(
         slug="mines", title="Рудники, копи, промыслы", group="economy",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=1200,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=1100,
         description="Горные заводы, копи, соляные и рыбные промыслы — места отхожих заработков.",
     ),
     LayerSpec(
