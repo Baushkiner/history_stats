@@ -96,6 +96,8 @@ AWAITING_COLLECTOR = {
     # Внешние проекты: нужен разбор формата, а для части — договорённость.
     "photos_russiainphoto", "gulag_camps", "admin_1897_gis", "state_borders",
     "weather_chronicles", "drought_atlas", "harvest_prices",
+    # Найдено проходом по каталогу 23.08.2026: разведка, сборщика ещё нет.
+    "census_1897_uezd", "openhistoricalmap", "famine_1891",
 }
 
 
