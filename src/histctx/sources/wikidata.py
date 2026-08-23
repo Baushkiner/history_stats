@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import http.client
 import io
 import json
 import re
@@ -36,6 +37,12 @@ ENDPOINT = "https://query.wikidata.org/sparql"
 # несколько, а адрес, с которого мы приходим, один.
 MIN_INTERVAL_SEC = 5.0
 RATE_LIMIT_PAUSE_SEC = 90.0
+
+# Сколько раз повторять запрос, упёршийся в лимит времени (504). Ровно
+# два: один раз сервис бывает занят чужой нагрузкой, но дальше повтор
+# бесполезен — тяжёлый запрос лёгким не станет, а адрес у всех слоёв
+# общий, и пятикратный повтор отбирает попытки у соседних сборов.
+TIMEOUT_ATTEMPTS = 2
 
 _last_request_at = 0.0
 
@@ -141,11 +148,29 @@ class SparqlClient:
                     # Обычный отступ здесь не помогает: сервис переводит адрес
                     # на один запрос в минуту и держит это состояние.
                     delay = max(delay, RATE_LIMIT_PAUSE_SEC)
+                if exc.code == 504 and attempt + 1 >= TIMEOUT_ATTEMPTS:
+                    # 504 — запрос не уложился в лимит времени. Повтор того же
+                    # запроса не лечится ожиданием: тяжёлым он и останется.
+                    # Пятикратный повтор здесь только бьёт по адресу, с которого
+                    # работают и остальные слои. Запрос надо дробить, о чём
+                    # и говорит сообщение.
+                    raise SparqlError(
+                        "запрос не уложился в лимит времени сервиса (HTTP 504). "
+                        "Повтор не поможет — запрос надо дробить: сузить класс, "
+                        "добавить @filter или уменьшить чанк"
+                    ) from exc
             except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
                 last = exc
-            except json.JSONDecodeError as exc:
+            except (json.JSONDecodeError, gzip.BadGzipFile, EOFError,
+                    http.client.IncompleteRead) as exc:
                 # Ответ оборвался на середине — сервис не уложился в свой лимит
                 # времени. Повтор иногда проходит, но чаще запрос надо дробить.
+                #
+                # Обрыв выглядит по-разному в зависимости от того, докуда дошёл
+                # ответ. Без сжатия это неполный JSON, а со сжатием — оборванный
+                # поток gzip, и он приходит как BadGzipFile, EOFError или
+                # IncompleteRead. Ни одно из трёх не наследует URLError, так что
+                # без этой строки обрыв на одной стране ронял весь сбор целиком.
                 last = exc
             except UnicodeEncodeError as exc:
                 # Заголовки HTTP кодируются latin-1: повтор ничего не изменит.
@@ -216,8 +241,18 @@ COUNTRIES: tuple[tuple[str, str], ...] = (
 # на свой страх: запрос растёт линейно, а лимит времени не двигается.
 CHUNK_SIZE = 1000
 
-_DATES_OBJECT = """  OPTIONAL { ?item wdt:P571 ?start . }
-  OPTIONAL { ?item wdt:P576 ?end . }"""
+# Дата основания (P571) — не единственная, которой датируют объект. У станций
+# она почти не заполнена: на выборке в 2003 объекта по России P571 нашлась
+# у 124 (6%), а дата официального открытия P1619 — у 1291 (64%); вместе 65%.
+# Поэтому P571 остаётся главной, а P1619 подставляется там, где основания нет.
+# Слоям, где P1619 пуста, добавка ничего не меняет.
+# Условие про isBlank — не украшение: у P571 бывает значение «известно, что
+# есть, но какое — нет». В ответе оно приходит пустым узлом, COALESCE счёл бы
+# его настоящей датой и заслонил бы им дату открытия.
+_DATES_OBJECT = """  OPTIONAL { ?item wdt:P571 ?founded . FILTER(!isBlank(?founded)) }
+  OPTIONAL { ?item wdt:P1619 ?opened . }
+  OPTIONAL { ?item wdt:P576 ?end . }
+  BIND(COALESCE(?founded, ?opened) AS ?start)"""
 
 # У события даты лежат в P580/P582 или в P585 — см. пояснение в rows_to_records.
 _DATES_EVENT = """  OPTIONAL { ?item wdt:P580 ?startTime . }
@@ -385,7 +420,13 @@ def rows_to_records(rows: list[dict], spec: LayerSpec, *,
             else:
                 # Объект основан и не упразднён — считаем его существующим до
                 # конца интересующего нас периода, иначе он выпадет из подбора.
-                year_to = OPEN_END_YEAR
+                # Но тянуть конец назад нельзя: основанный позже 1960 года
+                # получил бы вывернутый наизнанку срок — «2018–1960», — и
+                # `overlaps_years` не нашёл бы объект даже в его собственном
+                # году, хотя в выгрузку он всё равно попал бы. Такие объекты есть:
+                # станции нашего века, газовые месторождения, заводы
+                # шестидесятых приходят вместе с прочими.
+                year_to = max(year_from, OPEN_END_YEAR)
                 precision = "part"
         if year_to and not year_from:
             year_from = year_to if is_event else min(year_to, 1800)

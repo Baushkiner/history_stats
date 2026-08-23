@@ -92,17 +92,22 @@ def test_catalog_is_not_only_wikidata():
 # дать способа его собрать — это обещание, а не работа.
 AWAITING_COLLECTOR = {
     # Викиданные: слой описан, запрос ещё не написан.
-    "renamed_places", "famines", "repressions", "fairs", "estates",
+    "famines", "estates",
     # Внешние проекты: нужен разбор формата, а для части — договорённость.
-    "photos_russiainphoto", "gulag_camps", "admin_1897_gis", "state_borders",
-    "weather_chronicles", "drought_atlas", "harvest_prices",
+    "photos_russiainphoto", "gulag_camps", "admin_1897_gis",
+    "weather_chronicles",
+    # Найдено проходом по каталогу 23.08.2026: разведка, сборщика ещё нет.
+    "census_1897_uezd", "openhistoricalmap", "famine_1891",
 }
 
 
 def test_planned_layers_are_covered_by_queries_or_a_collector():
     """У запланированного слоя есть либо запрос, либо сборщик, либо отметка."""
     queries = {p.stem for p in (ROOT / "queries").glob("*.rq")}
-    collectors = {"photos_pastvu", "weather_stations", "weather_regions"}
+    collectors = {"photos_pastvu", "weather_stations", "weather_regions",
+                  # Викиданные, но не через queries/: годы переименований
+                  # лежат в квалификаторах, а движок умеет только `wdt:`.
+                  "renamed_places"}
     known = queries | collectors | AWAITING_COLLECTOR
     for spec in PLANNED + EXTERNAL:
         assert spec.slug in known, (
