@@ -378,3 +378,44 @@ def test_collect_layer_chunks_long_lists():
     collect_layer(client, ["Q16970"], SPEC, chunk_size=1000)
     details = client.asked[len(COUNTRIES):]
     assert len(details) == 3, "2500 объектов — три чанка по тысяче"
+
+
+def test_truncated_gzip_is_retried_not_fatal():
+    """Регрессия: обрыв сжатого ответа ронял сбор целиком.
+
+    Сервис обрывает ответ, не уложившись в свой лимит времени. Без сжатия
+    это неполный JSON, со сжатием — оборванный поток gzip, а он приходит
+    как BadGzipFile, EOFError или IncompleteRead. Ни одно из трёх не
+    наследует URLError, поэтому раньше такая ошибка проходила мимо повторов
+    и убивала обход всех семнадцати стран из-за одной.
+    """
+    import gzip as _gzip
+    import http.client as _http
+    import urllib.error
+
+    for exc in (_gzip.BadGzipFile("оборван"), EOFError(),
+                _http.IncompleteRead(b"", 10)):
+        assert not isinstance(exc, urllib.error.URLError), type(exc).__name__
+
+    client = SparqlClient(cache_dir=None, max_retries=2, timeout=1)
+    calls = []
+
+    def boom(sparql):
+        calls.append(sparql)
+        raise _gzip.BadGzipFile("ответ оборван на середине")
+
+    client._request = boom
+    with pytest.raises(_gzip.BadGzipFile):
+        client.query("SELECT ?x WHERE { ?x ?y ?z }", use_cache=False)
+    assert len(calls) == 1, "query() ошибку не глотает — её ловит _request"
+
+
+def test_probe_limits_an_unconverted_query():
+    """Проба слоя на @scope box не должна повторять падающий запрос целиком."""
+    mod = _harvest_module()
+    meta = {"scope": "box", "kind": "object", "qids": [("Q1", "класс")],
+            "filters": [], "sparql": "SELECT ?item WHERE { ?item ?p ?o }",
+            "layer": "проба", "title": "Проба"}
+    client = _FakeClient([[]])
+    mod.collect(client, meta, SPEC, paged=False, page_size=5000, max_objects=25)
+    assert "LIMIT 25" in client.asked[0]

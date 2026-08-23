@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import http.client
 import io
 import json
 import re
@@ -143,9 +144,16 @@ class SparqlClient:
                     delay = max(delay, RATE_LIMIT_PAUSE_SEC)
             except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
                 last = exc
-            except json.JSONDecodeError as exc:
+            except (json.JSONDecodeError, gzip.BadGzipFile, EOFError,
+                    http.client.IncompleteRead) as exc:
                 # Ответ оборвался на середине — сервис не уложился в свой лимит
                 # времени. Повтор иногда проходит, но чаще запрос надо дробить.
+                #
+                # Обрыв выглядит по-разному в зависимости от того, докуда дошёл
+                # ответ. Без сжатия это неполный JSON, а со сжатием — оборванный
+                # поток gzip, и он приходит как BadGzipFile, EOFError или
+                # IncompleteRead. Ни одно из трёх не наследует URLError, так что
+                # без этой строки обрыв на одной стране ронял весь сбор целиком.
                 last = exc
             except UnicodeEncodeError as exc:
                 # Заголовки HTTP кодируются latin-1: повтор ничего не изменит.

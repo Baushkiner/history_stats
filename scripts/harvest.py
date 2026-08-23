@@ -128,7 +128,13 @@ def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
             extra=meta["filters"], max_objects=max_objects, progress=print,
         )
 
-    if paged:
+    if max_objects is not None:
+        # Проба на непереведённом слое. Тело такого файла отбирает объекты
+        # географической рамкой, и целиком оно не выполняется — именно из-за
+        # этого слои и переводятся на @scope country. Без LIMIT проба тут не
+        # экономит ничего: она повторяет тот самый запрос, который падает.
+        rows = client.query(f"{meta['sparql']}\nLIMIT {max_objects}")
+    elif paged:
         rows = list(client.query_paged(meta["sparql"], page_size=page_size))
     else:
         rows = client.query(meta["sparql"])
