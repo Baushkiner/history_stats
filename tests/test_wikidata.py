@@ -14,8 +14,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from histctx.schema import LayerSpec  # noqa: E402
 from histctx.sources.wikidata import (  # noqa: E402
-    COUNTRIES, USER_AGENT, SparqlClient, SparqlError, _point, _qid, _year,
-    collect_layer, dedupe, details_query, ids_query, rows_to_records,
+    COUNTRIES, USER_AGENT, WORLD, SparqlClient, SparqlError, _point, _qid, _year,
+    collect_layer, dedupe, details_query, ids_query, rows_to_records, stage1_plan,
 )
 
 SPEC = LayerSpec(slug="churches", title="Храмы", group="faith", source="Викиданные", license="CC0")
@@ -194,6 +194,43 @@ def test_qid_label_comparison():
     assert not mod._same("мечеть", "синагога")
 
 
+def test_request_retries_a_truncated_response(monkeypatch):
+    """Оборванный на полуслове ответ — сетевая беда, а не отказ разбора.
+
+    Живой случай: на второй ступени сбора соединение закрылось, не дописав
+    последний кусок, и `IncompleteRead` уронил всю пробу. До `json.loads`
+    дело не доходит, поэтому перехват ошибок разбора такое не ловит.
+    """
+    import http.client
+    import io
+
+    from histctx.sources import wikidata as wd
+
+    class _Resp(io.BytesIO):
+        headers: dict = {}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    calls = []
+
+    def fake_urlopen(req, timeout=None):
+        calls.append(req)
+        if len(calls) == 1:
+            raise http.client.IncompleteRead(b"{\"results\":")
+        return _Resp(b'{"results": {"bindings": [{"item": {"value": "Q1"}}]}}')
+
+    monkeypatch.setattr(wd.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(wd.time, "sleep", lambda _: None)
+
+    rows = SparqlClient(cache_dir=None).query("SELECT ?item WHERE { ?item ?p ?o }")
+    assert len(calls) == 2, "первый ответ оборвался — должен быть повтор"
+    assert rows == [{"item": {"value": "Q1"}}]
+
+
 def test_paged_query_rejects_template_with_limit():
     client = SparqlClient(cache_dir=None)
     with pytest.raises(ValueError):
@@ -244,6 +281,98 @@ def test_ids_query_takes_several_classes_and_extra_filters():
     q = ids_query(["Q32815", "Q34627"], "Q212", ["FILTER(YEAR(?start) <= 1960)"])
     assert "wd:Q32815 wd:Q34627" in q
     assert "FILTER(YEAR(?start) <= 1960)" in q
+
+
+def test_ids_query_without_country_drops_the_p17_condition():
+    """`@scope class`: отбор ведёт класс, условие по государству лишнее.
+
+    У исторической единицы деления P17 указывает на историческое государство
+    (Российская империя, РСФСР, СССР), а у части объектов не указан вовсе, —
+    отбор по нынешним государствам-преемникам такой слой не соберёт.
+    """
+    q = ids_query(["Q86622"], None)
+    assert "wdt:P17" not in q
+    assert "wdt:P31/wdt:P279* ?cls" in q
+    # Условие класса и координаты должны остаться одним связным выражением.
+    assert "?cls ;\n        wdt:P625 ?coord ." in q
+
+
+def test_stage1_without_country_asks_one_class_at_a_time():
+    """Без опоры на P17 планировщик не тянет несколько классов сразу.
+
+    Замер на живом сервисе: девять классов одним запросом — HTTP 504 через
+    65 секунд, тот же отбор по одному классу — 0.6 секунды.
+    """
+    plan = stage1_plan(["Q86622", "Q687121"], WORLD)
+    assert [step[0] for step in plan] == [["Q86622"], ["Q687121"]]
+    assert all(step[1] is None for step in plan)
+    # А с отбором по государству классы по-прежнему спрашиваются разом.
+    by_country = stage1_plan(["Q86622", "Q687121"], COUNTRIES)
+    assert len(by_country) == len(COUNTRIES)
+    assert by_country[0][0] == ["Q86622", "Q687121"]
+
+
+def test_collect_layer_over_world_walks_classes_then_asks_details():
+    client = _FakeClient(
+        [[_id_row("Q1")], [_id_row("Q2")],
+         [_row(item="http://www.wikidata.org/entity/Q1", itemLabel="Клинский уезд",
+               coord="Point(36.7 56.3)", start="1781-01-01T00:00:00Z",
+               end="1929-01-01T00:00:00Z"),
+          _row(item="http://www.wikidata.org/entity/Q2", itemLabel="Круговская волость",
+               coord="Point(36.9 56.1)")]]
+    )
+    recs = collect_layer(client, ["Q1364324", "Q687121"], SPEC, countries=WORLD)
+    assert len(client.asked) == 3, "по запросу на класс плюс один на подробности"
+    assert all("wdt:P17" not in q for q in client.asked[:2])
+    assert ("Клинский уезд", 1781, 1929) in [(r.title, r.year_from, r.year_to) for r in recs]
+    assert "wd:Q1 wd:Q2" in client.asked[-1], "подробности спрашиваются одним чанком"
+
+
+def test_admin_units_query_is_narrowed_to_historical_classes():
+    """Слой деления не должен набрать нынешние муниципалитеты.
+
+    Прежний вариант объявлял один общий класс Q56061 («административно-
+    территориальная единица»), под который попадает и нынешнее сельское
+    поселение, и требовал известной даты учреждения — а её нет у 549 из 655
+    волостей Российской империи.
+    """
+    mod = _harvest_module()
+    meta = mod.parse_query(ROOT / "queries" / "admin_units.rq")
+    qids = {qid for qid, _ in meta["qids"]}
+    assert meta["scope"] == "class"
+    assert "Q56061" not in qids, "общий класс заменён списком узких"
+    assert {"Q86622", "Q1364324", "Q687121"} <= qids, "губерния, уезд, волость"
+    assert mod.layer_countries(meta) == WORLD
+    # Отсекается не «без даты учреждения», а «все даты учреждения позже 1960».
+    filters = " ".join(meta["filters"])
+    assert "<= 1960" in filters and "NOT EXISTS" in filters
+
+
+def test_admin_units_body_repeats_the_declared_filter():
+    """Тело файла повторяет директиву @filter — копиям положено сходиться.
+
+    Сбором тело не пользуется (`@scope class`), поэтому разойтись они могут
+    незаметно: правку внесли в одну копию, а вторая осталась прежней.
+    """
+    mod = _harvest_module()
+    meta = mod.parse_query(ROOT / "queries" / "admin_units.rq")
+    assert meta["filters"], "условие объявлено директивами @filter"
+    for line in meta["filters"]:
+        assert line in meta["sparql"], line
+
+
+def test_unknown_scope_is_refused(tmp_path):
+    """Опечатка в @scope иначе тихо откатывает слой к телу файла.
+
+    А тело у переведённых слоёв оставлено ручным вариантом на малой рамке:
+    вместо ошибки получился бы правдоподобный, но неверный сбор.
+    """
+    mod = _harvest_module()
+    broken = tmp_path / "typo.rq"
+    broken.write_text("# @layer typo\n# @scope clas\n# @qid Q1 нечто\n"
+                      "SELECT ?item WHERE { ?item ?p ?o }\n", encoding="utf-8")
+    with pytest.raises(ValueError):
+        mod.parse_query(broken)
 
 
 def test_details_query_asks_for_everything_rows_to_records_reads():

@@ -26,10 +26,18 @@ from histctx.io_formats import write_geojson, write_jsonl, write_xlsx  # noqa: E
 from histctx.registry import BY_SLUG  # noqa: E402
 from histctx.schema import LayerSpec  # noqa: E402
 from histctx.sources.wikidata import (  # noqa: E402
-    COUNTRIES, SparqlClient, SparqlError, collect_layer, rows_to_records, verify_qids,
+    COUNTRIES, WORLD, SparqlClient, SparqlError, collect_layer, rows_to_records,
+    verify_qids,
 )
 
 QUERY_DIR = ROOT / "queries"
+
+# Способы сбора, идущие в две ступени: запрос строит движок, тело файла не
+# используется. Различаются только первой ступенью — см. `layer_countries`.
+TWO_STAGE = ("country", "class")
+
+# Все допустимые значения @scope. Список закрытый: см. проверку в parse_query.
+SCOPES = TWO_STAGE + ("box",)
 
 # Сколько объектов берёт проба. Сервис ограничивает частоту обращений, а
 # полная проба крупного слоя — это двенадцать чанков подряд, то есть цена
@@ -45,14 +53,17 @@ def parse_query(path: Path) -> dict:
       @layer   машинный код слоя (по умолчанию — имя файла);
       @title   название слоя;
       @qid     Q-номер класса и его русское название, можно повторять.
-               Для `@scope country` эти же классы и собираются;
+               При `@scope country` и `@scope class` эти же классы
+               и собираются;
       @kind    `event` — слой событий, даты берутся из P580/P582/P585;
       @scope   `country` — сбор в две ступени по государствам-преемникам,
                запрос строится движком, тело файла не используется;
+               `class` — те же две ступени, но первая идёт без разделения
+               по государствам: для узких классов отбор ведёт сам класс;
                `box` (по умолчанию) — старый способ, тело файла выполняется
                как есть;
       @filter  дополнительная строка условия для первой ступени,
-               можно повторять. Только при `@scope country`.
+               можно повторять. Только при `@scope country` и `@scope class`.
     """
     meta: dict = {"qids": [], "filters": [], "path": path}
     body: list[str] = []
@@ -74,8 +85,15 @@ def parse_query(path: Path) -> dict:
     meta.setdefault("title", path.stem)
     # @kind event — слой событий: открытая дата не дотягивается до 1960 года.
     meta.setdefault("kind", "object")
-    # @scope country — сбор в две ступени; см. пояснение в sources/wikidata.py.
+    # @scope country и class — сбор в две ступени; см. sources/wikidata.py.
     meta.setdefault("scope", "box")
+    if meta["scope"] not in SCOPES:
+        # Опечатка в директиве иначе тихо откатывает слой к телу файла, а тело
+        # у переведённых слоёв оставлено ручным вариантом на малой рамке —
+        # получился бы правдоподобный, но неверный сбор вместо ошибки.
+        raise ValueError(
+            f"{path.name}: неизвестный @scope «{meta['scope']}», "
+            f"допустимы {', '.join(SCOPES)}")
     return meta
 
 
@@ -111,20 +129,31 @@ def check_queries(client: SparqlClient, metas: list[dict]) -> bool:
     return ok
 
 
+def layer_countries(meta: dict, countries: tuple = COUNTRIES) -> tuple:
+    """По каким государствам идёт первая ступень.
+
+    При `@scope class` — ни по каким: условие по P17 из запроса выпадает.
+    Это нужно слоям, где отбор по нынешнему государству мимо цели: у
+    исторической единицы деления P17 указывает на Российскую империю или
+    СССР, а то и вовсе не указан.
+    """
+    return WORLD if meta["scope"] == "class" else countries
+
+
 def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
             paged: bool, page_size: int,
             countries: tuple = COUNTRIES,
             max_objects: int = None) -> list:
     """Собирает записи слоя — тем способом, который объявлен в `@scope`."""
     classes = [qid for qid, _ in meta["qids"]]
-    if meta["scope"] == "country":
+    if meta["scope"] in TWO_STAGE:
         if not classes:
             raise SparqlError(
-                f"{meta['layer']}: при @scope country нужен хотя бы один @qid — "
-                "именно эти классы и собираются")
+                f"{meta['layer']}: при @scope {meta['scope']} нужен хотя бы один "
+                "@qid — именно эти классы и собираются")
         return collect_layer(
             client, classes, spec,
-            kind=meta["kind"], countries=countries,
+            kind=meta["kind"], countries=layer_countries(meta, countries),
             extra=meta["filters"], max_objects=max_objects, progress=print,
         )
 
@@ -141,6 +170,11 @@ def probe(client: SparqlClient, meta: dict, spec: LayerSpec) -> int:
 
     Нужна до полного сбора. Запрос, который не выполняется или отдаёт пусто,
     должен быть виден сразу, а не через сорок минут обхода семнадцати стран.
+
+    При `@scope class` сузить пробу нечем: государств в обходе нет, а классы
+    объявлены все и каждый нужен. Первая ступень идёт целиком — зато она там
+    из коротких запросов (доли секунды на класс), и вторая по-прежнему
+    ограничена `PROBE_OBJECTS`.
     """
     print(f"Проба слоя «{meta['title']}» ({meta['layer']}), способ: {meta['scope']}")
     records = collect(client, meta, spec, paged=False, page_size=5000,
@@ -185,7 +219,8 @@ def main() -> int:
     ap.add_argument("--all", action="store_true", help="собрать все слои из queries/")
     ap.add_argument("--check", action="store_true", help="только сверить Q-номера и выйти")
     ap.add_argument("--probe", action="store_true",
-                    help="живая проба по одному государству, без записи файлов")
+                    help="живая проба по одному государству (при @scope class — "
+                         "по всем классам), без записи файлов")
     ap.add_argument("--paged", action="store_true", help="постраничный сбор для больших слоёв")
     ap.add_argument("--page-size", type=int, default=5000)
     ap.add_argument("--out", type=Path, default=ROOT / "data" / "out")

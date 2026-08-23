@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import http.client
 import io
 import json
 import re
@@ -143,6 +144,12 @@ class SparqlClient:
                     delay = max(delay, RATE_LIMIT_PAUSE_SEC)
             except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
                 last = exc
+            except http.client.HTTPException as exc:
+                # Ответ оборвался на полуслове: сервис закрыл соединение,
+                # не дописав последний кусок (`IncompleteRead`). До разбора
+                # дело не доходит, поэтому JSONDecodeError ниже такое не
+                # ловит. Ошибка сетевая и временная — повтор её лечит.
+                last = exc
             except json.JSONDecodeError as exc:
                 # Ответ оборвался на середине — сервис не уложился в свой лимит
                 # времени. Повтор иногда проходит, но чаще запрос надо дробить.
@@ -203,7 +210,7 @@ def verify_qids(client: SparqlClient, qids: list[str]) -> dict[str, Optional[str
 # отбор идёт по семнадцати государствам-преемникам, а рамка остаётся вторым
 # ситом: `rows_to_records` всё равно проверяет координату через `in_bbox`.
 
-COUNTRIES: tuple[tuple[str, str], ...] = (
+COUNTRIES: tuple[tuple[Optional[str], str], ...] = (
     ("Q159", "Россия"), ("Q212", "Украина"), ("Q184", "Беларусь"),
     ("Q232", "Казахстан"), ("Q265", "Узбекистан"), ("Q874", "Туркменистан"),
     ("Q863", "Таджикистан"), ("Q813", "Киргизия"), ("Q230", "Грузия"),
@@ -211,6 +218,15 @@ COUNTRIES: tuple[tuple[str, str], ...] = (
     ("Q37", "Литва"), ("Q211", "Латвия"), ("Q191", "Эстония"),
     ("Q36", "Польша"), ("Q33", "Финляндия"),
 )
+
+# Обход без разделения по государствам: одна «страна» со значением None, при
+# котором из первой ступени выпадает условие по P17, а сама ступень идёт по
+# одному классу за запрос (см. `stage1_plan`). Нужен там, где отбор по
+# нынешнему государству мимо цели, — у исторической единицы деления P17
+# указывает на историческое государство (Российская империя, РСФСР, СССР),
+# а не на нынешнюю Россию, и часто не указан вовсе. Годится только для
+# узких классов: без P17 первую ступень сдерживает один класс.
+WORLD: tuple[tuple[Optional[str], str], ...] = ((None, "класс"),)
 
 # Тысяча Q-номеров в VALUES — примерно восемь секунд на ответ. Больше берём
 # на свой страх: запрос растёт линейно, а лимит времени не двигается.
@@ -227,24 +243,47 @@ _DATES_EVENT = """  OPTIONAL { ?item wdt:P580 ?startTime . }
   BIND(COALESCE(?endTime, ?pointInTime) AS ?end)"""
 
 
-def ids_query(classes: list[str], country: str,
+def ids_query(classes: list[str], country: Optional[str],
               extra: Optional[list[str]] = None) -> str:
     """Ступень 1: Q-номера объектов класса с координатами в одном государстве.
 
+    `country` = None — без условия по P17, разом по всему миру (см. `WORLD`).
     `extra` — дополнительные строки условия из директив `@filter` в `.rq`:
     ими слой сужается там, где одного класса мало.
     """
     values = " ".join(f"wd:{c}" for c in classes)
     tail = "".join(f"  {line}\n" for line in (extra or []))
+    where = f"        wdt:P17 wd:{country} ;\n" if country else ""
     return (
         "SELECT ?item ?coord WHERE {\n"
         f"  VALUES ?cls {{ {values} }}\n"
         "  ?item wdt:P31/wdt:P279* ?cls ;\n"
-        f"        wdt:P17 wd:{country} ;\n"
+        f"{where}"
         "        wdt:P625 ?coord .\n"
         f"{tail}"
         "}"
     )
+
+
+def stage1_plan(classes: list[str],
+                countries: tuple[tuple[Optional[str], str], ...],
+                ) -> list[tuple[list[str], Optional[str], str]]:
+    """Из чего складывается первая ступень: что спрашивать и одним ли запросом.
+
+    При обходе по государствам все классы спрашиваются разом: опорой для
+    планировщика служит условие по P17. Без него (`WORLD`) опоры нет, и
+    несколько классов в одном `VALUES` кладут запрос в лимит времени.
+    Проверено живьём на слое `admin_units`: девять классов сразу — HTTP 504
+    через 65 секунд, тот же отбор по одному классу — 0.6 секунды на класс.
+    Поэтому без P17 первая ступень идёт по одному классу за запрос.
+    """
+    plan: list[tuple[list[str], Optional[str], str]] = []
+    for country, name in countries:
+        if country is None:
+            plan.extend(([cls], None, f"{name} {cls}") for cls in classes)
+        else:
+            plan.append((classes, country, name))
+    return plan
 
 
 def details_query(qids: list[str], kind: str = "object") -> str:
@@ -296,13 +335,16 @@ def dedupe(records: list[ContextRecord]) -> list[ContextRecord]:
 
 def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
                   kind: str = "object",
-                  countries: tuple[tuple[str, str], ...] = COUNTRIES,
+                  countries: tuple[tuple[Optional[str], str], ...] = COUNTRIES,
                   chunk_size: int = CHUNK_SIZE,
                   require_bbox: bool = True,
                   extra: Optional[list[str]] = None,
                   max_objects: Optional[int] = None,
                   progress: Optional[Callable[[str], None]] = None) -> list[ContextRecord]:
     """Собирает слой в две ступени по всем государствам-преемникам.
+
+    `countries=WORLD` — обход без разделения по государствам, одной ступенью
+    по классу.
 
     Ошибка на одном государстве или на одном чанке не отменяет сбор: она
     печатается и работа идёт дальше. Потерять область хуже, чем потерять всё,
@@ -312,9 +354,9 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
 
     qids: list[str] = []
     seen: set[str] = set()
-    for country, name in countries:
+    for step_classes, country, name in stage1_plan(classes, countries):
         try:
-            rows = client.query(ids_query(classes, country, extra))
+            rows = client.query(ids_query(step_classes, country, extra))
         except SparqlError as exc:
             say(f"    {name}: ОШИБКА — {exc}")
             continue
@@ -327,6 +369,11 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
                 fresh += 1
         if rows:
             say(f"    {name}: {len(rows)} с координатой, новых {fresh}")
+        elif country is None:
+            # Пустая страна — обычное дело и молчания стоит. Пустой класс —
+            # нет: он объявлен в .rq директивой @qid, и если он не даёт
+            # ничего, это надо увидеть, а не пропустить глазами.
+            say(f"    {name}: ничего не нашлось")
 
     say(f"  всего объектов: {len(qids)}")
     if max_objects is not None and len(qids) > max_objects:
