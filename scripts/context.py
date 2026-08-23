@@ -32,8 +32,13 @@ def load_records(out_dir: Path) -> list[ContextRecord]:
     records: list[ContextRecord] = []
     for path in sorted((out_dir / "geojson").glob("*.geojson")):
         payload = json.loads(path.read_text(encoding="utf-8"))
+        # Свойства, одинаковые у всех точек слоя (название, источник, права),
+        # у больших слоёв вынесены на уровень коллекции — см. `hoist_shared`
+        # в io_formats. Без этой подстановки такой слой не читается вовсе:
+        # у записи не окажется даже поля `layer`.
+        shared = payload.get("layer") or {}
         for feat in payload.get("features", []):
-            props = dict(feat.get("properties", {}))
+            props = {**shared, **feat.get("properties", {})}
             props.pop("extra", None)
             lon, lat = feat["geometry"]["coordinates"]
             props["lat"], props["lon"] = lat, lon

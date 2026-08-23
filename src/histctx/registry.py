@@ -36,7 +36,9 @@ CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
 # Слои, собранные сборщиком и лежащие в data/out. От CURATED отличаются
 # происхождением: их не ведут вручную, их пересобирают командой.
-HARVESTED = [SETTLEMENTS]
+# PastVu пришёл сюда из EXTERNAL: разбор ответа сверен с живым API, сборщик
+# и обход написаны — источник остаётся внешним, но сбор у нас свой.
+HARVESTED = [SETTLEMENTS, PASTVU_PHOTOS]
 
 # --- слои для сбора из Викиданных ----------------------------------------
 # Поле `query` указывает на файл в каталоге queries/.
@@ -171,7 +173,6 @@ PLANNED = [
 # взяты из описаний самих проектов и подлежат проверке при первом сборе.
 
 EXTERNAL = [
-    PASTVU_PHOTOS,
     WEATHER_STATIONS,
     WEATHER_REGIONS,
     LayerSpec(

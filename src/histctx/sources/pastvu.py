@@ -13,12 +13,23 @@
   и ссылки на страницу снимка; копировать сами файлы — только после выяснения
   условий. Поэтому `image_url` здесь не заполняется: подставить прямую ссылку
   на файл значило бы предложить пользователю то, на что у проекта нет прав.
-* **Ответ API не проверен на живом сервисе.** Среда, в которой писался этот
-  модуль, не имеет доступа к api.pastvu.com. Имена полей взяты из
-  документации (docs.pastvu.com/dev/api), а не из ответа. Поэтому первым
-  делом выполняется `scripts/harvest_pastvu.py --probe`: он показывает, что
-  реально пришло, и падает с понятным сообщением, если полей нет. Молча
-  собрать пустоту хуже, чем остановиться.
+* **Ответ API сверен с живым сервисом 23 августа 2026 года.** До этого имена
+  полей были взяты из документации (docs.pastvu.com/dev/api), и одно
+  расхождение нашлось сразу же — порядок осей в `bounds`, см. `bounds_param`.
+  Снимок в ответе `photo.getByBounds` выглядит так:
+
+      {"cid": 14597, "geo": [55.765406, 37.600608], "dir": "e",
+       "file": "0/3/f/03f453e59a476a79f511764217a6efde.jpg",
+       "title": "Церковь Рождества Христова в Палашах",
+       "year": 1881, "year2": 1881}
+
+  Поля `cid`, `geo`, `file`, `title`, `year`, `year2` пришли у всех снимков
+  двух выборок (22 936 и 112 130 записей), `dir` и служебное `__v` — не у
+  всех. Проверка `check_photo_fields` держит именно это: если сервис
+  переименует поле, сбор остановится, а не выдаст пустой слой.
+* **Проба перед сбором остаётся обязательной.** `scripts/harvest_pastvu.py
+  --probe` печатает, что реально пришло сегодня. Молча собрать пустоту хуже,
+  чем остановиться.
 """
 
 from __future__ import annotations
@@ -45,8 +56,19 @@ USER_AGENT = (
 # Нижняя граница датировок в самом PastVu и верхняя граница нашего периода.
 YEAR_MIN, YEAR_MAX = 1826, 1960
 
-# Зум, на котором сервис отдаёт отдельные снимки, а не кластеры.
+# Зум, на котором сервис отдаёт отдельные снимки, а не кластеры. Проверено:
+# на 16 и ниже в ответе появляются кластеры, на 17 и 18 — только снимки.
 ZOOM_PHOTOS = 17
+
+# Зум для счёта без выгрузки: на нём кластеры крупные, и вся страна
+# пересчитывается парой десятков запросов вместо тысяч.
+ZOOM_CLUSTERS = 6
+
+# Сторона кластерной клетки в градусах на данном зуме. Замерено: на зуме 12
+# рамка в градус дала 555 кластеров (сторона около 0,042°), на зуме 6 вся
+# страна — около 770. Отсюда 172/2^z. Точность здесь не нужна: число служит
+# одному — выбрать зум, на котором кластеры заметно мельче считаемой рамки.
+CLUSTER_DEG_AT_Z0 = 172.0
 
 PASTVU_PHOTOS = LayerSpec(
     slug="photos_pastvu",
@@ -63,13 +85,27 @@ PASTVU_PHOTOS = LayerSpec(
         "улица, храм или вокзал, которые предок видел в год записи о венчании."
     ),
     url="https://pastvu.com/",
-    status="planned",
-    expected_rows=200000,
+    status="harvested",
+    # Не догадка: 23 августа 2026 года счётчики кластеров по всей рамке РИ/СССР
+    # дали 686 123 снимка с датировкой до 1960 года включительно — двадцать
+    # восемь запросов, `harvest_pastvu.py --estimate --all`. Счёт по кластерам
+    # грубоват (расхождение между зумами около процента), но прежняя оценка в
+    # 200 000 была занижена втрое, а не на проценты.
+    expected_rows=686000,
 )
+
+# Рамка, упирающаяся в 180-й меридиан, валит сервис: и восточный край 180.0,
+# и западный −180.0 дают ApplicationError на любом зуме. Отступ в десятитысячную
+# градуса — это одиннадцать метров, меньше точности привязки любого снимка,
+# зато последний столбец клеток у 180-го меридиана собирается, а не падает
+# клетка за клеткой, и заходящая за меридиан Чукотка вообще становится доступна.
+ANTIMERIDIAN_EPS = 0.0001
 
 # Поля, без которых запись бесполезна. Проверяются до разбора: если сервис
 # переименует их, сбор должен остановиться, а не выдать пустой слой.
-REQUIRED_FIELDS = ("cid", "geo")
+# `year` здесь потому же, почему `geo`: снимок без датировки не встанет ни на
+# карту, ни на ленту времени, и слой из таких снимков — пустой слой.
+REQUIRED_FIELDS = ("cid", "geo", "year")
 
 
 class PastVuError(RuntimeError):
@@ -93,6 +129,12 @@ class PastVuClient:
         })
         payload = self._request(f"{ENDPOINT}?{query}")
         if "result" not in payload:
+            # Сервис отвечает на ошибку не HTTP-кодом, а телом вида
+            # {"type": "ApplicationError", "code": ..., "message": ...} — его
+            # и показываем: «нет поля result» само по себе ничего не объясняет.
+            message = payload.get("message") or payload.get("error")
+            if message:
+                raise PastVuError(f"{method}: {payload.get('type', 'ошибка')} — {message}")
             raise PastVuError(
                 f"в ответе {method} нет поля result; пришли ключи: {sorted(payload)}"
             )
@@ -101,7 +143,56 @@ class PastVuClient:
     def photos_in_bbox(self, bbox: tuple, *, year_from: int = YEAR_MIN,
                        year_to: int = YEAR_MAX, zoom: int = ZOOM_PHOTOS) -> list[dict]:
         """Снимки в прямоугольнике (lat_min, lon_min, lat_max, lon_max)."""
-        result = self.call("photo.getByBounds", {
+        result = self._by_bounds(bbox, year_from, year_to, zoom)
+        photos = result.get("photos")
+        if photos is None:
+            raise PastVuError(
+                "в ответе photo.getByBounds нет поля photos; пришли ключи: "
+                f"{sorted(result)} (при зуме {zoom} ожидались отдельные снимки)"
+            )
+        # Кластеры вместо снимков означают слишком мелкий зум. Ответ при этом
+        # не ошибочный: поле photos на месте, просто почти пустое — так сбор
+        # и прошёл бы молча по всей стране, собрав крохи. Останавливаемся.
+        clusters = result.get("clusters")
+        if clusters:
+            raise PastVuError(
+                f"на зуме {zoom} сервис вернул {len(clusters)} кластеров и всего "
+                f"{len(photos)} снимков: кластеры собирать нельзя, нужен зум "
+                f"не меньше {ZOOM_PHOTOS}"
+            )
+        return photos
+
+    def count_in_bbox(self, bbox: tuple, *, year_from: int = YEAR_MIN,
+                      year_to: int = YEAR_MAX, zoom: Optional[int] = None) -> int:
+        """Сколько снимков в рамке — по счётчикам кластеров, без выгрузки.
+
+        Кластер несёт поле `c` — число снимков, попавших под тот же фильтр по
+        годам, что и запрос (проверено: сумма `c` совпала с суммой гистограммы
+        `y` по годам до 1960). Это единственный способ узнать объём заранее:
+        выгрузка всей страны — сотни мегабайт, а счёт по кластерам — пара
+        десятков запросов.
+
+        Оценка приблизительная: кластер приписан к своему центру, поэтому у
+        края рамки счёт немного плывёт. На одной и той же области зум 6 и зум 8
+        дали 199 427 и 197 780 — расхождение около процента. Зум поэтому берётся
+        по размеру рамки (`cluster_zoom`): на маленькой рамке крупные кластеры
+        врали бы не на проценты, а в разы.
+        """
+        result = self._by_bounds(bbox, year_from, year_to,
+                                 cluster_zoom(bbox) if zoom is None else zoom)
+        clusters = result.get("clusters")
+        if clusters is None:
+            raise PastVuError(
+                "в ответе нет поля clusters; пришли ключи: "
+                f"{sorted(result)}. Счёт по кластерам работает только на мелком зуме."
+            )
+        # Рядом с кластерами сервис иногда отдаёт и отдельные снимки — те, что
+        # ни в один кластер не попали. Не сложить их значило бы недосчитаться.
+        return (sum(int(c.get("c") or 0) for c in clusters)
+                + len(result.get("photos") or []))
+
+    def _by_bounds(self, bbox: tuple, year_from: int, year_to: int, zoom: int) -> dict:
+        return self.call("photo.getByBounds", {
             "z": zoom,
             "bounds": [bounds_param(bbox)],
             "year": year_from,
@@ -109,15 +200,6 @@ class PastVuClient:
             "isPainting": False,
             "localWork": False,
         })
-        photos = result.get("photos")
-        if photos is None:
-            # Кластеры вместо снимков означают слишком мелкий зум: на таком
-            # ответе слой собрать нельзя, и молчать об этом нельзя тоже.
-            raise PastVuError(
-                "в ответе photo.getByBounds нет поля photos; пришли ключи: "
-                f"{sorted(result)} (при зуме {zoom} ожидались отдельные снимки)"
-            )
-        return photos
 
     def _request(self, url: str) -> dict:
         req = urllib.request.Request(url, headers={
@@ -153,16 +235,44 @@ class PastVuClient:
         self._last_call = time.monotonic()
 
 
-def bounds_param(bbox: tuple) -> list:
-    """Наш bbox (lat_min, lon_min, lat_max, lon_max) в пару углов [[з, ю], [в, с]].
+def cluster_zoom(bbox: tuple) -> int:
+    """Зум, на котором кластеры заметно мельче рамки — иначе счёт бессмыслен.
 
-    Углы задаются в порядке «долгота, широта» — как в GeoJSON и в клиенте
-    самого сервиса. Порядок легко перепутать, поэтому результат сбора ещё раз
-    просеивается через `in_requested_bbox`: при перепутанных осях ответ будет
-    пустым или чужим, но в слой чужие точки не попадут.
+    Кластер приписан к своему центру, и если он одного порядка с рамкой, в
+    ответ попадёт либо всё соседнее, либо ничего. Берём зум, на котором в
+    рамку укладывается около двадцати кластеров по короткой стороне.
     """
     lat_min, lon_min, lat_max, lon_max = bbox
-    return [[lon_min, lat_min], [lon_max, lat_max]]
+    span = min(abs(lat_max - lat_min), abs(lon_max - lon_min))
+    if span <= 0:
+        return ZOOM_PHOTOS
+    zoom = ZOOM_CLUSTERS
+    # Верхняя граница — 15: на 16-м сервис уже мешает кластеры с отдельными
+    # снимками, а на 17-м кластеров не отдаёт вовсе.
+    while zoom < ZOOM_PHOTOS - 2 and CLUSTER_DEG_AT_Z0 / (2 ** zoom) > span / 20.0:
+        zoom += 1
+    return zoom
+
+
+def bounds_param(bbox: tuple) -> list:
+    """Наш bbox (lat_min, lon_min, lat_max, lon_max) в пару углов [[ю, з], [с, в]].
+
+    Порядок осей — «широта, долгота», и это ровно то место, где документация
+    разошлась с сервисом. Документация (docs.pastvu.com/dev/api) описывает
+    параметр `geometry` — GeoJSON-полигон в порядке «долгота, широта»; живой
+    сервис 23 августа 2026 года на `geometry` при зуме 17 не отдал ни одного
+    снимка ни в одном порядке обхода полигона, зато на `bounds` отдал — и
+    только когда широта идёт первой. Проверка: рамка [[59.93, 30.30],
+    [59.95, 30.35]] вернула 22 936 снимков с координатами в Петербурге, та же
+    рамка в порядке «долгота, широта» — ноль.
+
+    Координаты в ответе (`geo`) идут в том же порядке: [широта, долгота].
+    Перепутать легко, поэтому результат сбора ещё раз просеивается через
+    `in_requested_bbox`: чужие точки в слой не пройдут.
+    """
+    lat_min, lon_min, lat_max, lon_max = bbox
+    return [[lat_min, max(lon_min, -180.0 + ANTIMERIDIAN_EPS)],
+            [lat_max, min(lon_max, 180.0 - ANTIMERIDIAN_EPS)]]
 
 
 def grid(bbox: tuple, step_deg: float = 0.5) -> Iterator[tuple]:
@@ -184,11 +294,19 @@ def in_requested_bbox(lat: float, lon: float, bbox: tuple) -> bool:
     return lat_min <= lat <= lat_max and lon_min <= lon <= lon_max
 
 
-def check_photo_fields(photos: list[dict]) -> None:
-    """Проверяет, что в ответе есть поля, на которых держится разбор."""
+def check_photo_fields(photos: list[dict], sample: int = 50) -> None:
+    """Проверяет, что в ответе есть поля, на которых держится разбор.
+
+    Смотрим не первый снимок, а объединение полей первых полусотни: у
+    отдельной записи поле может отсутствовать по делу (так бывает с `dir`),
+    а вот если его нет ни у кого — сервис переименовал поле, и это ошибка
+    сбора, а не пустой слой.
+    """
     if not photos:
         return
-    keys = set(photos[0])
+    keys: set = set()
+    for photo in photos[:sample]:
+        keys |= set(photo)
     missing = [f for f in REQUIRED_FIELDS if f not in keys]
     if missing:
         raise PastVuError(
