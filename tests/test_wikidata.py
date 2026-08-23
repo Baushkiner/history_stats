@@ -167,7 +167,7 @@ def test_event_queries_declare_kind_and_ask_for_event_dates():
 
 def test_kind_defaults_to_object_for_places():
     mod = _harvest_module()
-    for name in ("churches", "settlements", "railway_stations"):
+    for name in ("churches", "settlements_wd", "railway_stations"):
         assert mod.parse_query(ROOT / "queries" / f"{name}.rq")["kind"] == "object"
 
 
