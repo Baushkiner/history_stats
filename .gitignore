@@ -15,4 +15,8 @@ data/out/context.jsonl
 data/out/jsonl/
 data/out/xlsx/
 
+# Рабочие копии параллельных агентов: временные worktree самого репозитория,
+# живут только на время задачи и убираются сами.
+.claude/worktrees/
+
 .DS_Store
