@@ -39,6 +39,7 @@ from .adapters.battles import BATTLES                     # noqa: E402
 from .adapters.bookplaces import LITERARY, TENISHEV        # noqa: E402
 from .adapters.prokudin_gorsky import PROKUDIN             # noqa: E402
 from .adapters.state_events import STATE_EVENTS            # noqa: E402
+from .sources.errhs import HARVEST_PRICES                 # noqa: E402
 from .sources.geonames import SETTLEMENTS                  # noqa: E402
 from .sources.admin_gis import ADMIN_GIS                    # noqa: E402
 from .sources.cshapes import STATE_BORDERS                  # noqa: E402
@@ -54,7 +55,8 @@ CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 # `admin_boundaries_1897` и `state_borders` — единственные здесь, кто не даёт
 # записей схемы: это полигоны для подложки карты, они лежат
 # в data/out/boundaries.
-HARVESTED = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES, STATE_BORDERS]
+HARVESTED = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
+             STATE_BORDERS, HARVEST_PRICES]
 
 # --- слои для сбора из Викиданных ----------------------------------------
 # Поле `query` указывает на файл в каталоге queries/.
@@ -253,19 +255,6 @@ EXTERNAL = [
             "Сеточная реконструкция летней засушливости по годичным кольцам, на века "
             "назад. Покрытие плотное в западной части империи и редеет к востоку — "
             "это ограничение, а не мелочь, и его надо показывать в карточке слоя."
-        ),
-    ),
-    LayerSpec(
-        slug="harvest_prices", title="Урожайность и хлебные цены по губерниям", group="economy",
-        source="Своды статистических сведений по сельскому хозяйству ЦСК МВД; RISTAT",
-        license="дореволюционные издания — общественное достояние; таблицы RISTAT "
-                "(наборы ERRHS в репозитории IISH) — CC0, карточки проверены",
-        status="planned", expected_rows=3000,
-        url="https://ristat.org/",
-        description=(
-            "Урожай и цена пуда ржи по губернии и году. Между погодой и записью о смерти "
-            "стоит именно эта величина: засуха объясняет неурожай, неурожай — цену хлеба, "
-            "цена — уход на заработки и всплеск смертности."
         ),
     ),
 ]
