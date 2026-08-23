@@ -156,6 +156,24 @@ def test_kind_defaults_to_object_for_places():
         assert mod.parse_query(ROOT / "queries" / f"{name}.rq")["kind"] == "object"
 
 
+def test_monasteries_declare_the_class_transitive_closure_misses():
+    """Скит объявлен отдельной строкой — замыкание по монастырю его не берёт.
+
+    Проверено живьём запросом `?c wdt:P279* wd:Q44613`: лавра, дацан и
+    православный монастырь — подклассы Q44613 и приходят сами, а скит
+    (Q1693568) стоит вне этой ветви. Тело файла при `@scope country` сбором
+    не используется, но расходиться с заголовком не должно: по нему слой
+    собирают руками.
+    """
+    mod = _harvest_module()
+    meta = mod.parse_query(ROOT / "queries" / "monasteries.rq")
+    assert meta["scope"] == "country"
+    declared = {q for q, _ in meta["qids"]}
+    assert {"Q44613", "Q1693568"} <= declared
+    for qid in declared:
+        assert qid in meta["sparql"], f"класс {qid} объявлен, но не попал в тело запроса"
+
+
 def test_url_falls_back_to_wikidata():
     rows = [_row(item="http://www.wikidata.org/entity/Q3", itemLabel="Храм",
                  coord="Point(37.6 55.7)")]

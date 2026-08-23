@@ -67,8 +67,8 @@ PLANNED = [
     ),
     LayerSpec(
         slug="monasteries", title="Монастыри и пустыни", group="faith",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=1200,
-        description="Монастыри, лавры и пустыни — центры паломничества, землевладения и призрения.",
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=2200,
+        description="Монастыри, лавры, скиты и пустыни — центры паломничества, землевладения и призрения.",
     ),
     LayerSpec(
         slug="other_faiths", title="Мечети, синагоги, кирхи, костёлы", group="faith",
@@ -80,7 +80,7 @@ PLANNED = [
     ),
     LayerSpec(
         slug="cemeteries", title="Кладбища и некрополи", group="faith",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=1500,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=9000,
         description="Места захоронений, включая иноверческие и военные.",
     ),
 
