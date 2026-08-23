@@ -15,4 +15,8 @@ data/out/context.jsonl
 data/out/jsonl/
 data/out/xlsx/
 
+# Мировая выборка границ (harvest_cshapes.py --world) — вспомогательная,
+# вчетверо больше слоя и в репозиторий не идёт
+data/out/boundaries/state_borders_world.geojson
+
 .DS_Store

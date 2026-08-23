@@ -21,6 +21,10 @@ SPARQL, машинный ответ, — но удобство источник�
 «Каталог открыт» в `docs/CATALOG.md`), проверка заняла по одному запросу к
 карточке набора и дала CC BY 4.0 и CC0.
 
+Четвёртым переехал `state_borders`: его не держало вообще ничего, кроме
+ненаписанного сборщика. Лицензия у CShapes была известна с самого начала
+(CC BY-NC-SA 4.0), и она подходит — проект некоммерческий.
+
 `expected_rows` — грубая оценка порядка величины, а не обещание. Реальное
 число станет известно после первого сбора и должно быть вписано сюда.
 """
@@ -37,6 +41,7 @@ from .adapters.prokudin_gorsky import PROKUDIN             # noqa: E402
 from .adapters.state_events import STATE_EVENTS            # noqa: E402
 from .sources.geonames import SETTLEMENTS                  # noqa: E402
 from .sources.admin_gis import ADMIN_GIS                    # noqa: E402
+from .sources.cshapes import STATE_BORDERS                  # noqa: E402
 from .sources.gulag import GULAG_CAMPS                      # noqa: E402
 from .sources.ristat import RISTAT_BOUNDARIES               # noqa: E402
 from .sources.pastvu import PASTVU_PHOTOS                  # noqa: E402
@@ -46,9 +51,10 @@ CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
 # Слои, собранные сборщиком и лежащие в data/out. От CURATED отличаются
 # происхождением: их не ведут вручную, их пересобирают командой.
-# `admin_boundaries_1897` — единственный здесь, кто не даёт записей схемы:
-# это полигоны для подложки карты, они лежат в data/out/boundaries.
-HARVESTED = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES]
+# `admin_boundaries_1897` и `state_borders` — единственные здесь, кто не даёт
+# записей схемы: это полигоны для подложки карты, они лежат
+# в data/out/boundaries.
+HARVESTED = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES, STATE_BORDERS]
 
 # --- слои для сбора из Викиданных ----------------------------------------
 # Поле `query` указывает на файл в каталоге queries/.
@@ -237,19 +243,6 @@ EXTERNAL = [
             "Урожай и цена пуда ржи по губернии и году. Между погодой и записью о смерти "
             "стоит именно эта величина: засуха объясняет неурожай, неурожай — цену хлеба, "
             "цена — уход на заработки и всплеск смертности."
-        ),
-    ),
-    LayerSpec(
-        slug="state_borders", title="Границы государств 1886–1960", group="admin",
-        source="CShapes 2.0, ETH Zurich",
-        license="CC BY-NC-SA 4.0 — некоммерческая: для коммерческой карты не годится",
-        status="planned", expected_rows=200,
-        url="https://icr.ethz.ch/data/cshapes/",
-        description=(
-            "Государственные границы по годам. Отвечает на вопрос, гражданином какой "
-            "страны был предок в год записи: Вильно, Кишинёв и Львов за одну жизнь "
-            "меняли государство по три раза. Ограничение лицензии — жёсткое, и "
-            "прежде чем брать, надо решить, коммерческая ли карта."
         ),
     ),
 ]
