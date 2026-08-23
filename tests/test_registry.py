@@ -92,7 +92,7 @@ def test_catalog_is_not_only_wikidata():
 # дать способа его собрать — это обещание, а не работа.
 AWAITING_COLLECTOR = {
     # Викиданные: слой описан, запрос ещё не написан.
-    "famines", "fairs", "estates",
+    "famines", "estates",
     # Внешние проекты: нужен разбор формата, а для части — договорённость.
     "photos_russiainphoto", "gulag_camps", "admin_1897_gis",
     "weather_chronicles",
