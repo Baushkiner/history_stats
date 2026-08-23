@@ -26,7 +26,7 @@ from histctx.io_formats import write_geojson, write_jsonl, write_xlsx  # noqa: E
 from histctx.registry import BY_SLUG  # noqa: E402
 from histctx.schema import LayerSpec  # noqa: E402
 from histctx.sources.wikidata import (  # noqa: E402
-    SparqlClient, SparqlError, rows_to_records, verify_qids,
+    COUNTRIES, SparqlClient, SparqlError, collect_layer, rows_to_records, verify_qids,
 )
 
 QUERY_DIR = ROOT / "queries"
@@ -34,8 +34,22 @@ _RE_META = re.compile(r"^#\s*@(\w+)\s+(.*)$")
 
 
 def parse_query(path: Path) -> dict:
-    """Читает .rq вместе с заголовочными директивами @layer/@title/@qid."""
-    meta: dict = {"qids": [], "path": path}
+    """Читает .rq вместе с заголовочными директивами @layer/@title/@qid.
+
+    Директивы:
+      @layer   машинный код слоя (по умолчанию — имя файла);
+      @title   название слоя;
+      @qid     Q-номер класса и его русское название, можно повторять.
+               Для `@scope country` эти же классы и собираются;
+      @kind    `event` — слой событий, даты берутся из P580/P582/P585;
+      @scope   `country` — сбор в две ступени по государствам-преемникам,
+               запрос строится движком, тело файла не используется;
+               `box` (по умолчанию) — старый способ, тело файла выполняется
+               как есть;
+      @filter  дополнительная строка условия для первой ступени,
+               можно повторять. Только при `@scope country`.
+    """
+    meta: dict = {"qids": [], "filters": [], "path": path}
     body: list[str] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         m = _RE_META.match(line)
@@ -44,6 +58,8 @@ def parse_query(path: Path) -> dict:
             if key == "qid":
                 qid, _, label = value.partition(" ")
                 meta["qids"].append((qid.strip(), label.strip()))
+            elif key == "filter":
+                meta["filters"].append(value)
             else:
                 meta[key] = value
         elif not line.startswith("#"):
@@ -53,6 +69,8 @@ def parse_query(path: Path) -> dict:
     meta.setdefault("title", path.stem)
     # @kind event — слой событий: открытая дата не дотягивается до 1960 года.
     meta.setdefault("kind", "object")
+    # @scope country — сбор в две ступени; см. пояснение в sources/wikidata.py.
+    meta.setdefault("scope", "box")
     return meta
 
 
@@ -88,16 +106,61 @@ def check_queries(client: SparqlClient, metas: list[dict]) -> bool:
     return ok
 
 
-def harvest(client: SparqlClient, meta: dict, spec: LayerSpec, out_dir: Path,
-            paged: bool, page_size: int) -> int:
-    print(f"Сбор слоя «{meta['title']}» ({meta['layer']})…")
+def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
+            paged: bool, page_size: int,
+            countries: tuple = COUNTRIES) -> list:
+    """Собирает записи слоя — тем способом, который объявлен в `@scope`."""
+    classes = [qid for qid, _ in meta["qids"]]
+    if meta["scope"] == "country":
+        if not classes:
+            raise SparqlError(
+                f"{meta['layer']}: при @scope country нужен хотя бы один @qid — "
+                "именно эти классы и собираются")
+        return collect_layer(
+            client, classes, spec,
+            kind=meta["kind"], countries=countries,
+            extra=meta["filters"], progress=print,
+        )
+
     if paged:
         rows = list(client.query_paged(meta["sparql"], page_size=page_size))
     else:
         rows = client.query(meta["sparql"])
     print(f"  получено строк: {len(rows)}")
+    return rows_to_records(rows, spec, kind=meta["kind"])
 
-    records = rows_to_records(rows, spec, kind=meta["kind"])
+
+def probe(client: SparqlClient, meta: dict, spec: LayerSpec) -> int:
+    """Живая проба: одно государство, файлы не пишутся.
+
+    Нужна до полного сбора. Запрос, который не выполняется или отдаёт пусто,
+    должен быть виден сразу, а не через сорок минут обхода семнадцати стран.
+    """
+    print(f"Проба слоя «{meta['title']}» ({meta['layer']}), способ: {meta['scope']}")
+    records = collect(client, meta, spec, paged=False, page_size=5000,
+                      countries=COUNTRIES[:1])
+    print(f"\n  разобрано записей: {len(records)}")
+    if not records:
+        print("  Ничего не разобрано: проверьте класс, @scope и @filter.",
+              file=sys.stderr)
+        return 1
+
+    dated = sum(1 for r in records if r.has_time)
+    with_region = sum(1 for r in records if r.region)
+    print(f"  с датировкой: {dated} ({dated * 100 // len(records)}%)")
+    print(f"  с губернией или областью: {with_region}")
+    print("\n  примеры:")
+    for rec in records[:5]:
+        years = rec.period_raw or "без даты"
+        print(f"    {years:12s}  {rec.lat:7.3f},{rec.lon:8.3f}  {rec.title[:44]}")
+    print("\nЗапрос работает — можно запускать сбор.")
+    return 0
+
+
+def harvest(client: SparqlClient, meta: dict, spec: LayerSpec, out_dir: Path,
+            paged: bool, page_size: int) -> int:
+    print(f"Сбор слоя «{meta['title']}» ({meta['layer']})…")
+    records = collect(client, meta, spec, paged=paged, page_size=page_size)
     print(f"  с координатами в границах РИ/СССР: {len(records)}")
     dated = sum(1 for r in records if r.has_time)
     print(f"  с датировкой: {dated}")
@@ -115,6 +178,8 @@ def main() -> int:
     ap.add_argument("--layer", action="append", help="слой для сбора (можно повторять)")
     ap.add_argument("--all", action="store_true", help="собрать все слои из queries/")
     ap.add_argument("--check", action="store_true", help="только сверить Q-номера и выйти")
+    ap.add_argument("--probe", action="store_true",
+                    help="живая проба по одному государству, без записи файлов")
     ap.add_argument("--paged", action="store_true", help="постраничный сбор для больших слоёв")
     ap.add_argument("--page-size", type=int, default=5000)
     ap.add_argument("--out", type=Path, default=ROOT / "data" / "out")
@@ -136,7 +201,7 @@ def main() -> int:
             print(f"Неизвестные слои: {', '.join(sorted(unknown))}", file=sys.stderr)
             return 1
     elif not args.all and not args.check:
-        ap.error("укажите --layer <слой>, --all или --check")
+        ap.error("укажите --layer <слой>, --all, --check или --probe")
 
     client = SparqlClient(cache_dir=None if args.no_cache else args.cache)
 
@@ -151,6 +216,21 @@ def main() -> int:
     if not ok:
         print("Сверка не пройдена — сбор отменён. Исправьте Q-номера в queries/*.rq.", file=sys.stderr)
         return 1
+
+    if args.probe:
+        code = 0
+        for meta in metas:
+            spec = BY_SLUG.get(meta["layer"])
+            if spec is None:
+                print(f"  слой {meta['layer']} не описан в registry.py — пропускаю",
+                      file=sys.stderr)
+                continue
+            try:
+                code |= probe(client, meta, spec)
+            except SparqlError as exc:
+                print(f"  ОШИБКА при пробе {meta['layer']}: {exc}", file=sys.stderr)
+                code = 1
+        return code
 
     total = 0
     for meta in metas:

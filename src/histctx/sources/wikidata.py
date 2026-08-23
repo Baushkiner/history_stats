@@ -11,7 +11,9 @@
 
 from __future__ import annotations
 
+import gzip
 import hashlib
+import io
 import json
 import re
 import time
@@ -20,12 +22,22 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Callable, Iterator, Optional
 
 from ..geo import in_bbox, valid_coords
 from ..schema import ContextRecord, LayerSpec, clean_text
 
 ENDPOINT = "https://query.wikidata.org/sparql"
+
+# Сервис запросов держит лимит на время выполнения (около минуты) и
+# отдельно — на частоту обращений. Частоту он ограничивает жёстко: пачка
+# запросов подряд получает «429 Aggressively rate-limiting to 1 req / min».
+# Пауза считается на весь процесс, а не на клиента: клиентов может быть
+# несколько, а адрес, с которого мы приходим, один.
+MIN_INTERVAL_SEC = 5.0
+RATE_LIMIT_PAUSE_SEC = 90.0
+
+_last_request_at = 0.0
 
 # Верхняя граница интересующего периода. До неё дотягиваются объекты с
 # открытой датировкой: храм основан в 1800 году и не упразднён.
@@ -89,24 +101,51 @@ class SparqlClient:
     def _cache_path(self, key: str) -> Optional[Path]:
         return None if self.cache_dir is None else Path(self.cache_dir) / f"{key}.json"
 
+    def _throttle(self) -> None:
+        """Держит паузу между обращениями к сервису — на весь процесс."""
+        global _last_request_at
+        wait = MIN_INTERVAL_SEC - (time.monotonic() - _last_request_at)
+        if wait > 0:
+            time.sleep(wait)
+        _last_request_at = time.monotonic()
+
     def _request(self, sparql: str) -> dict:
         data = urllib.parse.urlencode({"query": sparql, "format": "json"}).encode("utf-8")
         req = urllib.request.Request(
             ENDPOINT, data=data,
-            headers={"User-Agent": USER_AGENT, "Accept": "application/sparql-results+json"},
+            headers={
+                "User-Agent": USER_AGENT,
+                "Accept": "application/sparql-results+json",
+                # Ответ на десятки тысяч строк сжимается примерно в десять раз.
+                # Дело не только в трафике: несжатый ответ дольше течёт по сети
+                # и успевает упереться в лимит времени, обрываясь на середине.
+                "Accept-Encoding": "gzip",
+            },
         )
         delay = 2.0
         last: Optional[Exception] = None
         for attempt in range(self.max_retries):
             try:
+                self._throttle()
                 with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                    return json.loads(resp.read().decode("utf-8"))
+                    body = resp.read()
+                    if resp.headers.get("Content-Encoding") == "gzip":
+                        body = gzip.GzipFile(fileobj=io.BytesIO(body)).read()
+                    return json.loads(body.decode("utf-8"))
             except urllib.error.HTTPError as exc:
                 last = exc
                 # 429 — превышен лимит, 503 — сервис занят: обе ошибки временные.
                 if exc.code not in (429, 500, 502, 503, 504):
                     raise SparqlError(f"HTTP {exc.code}: {exc.read()[:400].decode('utf-8', 'replace')}") from exc
+                if exc.code == 429:
+                    # Обычный отступ здесь не помогает: сервис переводит адрес
+                    # на один запрос в минуту и держит это состояние.
+                    delay = max(delay, RATE_LIMIT_PAUSE_SEC)
             except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
+                last = exc
+            except json.JSONDecodeError as exc:
+                # Ответ оборвался на середине — сервис не уложился в свой лимит
+                # времени. Повтор иногда проходит, но чаще запрос надо дробить.
                 last = exc
             except UnicodeEncodeError as exc:
                 # Заголовки HTTP кодируются latin-1: повтор ничего не изменит.
@@ -141,6 +180,169 @@ def verify_qids(client: SparqlClient, qids: list[str]) -> dict[str, Optional[str
         if qid:
             out[qid] = row.get("itemLabel", {}).get("value")
     return out
+
+
+# --- сбор в две ступени -----------------------------------------------------
+#
+# Первая редакция запросов отбирала объекты географической рамкой
+# (`SERVICE wikibase:box`) поверх транзитивного замыкания по классу
+# (`wdt:P31/wdt:P279*`). Против живого сервиса такой запрос не выполняется:
+# рамка РИ/СССР слишком велика, и сбор упирается в лимит времени — 504.
+# Проверено на всех одиннадцати запросах, ни один не прошёл.
+#
+# Замена — отбор по государству (`wdt:P17`) вместо рамки и разделение работы
+# на две ступени:
+#
+#   1. Список Q-номеров с координатами — по одному запросу на государство.
+#      Без меток, без OPTIONAL, без сортировки: только то, что дёшево.
+#   2. Подробности к ним — чанками по тысяче через `VALUES ?item`.
+#      Дорогие соединения выполняются на заранее известном списке, а не на
+#      результате поиска, и укладываются в лимит.
+#
+# Территория РИ/СССР не совпадает ни с одним нынешним государством, поэтому
+# отбор идёт по семнадцати государствам-преемникам, а рамка остаётся вторым
+# ситом: `rows_to_records` всё равно проверяет координату через `in_bbox`.
+
+COUNTRIES: tuple[tuple[str, str], ...] = (
+    ("Q159", "Россия"), ("Q212", "Украина"), ("Q184", "Беларусь"),
+    ("Q232", "Казахстан"), ("Q265", "Узбекистан"), ("Q874", "Туркменистан"),
+    ("Q863", "Таджикистан"), ("Q813", "Киргизия"), ("Q230", "Грузия"),
+    ("Q399", "Армения"), ("Q227", "Азербайджан"), ("Q217", "Молдавия"),
+    ("Q37", "Литва"), ("Q211", "Латвия"), ("Q191", "Эстония"),
+    ("Q36", "Польша"), ("Q33", "Финляндия"),
+)
+
+# Тысяча Q-номеров в VALUES — примерно восемь секунд на ответ. Больше берём
+# на свой страх: запрос растёт линейно, а лимит времени не двигается.
+CHUNK_SIZE = 1000
+
+_DATES_OBJECT = """  OPTIONAL { ?item wdt:P571 ?start . }
+  OPTIONAL { ?item wdt:P576 ?end . }"""
+
+# У события даты лежат в P580/P582 или в P585 — см. пояснение в rows_to_records.
+_DATES_EVENT = """  OPTIONAL { ?item wdt:P580 ?startTime . }
+  OPTIONAL { ?item wdt:P582 ?endTime . }
+  OPTIONAL { ?item wdt:P585 ?pointInTime . }
+  BIND(COALESCE(?startTime, ?pointInTime) AS ?start)
+  BIND(COALESCE(?endTime, ?pointInTime) AS ?end)"""
+
+
+def ids_query(classes: list[str], country: str,
+              extra: Optional[list[str]] = None) -> str:
+    """Ступень 1: Q-номера объектов класса с координатами в одном государстве.
+
+    `extra` — дополнительные строки условия из директив `@filter` в `.rq`:
+    ими слой сужается там, где одного класса мало.
+    """
+    values = " ".join(f"wd:{c}" for c in classes)
+    tail = "".join(f"  {line}\n" for line in (extra or []))
+    return (
+        "SELECT ?item ?coord WHERE {\n"
+        f"  VALUES ?cls {{ {values} }}\n"
+        "  ?item wdt:P31/wdt:P279* ?cls ;\n"
+        f"        wdt:P17 wd:{country} ;\n"
+        "        wdt:P625 ?coord .\n"
+        f"{tail}"
+        "}"
+    )
+
+
+def details_query(qids: list[str], kind: str = "object") -> str:
+    """Ступень 2: подробности к готовому списку Q-номеров."""
+    values = " ".join(f"wd:{q}" for q in qids)
+    dates = _DATES_EVENT if kind == "event" else _DATES_OBJECT
+    return (
+        "SELECT ?item ?itemLabel ?coord ?start ?end ?adminLabel ?typeLabel "
+        "?article ?image ?description WHERE {\n"
+        f"  VALUES ?item {{ {values} }}\n"
+        "  ?item wdt:P625 ?coord .\n"
+        f"{dates}\n"
+        "  OPTIONAL { ?item wdt:P131 ?admin . }\n"
+        "  OPTIONAL { ?item wdt:P31 ?type . }\n"
+        "  OPTIONAL { ?item wdt:P18 ?image . }\n"
+        "  OPTIONAL { ?article schema:about ?item ; "
+        "schema:isPartOf <https://ru.wikipedia.org/> . }\n"
+        '  OPTIONAL { ?item schema:description ?description . '
+        'FILTER(LANG(?description) = "ru") }\n'
+        '  SERVICE wikibase:label { bd:serviceParam wikibase:language "ru,en". }\n'
+        "}"
+    )
+
+
+def dedupe(records: list[ContextRecord]) -> list[ContextRecord]:
+    """Оставляет по одной записи на объект Викиданных.
+
+    Ступень 2 множит строки: у объекта бывает несколько значений P31, P131
+    и даже P625, и каждое сочетание приходит отдельной строкой. Тысяча
+    Q-номеров даёт около двух тысяч строк.
+
+    Ключ — Q-номер (`source_id`), а не `uid`. Второй координаты не переживёт:
+    `uid` считается в том числе от широты и долготы, поэтому объект с двумя
+    значениями P625 получил бы два разных `uid` и остался бы на карте дважды.
+    Один элемент Викиданных — одно место; лишние значения это варианты, а не
+    вторая церковь. Записи без `source_id` (такого быть не должно, но схема
+    его не требует) сравниваются по `uid`.
+    """
+    seen: set[str] = set()
+    out: list[ContextRecord] = []
+    for rec in records:
+        key = rec.source_id or rec.uid
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(rec)
+    return out
+
+
+def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
+                  kind: str = "object",
+                  countries: tuple[tuple[str, str], ...] = COUNTRIES,
+                  chunk_size: int = CHUNK_SIZE,
+                  require_bbox: bool = True,
+                  extra: Optional[list[str]] = None,
+                  progress: Optional[Callable[[str], None]] = None) -> list[ContextRecord]:
+    """Собирает слой в две ступени по всем государствам-преемникам.
+
+    Ошибка на одном государстве или на одном чанке не отменяет сбор: она
+    печатается и работа идёт дальше. Потерять область хуже, чем потерять всё,
+    но молча терять нельзя — поэтому о каждой потере сообщается.
+    """
+    say = progress or (lambda _: None)
+
+    qids: list[str] = []
+    seen: set[str] = set()
+    for country, name in countries:
+        try:
+            rows = client.query(ids_query(classes, country, extra))
+        except SparqlError as exc:
+            say(f"    {name}: ОШИБКА — {exc}")
+            continue
+        fresh = 0
+        for row in rows:
+            qid = _qid(_val(row, "item"))
+            if qid and qid not in seen:
+                seen.add(qid)
+                qids.append(qid)
+                fresh += 1
+        if rows:
+            say(f"    {name}: {len(rows)} с координатой, новых {fresh}")
+
+    say(f"  всего объектов: {len(qids)}")
+    if not qids:
+        return []
+
+    records: list[ContextRecord] = []
+    for start in range(0, len(qids), chunk_size):
+        chunk = qids[start:start + chunk_size]
+        try:
+            rows = client.query(details_query(chunk, kind))
+        except SparqlError as exc:
+            say(f"    подробности {start}–{start + len(chunk)}: ОШИБКА — {exc}")
+            continue
+        records.extend(rows_to_records(rows, spec, require_bbox=require_bbox, kind=kind))
+        say(f"    подробности {start + len(chunk)}/{len(qids)}")
+
+    return dedupe(records)
 
 
 def rows_to_records(rows: list[dict], spec: LayerSpec, *,

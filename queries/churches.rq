@@ -1,14 +1,22 @@
 # @layer churches
 # @title Храмы и церкви
-# @qid Q16970 церковное здание
+# @scope country
+# @qid Q16970 христианский храм
 #
 # Приходские церкви и соборы. Метрические книги велись по приходам,
 # поэтому храм — это прямая привязка предка к месту хранения записей.
+#
+# `@scope country` означает, что запрос строит движок (`sources/wikidata.py`),
+# а не этот файл: сбор идёт в две ступени по государствам-преемникам.
+# Прежний вариант — с `SERVICE wikibase:box` поверх `wdt:P31/wdt:P279*` —
+# против живого сервиса не выполняется: рамка РИ/СССР слишком велика, и
+# запрос упирается в лимит времени. Тело ниже осталось как ручной вариант
+# для одной небольшой области; сбором оно не используется.
 SELECT ?item ?itemLabel ?coord ?start ?end ?adminLabel ?typeLabel ?article ?image ?description WHERE {
   SERVICE wikibase:box {
     ?item wdt:P625 ?coord .
-    bd:serviceParam wikibase:cornerSouthWest "Point(18 35)"^^geo:wktLiteral .
-    bd:serviceParam wikibase:cornerNorthEast "Point(180 82)"^^geo:wktLiteral .
+    bd:serviceParam wikibase:cornerSouthWest "Point(30 55)"^^geo:wktLiteral .
+    bd:serviceParam wikibase:cornerNorthEast "Point(42 62)"^^geo:wktLiteral .
   }
   ?item wdt:P31/wdt:P279* wd:Q16970 .
   OPTIONAL { ?item wdt:P571 ?start . }

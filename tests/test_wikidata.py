@@ -14,7 +14,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from histctx.schema import LayerSpec  # noqa: E402
 from histctx.sources.wikidata import (  # noqa: E402
-    USER_AGENT, SparqlClient, _point, _qid, _year, rows_to_records,
+    COUNTRIES, USER_AGENT, SparqlClient, SparqlError, _point, _qid, _year,
+    collect_layer, dedupe, details_query, ids_query, rows_to_records,
 )
 
 SPEC = LayerSpec(slug="churches", title="Храмы", group="faith", source="Викиданные", license="CC0")
@@ -134,13 +135,19 @@ def test_object_dating_unchanged_by_event_mode():
 
 
 def test_event_queries_declare_kind_and_ask_for_event_dates():
-    """Слои событий должны спрашивать P580/P582/P585, а не P571/P576."""
+    """Слои событий должны спрашивать P580/P582/P585, а не P571/P576.
+
+    При `@scope country` запрос строит движок, поэтому проверяется то, что
+    он построит, а не тело файла: файл в этом случае сбором не используется.
+    """
     mod = _harvest_module()
     for name in ("epidemics", "uprisings", "disasters"):
         meta = mod.parse_query(ROOT / "queries" / f"{name}.rq")
         assert meta["kind"] == "event", name
-        assert "P585" in meta["sparql"] and "P580" in meta["sparql"], name
-        assert "wdt:P571" not in meta["sparql"], name
+        sparql = (details_query(["Q1"], "event") if meta["scope"] == "country"
+                  else meta["sparql"])
+        assert "P585" in sparql and "P580" in sparql, name
+        assert "wdt:P571" not in sparql, name
 
 
 def test_kind_defaults_to_object_for_places():
@@ -191,3 +198,135 @@ def test_paged_query_rejects_template_with_limit():
     client = SparqlClient(cache_dir=None)
     with pytest.raises(ValueError):
         list(client.query_paged("SELECT ?x WHERE { ?x ?y ?z } LIMIT 10"))
+
+
+# --- сбор в две ступени ---------------------------------------------------
+#
+# Сети здесь по-прежнему нет: вместо клиента подставляется заглушка, которая
+# отвечает заранее заготовленными строками. Проверяется то, ради чего сбор
+# переписан, — что рамка заменена отбором по государству и что дорогие
+# соединения выполняются на готовом списке Q-номеров.
+
+class _FakeClient:
+    """Отвечает по очереди из списка и запоминает, о чём его спросили."""
+
+    def __init__(self, answers):
+        self.answers = list(answers)
+        self.asked = []
+
+    def query(self, sparql, *, use_cache=True):
+        self.asked.append(sparql)
+        if not self.answers:
+            return []
+        answer = self.answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+
+def _id_row(qid):
+    return {"item": {"value": f"http://www.wikidata.org/entity/{qid}"},
+            "coord": {"value": "Point(37.6 55.7)"}}
+
+
+def test_ids_query_asks_by_country_not_by_box():
+    """Рамка убрана: именно она не давала запросу выполниться."""
+    q = ids_query(["Q16970"], "Q159")
+    assert "wdt:P17 wd:Q159" in q
+    assert "wikibase:box" not in q
+    assert "wdt:P31/wdt:P279* ?cls" in q
+    # Первая ступень должна остаться дешёвой: ни меток, ни OPTIONAL.
+    assert "SERVICE wikibase:label" not in q
+    assert "OPTIONAL" not in q
+
+
+def test_ids_query_takes_several_classes_and_extra_filters():
+    q = ids_query(["Q32815", "Q34627"], "Q212", ["FILTER(YEAR(?start) <= 1960)"])
+    assert "wd:Q32815 wd:Q34627" in q
+    assert "FILTER(YEAR(?start) <= 1960)" in q
+
+
+def test_details_query_asks_for_everything_rows_to_records_reads():
+    q = details_query(["Q1", "Q2"])
+    assert "VALUES ?item { wd:Q1 wd:Q2 }" in q
+    for var in ("?itemLabel", "?coord", "?start", "?end", "?adminLabel",
+                "?typeLabel", "?article", "?image", "?description"):
+        assert var in q, var
+    assert "SERVICE wikibase:label" in q
+    # Сортировка на второй ступени не нужна и стоит дорого.
+    assert "ORDER BY" not in q
+
+
+def test_details_query_switches_dates_for_events():
+    obj, event = details_query(["Q1"]), details_query(["Q1"], "event")
+    assert "wdt:P571" in obj and "P585" not in obj
+    assert "P585" in event and "wdt:P571" not in event
+
+
+def test_dedupe_drops_rows_multiplied_by_p31_and_p131():
+    """Многозначные P31/P131 множат строки: у объекта их бывает несколько."""
+    rows = [_row(item="http://www.wikidata.org/entity/Q9", itemLabel="Храм",
+                 coord="Point(37.6 55.7)", typeLabel=kind)
+            for kind in ("церковь", "объект культурного наследия")]
+    recs = rows_to_records(rows, SPEC)
+    assert len(recs) == 2 and recs[0].uid == recs[1].uid
+    assert len(dedupe(recs)) == 1
+
+
+def test_dedupe_survives_a_second_coordinate():
+    """Регрессия: две координаты у одного объекта давали две точки на карте.
+
+    `uid` считается в том числе от широты и долготы, поэтому по нему такой
+    объект не схлопывается. На живом сборе храмов это давало 11 976 записей
+    на 11 877 объектов — сотню лишних точек.
+    """
+    rows = [_row(item="http://www.wikidata.org/entity/Q9", itemLabel="Храм",
+                 coord=point)
+            for point in ("Point(37.6 55.7)", "Point(37.61 55.71)")]
+    recs = rows_to_records(rows, SPEC)
+    assert len({r.uid for r in recs}) == 2, "разные координаты — разные uid"
+    assert len(dedupe(recs)) == 1, "но объект Викиданных один"
+
+
+def test_collect_layer_walks_countries_then_asks_details():
+    client = _FakeClient(
+        [[_id_row("Q1")], [_id_row("Q2")]]                      # две страны
+        + [[]] * (len(COUNTRIES) - 2)                            # остальные пусты
+        + [[_row(item="http://www.wikidata.org/entity/Q1", itemLabel="Храм",
+                 coord="Point(37.6 55.7)", start="1650-01-01T00:00:00Z"),
+            _row(item="http://www.wikidata.org/entity/Q2", itemLabel="Собор",
+                 coord="Point(39.9 57.6)")]]
+    )
+    recs = collect_layer(client, ["Q16970"], SPEC)
+
+    assert len(client.asked) == len(COUNTRIES) + 1, "по запросу на страну плюс один на подробности"
+    assert {r.title for r in recs} == {"Храм", "Собор"}
+    assert "wd:Q1 wd:Q2" in client.asked[-1], "подробности спрашиваются одним чанком"
+
+
+def test_collect_layer_does_not_ask_the_same_object_twice():
+    """Объект, попавший в две страны, собирается один раз."""
+    client = _FakeClient([[_id_row("Q1")], [_id_row("Q1")]]
+                         + [[]] * (len(COUNTRIES) - 2) + [[]])
+    collect_layer(client, ["Q16970"], SPEC)
+    assert client.asked[-1].count("wd:Q1") == 1
+
+
+def test_collect_layer_survives_a_failing_country():
+    """Потерять область плохо, потерять весь слой хуже — но молчать нельзя."""
+    said = []
+    client = _FakeClient([SparqlError("504")] + [[_id_row("Q1")]]
+                         + [[]] * (len(COUNTRIES) - 2)
+                         + [[_row(item="http://www.wikidata.org/entity/Q1",
+                                  itemLabel="Храм", coord="Point(37.6 55.7)")]])
+    recs = collect_layer(client, ["Q16970"], SPEC, progress=said.append)
+    assert len(recs) == 1
+    assert any("ОШИБКА" in line for line in said)
+
+
+def test_collect_layer_chunks_long_lists():
+    ids = [[_id_row(f"Q{i}") for i in range(2500)]]
+    client = _FakeClient(ids + [[]] * (len(COUNTRIES) - 1) + [[], [], []])
+    collect_layer(client, ["Q16970"], SPEC, chunk_size=1000)
+    details = client.asked[len(COUNTRIES):]
+    assert len(details) == 3, "2500 объектов — три чанка по тысяче"
