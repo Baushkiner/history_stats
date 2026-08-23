@@ -95,7 +95,7 @@ AWAITING_COLLECTOR = {
     "renamed_places", "famines", "fairs", "estates",
     # Внешние проекты: нужен разбор формата, а для части — договорённость.
     "photos_russiainphoto", "gulag_camps", "admin_1897_gis",
-    "weather_chronicles", "drought_atlas",
+    "weather_chronicles",
     # Найдено проходом по каталогу 23.08.2026: разведка, сборщика ещё нет.
     "census_1897_uezd", "openhistoricalmap", "famine_1891",
 }
