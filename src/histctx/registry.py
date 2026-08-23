@@ -39,6 +39,7 @@ from .sources.geonames import SETTLEMENTS                  # noqa: E402
 from .sources.admin_gis import ADMIN_GIS                    # noqa: E402
 from .sources.gulag import GULAG_CAMPS                      # noqa: E402
 from .sources.ristat import RISTAT_BOUNDARIES               # noqa: E402
+from .sources.strikes import STRIKES                        # noqa: E402
 from .sources.pastvu import PASTVU_PHOTOS                  # noqa: E402
 from .sources.weather import WEATHER_REGIONS, WEATHER_STATIONS  # noqa: E402
 
@@ -48,7 +49,7 @@ CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 # происхождением: их не ведут вручную, их пересобирают командой.
 # `admin_boundaries_1897` — единственный здесь, кто не даёт записей схемы:
 # это полигоны для подложки карты, они лежат в data/out/boundaries.
-HARVESTED = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES]
+HARVESTED = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES, STRIKES]
 
 # --- слои для сбора из Викиданных ----------------------------------------
 # Поле `query` указывает на файл в каталоге queries/.
