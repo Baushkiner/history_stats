@@ -56,8 +56,10 @@ CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 # `admin_boundaries_1897` и `state_borders` — единственные здесь, кто не даёт
 # записей схемы: это полигоны для подложки карты, они лежат
 # в data/out/boundaries.
+# PastVu пришёл сюда из EXTERNAL: разбор ответа сверен с живым сервисом,
+# обход написан и продолжаем после обрыва.
 HARVESTED = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
-             STATE_BORDERS, HARVEST_PRICES, DROUGHT_ATLAS]
+             STATE_BORDERS, HARVEST_PRICES, DROUGHT_ATLAS, PASTVU_PHOTOS]
 
 # --- слои для сбора из Викиданных ----------------------------------------
 # Поле `query` указывает на файл в каталоге queries/.
@@ -226,7 +228,6 @@ PLANNED = [
 # взяты из описаний самих проектов и подлежат проверке при первом сборе.
 
 EXTERNAL = [
-    PASTVU_PHOTOS,
     WEATHER_STATIONS,
     WEATHER_REGIONS,
     LayerSpec(
