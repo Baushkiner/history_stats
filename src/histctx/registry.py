@@ -14,8 +14,8 @@ SPARQL, машинный ответ, — но удобство источник�
 разные и в поле `license` записаны честно: там, где нужно согласование, так
 и написано.
 
-Три слоя из этого списка уже переехали в `HARVESTED` — лагерные управления
-и два набора границ. Держало их не техническое препятствие и даже не отказ
+Четыре слоя из этого списка уже переехали в `HARVESTED` — лагерные управления,
+два набора границ и реконструкция засух по годичным кольцам. Держало их не техническое препятствие и даже не отказ
 правообладателя, а непроверенная лицензия: по прежней редакции условия 3
 источник без выясненных прав не собирался вовсе. Условие переписано (см.
 «Каталог открыт» в `docs/CATALOG.md`), проверка заняла по одному запросу к
@@ -37,6 +37,7 @@ from .adapters.prokudin_gorsky import PROKUDIN             # noqa: E402
 from .adapters.state_events import STATE_EVENTS            # noqa: E402
 from .sources.geonames import SETTLEMENTS                  # noqa: E402
 from .sources.admin_gis import ADMIN_GIS                    # noqa: E402
+from .sources.drought import DROUGHT_ATLAS                  # noqa: E402
 from .sources.gulag import GULAG_CAMPS                      # noqa: E402
 from .sources.ristat import RISTAT_BOUNDARIES               # noqa: E402
 from .sources.pastvu import PASTVU_PHOTOS                  # noqa: E402
@@ -48,7 +49,7 @@ CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 # происхождением: их не ведут вручную, их пересобирают командой.
 # `admin_boundaries_1897` — единственный здесь, кто не даёт записей схемы:
 # это полигоны для подложки карты, они лежат в data/out/boundaries.
-HARVESTED = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES]
+HARVESTED = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES, DROUGHT_ATLAS]
 
 # --- слои для сбора из Викиданных ----------------------------------------
 # Поле `query` указывает на файл в каталоге queries/.
@@ -212,18 +213,6 @@ EXTERNAL = [
             "летописями и хрониками. Закрывает то, чего не закроют станции: до 1881 года "
             "инструментальных рядов почти нет, а голодные годы XVII–XVIII веков объяснять "
             "чем-то надо."
-        ),
-    ),
-    LayerSpec(
-        slug="drought_atlas", title="Реконструкция засух по кольцам деревьев", group="hardship",
-        source="Old World Drought Atlas, NOAA Paleoclimatology",
-        license="данные NOAA — общественное достояние; ссылка на публикацию обязательна",
-        status="planned", expected_rows=400,
-        url="https://www.ncei.noaa.gov/products/paleoclimatology",
-        description=(
-            "Сеточная реконструкция летней засушливости по годичным кольцам, на века "
-            "назад. Покрытие плотное в западной части империи и редеет к востоку — "
-            "это ограничение, а не мелочь, и его надо показывать в карточке слоя."
         ),
     ),
     LayerSpec(
