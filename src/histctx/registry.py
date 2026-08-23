@@ -28,6 +28,7 @@ from .adapters.battles import BATTLES                     # noqa: E402
 from .adapters.bookplaces import LITERARY, TENISHEV        # noqa: E402
 from .adapters.prokudin_gorsky import PROKUDIN             # noqa: E402
 from .adapters.state_events import STATE_EVENTS            # noqa: E402
+from .sources.errhs import HARVEST_PRICES                 # noqa: E402
 from .sources.geonames import SETTLEMENTS                  # noqa: E402
 from .sources.pastvu import PASTVU_PHOTOS                  # noqa: E402
 from .sources.weather import WEATHER_REGIONS, WEATHER_STATIONS  # noqa: E402
@@ -36,7 +37,7 @@ CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
 # Слои, собранные сборщиком и лежащие в data/out. От CURATED отличаются
 # происхождением: их не ведут вручную, их пересобирают командой.
-HARVESTED = [SETTLEMENTS]
+HARVESTED = [SETTLEMENTS, HARVEST_PRICES]
 
 # --- слои для сбора из Викиданных ----------------------------------------
 # Поле `query` указывает на файл в каталоге queries/.
@@ -238,19 +239,6 @@ EXTERNAL = [
             "Сеточная реконструкция летней засушливости по годичным кольцам, на века "
             "назад. Покрытие плотное в западной части империи и редеет к востоку — "
             "это ограничение, а не мелочь, и его надо показывать в карточке слоя."
-        ),
-    ),
-    LayerSpec(
-        slug="harvest_prices", title="Урожайность и хлебные цены по губерниям", group="economy",
-        source="Своды статистических сведений по сельскому хозяйству ЦСК МВД; RISTAT",
-        license="дореволюционные издания — общественное достояние; у RISTAT сверить "
-                "карточку набора",
-        status="planned", expected_rows=3000,
-        url="https://ristat.org/",
-        description=(
-            "Урожай и цена пуда ржи по губернии и году. Между погодой и записью о смерти "
-            "стоит именно эта величина: засуха объясняет неурожай, неурожай — цену хлеба, "
-            "цена — уход на заработки и всплеск смертности."
         ),
     ),
     LayerSpec(

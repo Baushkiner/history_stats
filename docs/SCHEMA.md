@@ -103,6 +103,7 @@
 | `data/out/geojson/<слой>.geojson` | Слой для карты, `FeatureCollection`, CRS84 |
 | `data/out/territorial_events.json` | События без геометрии: `{name, count, records}` |
 | `data/out/weather_regions.json` | Погодные аномалии по губерниям, тот же вид |
+| `data/out/harvest_prices.json` | Урожай, посев и цены по губерниям, тот же вид. Самая крупная выгрузка проекта (около 18 МБ на 10 171 запись) и единственная, которая лежит в репозитории намеренно: без неё цепочка «засуха → недород → цена хлеба» обрывается, а пересобрать её можно только при открытом `ristat.org` |
 | `data/out/name_variants.json` | Указатель написаний: `{geonameid: {title, lat, lon, names}}` |
 | `data/out/all_layers.xlsx` | Все слои, по вкладке на слой, русские заголовки |
 | `data/out/context.jsonl` | Построчный JSON: загрузка в базу, читаемые диффы в git |
