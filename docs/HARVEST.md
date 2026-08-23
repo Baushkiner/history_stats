@@ -19,25 +19,19 @@
 | `www.ncei.noaa.gov` | GHCN: месячные и суточные ряды станций, в том числе российских |
 | `psl.noaa.gov` | Реанализ 20CRv3 (с 1836 года) — там, где станций нет |
 | `crudata.uea.ac.uk` | CRU TS: сеточные ряды температуры и осадков |
-<<<<<<< HEAD
 | `heidata.uni-heidelberg.de`, `doi.org` | Полигоны губерний 1897 и 1926 годов с итогами переписей (CC BY 4.0) |
 | `datasets.iisg.amsterdam`, `ristat.org` | RISTAT: границы уездов 1897 года (CC0) и статистические таблицы ERRHS |
 | `icr.ethz.ch` | CShapes 2.0 — границы государств по датам их изменения (CC BY-NC-SA 4.0). Рвёт скачивание: сбор повторяет попытку |
 | `gulagmap.ru` | Лагерные управления 1918–1960 годов: `/api/camps` и три справочника к нему |
 | `russiainphoto.ru` | Фотоархив МАММ — снимки только после договорённости, см. `docs/CATALOG.md` |
-<<<<<<< HEAD
-=======
 | `heidata.uni-heidelberg.de`, `doi.org` | Полигоны губерний и уездов переписей 1897 и 1926 годов |
 | `ristat.org`, `etl.ristat.org`, `datasets.iisg.amsterdam` | Урожай, посев и цены по губерниям (ERRHS); тот же слой границ, альтернативный источник. Архив выгрузки собирается под запрос и отдаётся с `etl.ristat.org` |
 | `icr.ethz.ch` | CShapes 2.0 — границы государств по годам |
 | `gulagmap.ru` | Лагерные управления 1918–1960 годов |
 | `russiainphoto.ru` | Фотоархив МАММ — **только после договорённости**, см. `docs/CATALOG.md` |
->>>>>>> origin/claude/available-data-c725um-errhs
-=======
 | `www.demoscope.ru` | Итоги переписи 1897 года по губерниям, уездам и городам — справочник «Демоскопа» |
 | `overpass-api.openhistoricalmap.org` | Датированные объекты OpenHistoricalMap (CC0) |
 | `dataverse.harvard.edu` | Уездный набор по голоду 1891–1892 годов (CC0); карточка набора — через `doi.org` |
->>>>>>> origin/claude/available-data-c725um-discovery
 
 Без части доменов работает часть сбора: Викиданные, PastVu и погода
 независимы друг от друга.
@@ -82,7 +76,6 @@ python3 scripts/harvest_weather.py --probe data/raw/meteo/*.csv --map "..."
 python3 scripts/harvest_weather.py --build data/raw/meteo/*.csv --map "..." \
     --source "ВНИИГМИ-МЦД, meteo.ru" --url "http://meteo.ru/data"
 
-<<<<<<< HEAD
 # 5. Лагерные управления: сначала проверка ответа API
 python3 scripts/harvest_gulag.py --check
 python3 scripts/harvest_gulag.py --build
@@ -94,11 +87,9 @@ python3 scripts/harvest_admin_gis.py --build
 # 7. Границы государств 1886–1960: CShapes 2.0 (CC BY-NC-SA 4.0)
 python3 scripts/harvest_cshapes.py --check
 python3 scripts/harvest_cshapes.py --build
-=======
 # 5. Урожай и цены по губерниям (RISTAT/ERRHS): сначала проба одной таблицы
 python3 scripts/harvest_errhs.py --check
 python3 scripts/harvest_errhs.py --build
->>>>>>> origin/claude/available-data-c725um-errhs
 ```
 
 Населённые места — единственный слой, который собирается в закрытом
@@ -107,15 +98,12 @@ python3 scripts/harvest_errhs.py --build
 `geonamescache`. Данные под CC BY 4.0 — ссылка на GeoNames проставляется в
 каждой записи.
 
-<<<<<<< HEAD
 Границы и переписи скачиваются один раз и остаются в `data/cache/boundaries/`:
 наборы весят мегабайты и с 2015 года не менялись. Кэш в репозиторий не идёт
 (`data/cache/` в `.gitignore`), пересобрать его — тот же `--build`.
 
 Общее правило у всех семи: **первый запуск — проверочный**. `--check` сверяет
-=======
 Общее правило у всех сборщиков: **первый запуск — проверочный**. `--check` сверяет
->>>>>>> origin/claude/available-data-c725um-errhs
 Q-номера классов с Викиданными, `--probe` печатает реальный ответ сервиса или
 реальные колонки файла. Собрать не то молча хуже, чем остановиться: ошибку
 формата в выгрузке на сотни тысяч записей потом не найти.
