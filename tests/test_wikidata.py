@@ -330,3 +330,164 @@ def test_collect_layer_chunks_long_lists():
     collect_layer(client, ["Q16970"], SPEC, chunk_size=1000)
     details = client.asked[len(COUNTRIES):]
     assert len(details) == 3, "2500 объектов — три чанка по тысяче"
+
+
+# --- усадьбы: владелец как признак места ----------------------------------
+#
+# Сети здесь нет: образец ответа — константа ниже. Слой усадеб единственный,
+# кто спрашивает владельца (P127), и проверяется ровно то, ради чего сделана
+# правка движка: имя попадает в запись усадьбы, отдельной записи о человеке
+# не возникает, а остальные слои своего запроса не меняют.
+
+# Образец ступени 2 для усадьбы: двух владельцев подзапрос свернул в одно
+# значение, поэтому строка у объекта одна.
+ESTATE_ROWS = [
+    {
+        "item": {"value": "http://www.wikidata.org/entity/Q1990932"},
+        "itemLabel": {"value": "Берново"},
+        "coord": {"value": "Point(34.7517 56.8069)"},
+        "start": {"value": "1760-01-01T00:00:00Z"},
+        "adminLabel": {"value": "Старицкий район"},
+        "typeLabel": {"value": "усадьба"},
+        "description": {"value": "усадьба в Тверской области"},
+        "owners": {"value": "Вульфы; Иван Иванович Вульф"},
+    },
+]
+
+ESTATES = LayerSpec(slug="estates", title="Усадьбы и имения", group="economy",
+                    source="Викиданные", license="CC0")
+
+
+def test_owner_lands_in_actor_not_in_a_separate_record():
+    """Владелец — признак усадьбы, а не запись о человеке.
+
+    Персоналии проект отдельными записями не собирает: он описывает
+    обстановку. Но до 1861 года имение ищут через владельца, поэтому имя
+    хранится полем той же записи — там же, где автор у литературного места.
+    """
+    recs = rows_to_records(ESTATE_ROWS, ESTATES)
+    assert len(recs) == 1, "владельцы не должны множить записи"
+    rec = recs[0]
+    assert rec.actor == "Вульфы; Иван Иванович Вульф"
+    assert rec.title == "Берново"
+    assert rec.layer == "estates"
+
+
+def test_rows_without_owner_leave_actor_empty():
+    """Ответ без ?owners — обычный слой; поле просто пустое."""
+    rows = [_row(item="http://www.wikidata.org/entity/Q7", itemLabel="Храм",
+                 coord="Point(37.6 55.7)")]
+    assert rows_to_records(rows, SPEC)[0].actor is None
+
+
+def test_details_query_asks_for_owner_only_when_told():
+    """Остальным слоям P127 не нужен, и текст их запроса меняться не должен.
+
+    Текст запроса — ключ дискового кэша: лишний пробел обнулил бы кэш всех
+    уже собранных слоёв.
+    """
+    plain = details_query(["Q1"])
+    assert "P127" not in plain and "?owners" not in plain
+    assert details_query(["Q1"], "object") == plain
+
+    with_owner = details_query(["Q1"], with_owner=True)
+    assert "p:P127" in with_owner and "?owners" in with_owner
+
+
+def test_owner_takes_every_rank_but_the_deprecated_one():
+    """`wdt:P127` отдал бы только высший ранг — и потерял бы прежних владельцев.
+
+    Там, где нынешний владелец (музей, район) помечен предпочтительным, род,
+    которому усадьба принадлежала до 1861 года, из `wdt:` не виден. Для
+    генеалогии нужен именно он, поэтому берутся все утверждения, кроме
+    отклонённых.
+    """
+    sparql = details_query(["Q1"], with_owner=True)
+    assert "wdt:P127" not in sparql
+    assert "p:P127 ?ownerStatement" in sparql and "ps:P127 ?owner" in sparql
+    assert "wikibase:DeprecatedRank" in sparql
+
+
+def test_owner_subquery_is_bounded_by_the_same_values():
+    """Подзапрос без VALUES считал бы владельцев по всем Викиданным."""
+    sparql = details_query(["Q1", "Q2"], with_owner=True)
+    inner = sparql.split("GROUP_CONCAT")[1]
+    assert "VALUES ?item { wd:Q1 wd:Q2 }" in inner
+    assert "GROUP BY ?item" in inner
+
+
+def test_collect_layer_passes_owner_flag_through():
+    client = _FakeClient([[_id_row("Q1")]] + [[]] * (len(COUNTRIES) - 1) + [[]])
+    collect_layer(client, ["Q64627814"], ESTATES, with_owner=True)
+    assert "p:P127" in client.asked[-1]
+    # Первая ступень остаётся дешёвой: владелец там не спрашивается.
+    assert "P127" not in client.asked[0]
+
+
+def test_estates_query_declares_owner_and_country_scope():
+    mod = _harvest_module()
+    meta = mod.parse_query(ROOT / "queries" / "estates.rq")
+    assert meta["scope"] == "country"
+    assert meta["kind"] == "object", "усадьба — объект, даты P571/P576"
+    assert meta["owner"] == "P127"
+    declared = {qid for qid, _ in meta["qids"]}
+    # Городской особняк, дворец и замок — не усадьбы; разбор в шапке файла.
+    assert declared.isdisjoint({"Q1802963", "Q16560", "Q23413"})
+    assert "Q64627814" in declared and "Q2066754" in declared
+
+
+# Описки в директиве проверяются на настоящем файле, а не на собранном руками
+# словаре: ошибиться можно и в разборе заголовка, и тогда самодельный словарь
+# этого не покажет.
+
+def _rq(tmp_path, header: str) -> dict:
+    path = tmp_path / "probe.rq"
+    path.write_text(header + "\nSELECT ?item WHERE { ?item wdt:P31 wd:Q1 }\n",
+                    encoding="utf-8")
+    return _harvest_module().parse_query(path)
+
+
+def test_owner_directive_is_rejected_where_it_would_do_nothing(tmp_path):
+    """При `@scope box` движок в запрос ничего не добавляет.
+
+    Молча собрать слой без владельцев хуже, чем остановиться: пустое поле
+    читается как «в Викиданных владелец не указан».
+    """
+    mod = _harvest_module()
+    meta = _rq(tmp_path, "# @layer x\n# @qid Q1 класс\n# @owner P127")
+    assert meta["scope"] == "box"
+    assert any("@scope country" in line for line in mod.check_directives(meta))
+
+
+def test_owner_directive_rejects_another_property(tmp_path):
+    """`@owner P126` — почти наверняка описка, а не замысел."""
+    mod = _harvest_module()
+    meta = _rq(tmp_path, "# @layer x\n# @scope country\n# @qid Q1 класс\n# @owner P126")
+    assert any("P127" in line for line in mod.check_directives(meta))
+    with pytest.raises(SparqlError, match="P127"):
+        mod.collect(_FakeClient([[]]), meta, SPEC, paged=False, page_size=10)
+
+
+def test_directive_without_a_value_does_not_pass_for_a_comment(tmp_path):
+    """`# @owner` без значения — описка, а не комментарий.
+
+    Прежний разбор требовал пробела и значения, поэтому такая строка молча
+    оставалась комментарием: слой собирался без владельцев, и отличить это
+    от «в Викиданных владельца нет» было нельзя.
+    """
+    mod = _harvest_module()
+    meta = _rq(tmp_path, "# @layer x\n# @scope country\n# @qid Q1 класс\n# @owner")
+    assert meta["owner"] == ""
+    assert mod.check_directives(meta), "пустая директива должна вызывать жалобу"
+
+
+def test_layers_without_the_directive_are_not_bothered(tmp_path):
+    meta = _rq(tmp_path, "# @layer x\n# @scope country\n# @qid Q1 класс")
+    assert _harvest_module().check_directives(meta) == []
+
+
+def test_all_shipped_queries_pass_the_directive_check():
+    mod = _harvest_module()
+    for path in sorted((ROOT / "queries").glob("*.rq")):
+        meta = mod.parse_query(path)
+        assert mod.check_directives(meta) == [], path.name

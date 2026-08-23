@@ -226,6 +226,49 @@ _DATES_EVENT = """  OPTIONAL { ?item wdt:P580 ?startTime . }
   BIND(COALESCE(?startTime, ?pointInTime) AS ?start)
   BIND(COALESCE(?endTime, ?pointInTime) AS ?end)"""
 
+# Владелец (P127) — только там, где слой его просит директивой `@owner`.
+# Нужен он пока одним усадьбам: до 1861 года крепостной род привязан к
+# владельцу имения, и без имени владельца слой отвечает «где», но не
+# отвечает «у кого искать». Остальным слоям это лишнее соединение, поэтому
+# по умолчанию его нет.
+#
+# Имена собираются подзапросом, а не соединением в теле запроса. У имения
+# бывает несколько владельцев, и обычное соединение дало бы по строке на
+# каждого; `dedupe` оставляет первую строку объекта, то есть одного
+# владельца — какого придётся, по порядку ответа сервиса. Подзапрос
+# сворачивает всех в одно значение, и набор имён перестаёт зависеть от
+# порядка ответа. Порядок внутри строки от него зависеть не перестаёт:
+# `GROUP_CONCAT` ничего не сортирует, поэтому «Вульфы; Полторацкие» и
+# «Полторацкие; Вульфы» — один и тот же ответ. Это список владельцев за всё
+# время, а не цепочка: кто из них владел усадьбой в нужный год, по полю не
+# определить — за этим надо идти в саму карточку Викиданных по ссылке.
+#
+# `VALUES` внутри подзапроса обязателен: без него он считал бы P127 по всем
+# Викиданным, а не по нашей тысяче Q-номеров. Условие на координату там же:
+# подзапрос считается сам по себе, и без этой строки он собирал бы владельцев
+# и тем объектам, которые внешний запрос всё равно отбросит.
+#
+# Берётся не `wdt:P127`, а полное утверждение `p:P127/ps:P127`. `wdt:` отдаёт
+# только значения высшего ранга, и там, где кто-то пометил предпочтительным
+# нынешнего владельца — музей, район, монастырь, — прежние владельцы молча
+# исчезли бы. Для генеалогии важны как раз прежние: усадьба ищется по тому,
+# кому она принадлежала до 1861 года. Поэтому собираются все владельцы, кроме
+# отклонённых (deprecated).
+_OWNERS = """  OPTIONAL {{
+    SELECT ?item (GROUP_CONCAT(DISTINCT ?ownerName; separator="; ") AS ?owners) WHERE {{
+      VALUES ?item {{ {values} }}
+      ?item wdt:P625 [] .
+      ?item p:P127 ?ownerStatement .
+      ?ownerStatement ps:P127 ?owner .
+      FILTER NOT EXISTS {{ ?ownerStatement wikibase:rank wikibase:DeprecatedRank }}
+      OPTIONAL {{ ?owner rdfs:label ?ownerRu . FILTER(LANG(?ownerRu) = "ru") }}
+      OPTIONAL {{ ?owner rdfs:label ?ownerEn . FILTER(LANG(?ownerEn) = "en") }}
+      BIND(COALESCE(?ownerRu, ?ownerEn) AS ?ownerName)
+      FILTER(BOUND(?ownerName))
+    }}
+    GROUP BY ?item
+  }}"""
+
 
 def ids_query(classes: list[str], country: str,
               extra: Optional[list[str]] = None) -> str:
@@ -247,13 +290,21 @@ def ids_query(classes: list[str], country: str,
     )
 
 
-def details_query(qids: list[str], kind: str = "object") -> str:
-    """Ступень 2: подробности к готовому списку Q-номеров."""
+def details_query(qids: list[str], kind: str = "object", *,
+                  with_owner: bool = False) -> str:
+    """Ступень 2: подробности к готовому списку Q-номеров.
+
+    `with_owner` добавляет владельца (P127) — см. пояснение у `_OWNERS`.
+    Слои, которые его не просят, запрос не меняют.
+    """
     values = " ".join(f"wd:{q}" for q in qids)
     dates = _DATES_EVENT if kind == "event" else _DATES_OBJECT
+    # Пустая строка, когда владелец не нужен: текст запроса у остальных слоёв
+    # обязан остаться прежним — по нему считается ключ дискового кэша.
+    owners = f"{_OWNERS.format(values=values)}\n" if with_owner else ""
     return (
         "SELECT ?item ?itemLabel ?coord ?start ?end ?adminLabel ?typeLabel "
-        "?article ?image ?description WHERE {\n"
+        f"?article ?image ?description{' ?owners' if with_owner else ''} WHERE {{\n"
         f"  VALUES ?item {{ {values} }}\n"
         "  ?item wdt:P625 ?coord .\n"
         f"{dates}\n"
@@ -264,6 +315,7 @@ def details_query(qids: list[str], kind: str = "object") -> str:
         "schema:isPartOf <https://ru.wikipedia.org/> . }\n"
         '  OPTIONAL { ?item schema:description ?description . '
         'FILTER(LANG(?description) = "ru") }\n'
+        f"{owners}"
         '  SERVICE wikibase:label { bd:serviceParam wikibase:language "ru,en". }\n'
         "}"
     )
@@ -300,6 +352,7 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
                   chunk_size: int = CHUNK_SIZE,
                   require_bbox: bool = True,
                   extra: Optional[list[str]] = None,
+                  with_owner: bool = False,
                   max_objects: Optional[int] = None,
                   progress: Optional[Callable[[str], None]] = None) -> list[ContextRecord]:
     """Собирает слой в две ступени по всем государствам-преемникам.
@@ -342,7 +395,7 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
     for start in range(0, len(qids), chunk_size):
         chunk = qids[start:start + chunk_size]
         try:
-            rows = client.query(details_query(chunk, kind))
+            rows = client.query(details_query(chunk, kind, with_owner=with_owner))
         except SparqlError as exc:
             say(f"    подробности {start}–{start + len(chunk)}: ОШИБКА — {exc}")
             continue
@@ -357,7 +410,9 @@ def rows_to_records(rows: list[dict], spec: LayerSpec, *,
     """Преобразует ответ SPARQL в записи единой схемы.
 
     Ожидаемые переменные запроса: ?item ?itemLabel ?coord ?start ?end
-    ?admin ?adminLabel ?typeLabel ?article ?image ?description.
+    ?admin ?adminLabel ?typeLabel ?article ?image ?description и
+    необязательная ?owners. Последнюю спрашивают только слои с директивой
+    `@owner` — у остальных её в ответе нет, и поле остаётся пустым.
 
     `kind` различает два способа существовать во времени. Здание стоит от
     основания до упразднения, и открытый конец разумно дотянуть до конца
@@ -403,6 +458,10 @@ def rows_to_records(rows: list[dict], spec: LayerSpec, *,
             date_precision=precision,
             date_approx=precision == "part",
             period_raw=_raw_period(_val(row, "start"), _val(row, "end")),
+            # Владелец имения — признак самого места, а не отдельная запись
+            # о человеке: персоналии проект не собирает. Поле то же, что у
+            # автора литературного места и у Прокудина-Горского на снимке.
+            actor=clean_text(_val(row, "owners")),
             summary=clean_text(_val(row, "description")),
             url=clean_text(_val(row, "article")) or (f"https://www.wikidata.org/wiki/{qid}" if qid else None),
             image_url=clean_text(_val(row, "image")),
