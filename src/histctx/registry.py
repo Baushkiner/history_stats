@@ -94,6 +94,18 @@ PLANNED = [
         ),
     ),
     LayerSpec(
+        slug="settlements_wd", title="Населённые места: год основания", group="admin",
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=1031,
+        description=(
+            "Второй источник к слою «Населённые места»: у GeoNames года основания нет, "
+            "и по времени такое место не подобрать. Здесь берутся только места с датой "
+            "(P571), и пока это города: класс «населённый пункт» целиком сервис запросов "
+            "не отдаёт — замеры в queries/settlements_wd.rq. Slug отдельный, чтобы сбор "
+            "не затирал собранный слой GeoNames и не проставлял его записям чужую "
+            "лицензию; сводятся два слоя по координате и названию — отдельной работой."
+        ),
+    ),
+    LayerSpec(
         slug="renamed_places", title="Переименования населённых мест", group="admin",
         source="Викиданные", license=WD_CC0, status="planned", expected_rows=8000,
         description=(
