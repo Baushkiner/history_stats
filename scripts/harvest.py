@@ -30,6 +30,11 @@ from histctx.sources.wikidata import (  # noqa: E402
 )
 
 QUERY_DIR = ROOT / "queries"
+
+# Сколько объектов берёт проба. Сервис ограничивает частоту обращений, а
+# полная проба крупного слоя — это двенадцать чанков подряд, то есть цена
+# самого сбора. Тысячи хватает, чтобы увидеть, что разбор работает.
+PROBE_OBJECTS = 1000
 _RE_META = re.compile(r"^#\s*@(\w+)\s+(.*)$")
 
 
@@ -108,7 +113,8 @@ def check_queries(client: SparqlClient, metas: list[dict]) -> bool:
 
 def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
             paged: bool, page_size: int,
-            countries: tuple = COUNTRIES) -> list:
+            countries: tuple = COUNTRIES,
+            max_objects: int = None) -> list:
     """Собирает записи слоя — тем способом, который объявлен в `@scope`."""
     classes = [qid for qid, _ in meta["qids"]]
     if meta["scope"] == "country":
@@ -119,7 +125,7 @@ def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
         return collect_layer(
             client, classes, spec,
             kind=meta["kind"], countries=countries,
-            extra=meta["filters"], progress=print,
+            extra=meta["filters"], max_objects=max_objects, progress=print,
         )
 
     if paged:
@@ -138,7 +144,7 @@ def probe(client: SparqlClient, meta: dict, spec: LayerSpec) -> int:
     """
     print(f"Проба слоя «{meta['title']}» ({meta['layer']}), способ: {meta['scope']}")
     records = collect(client, meta, spec, paged=False, page_size=5000,
-                      countries=COUNTRIES[:1])
+                      countries=COUNTRIES[:1], max_objects=PROBE_OBJECTS)
     print(f"\n  разобрано записей: {len(records)}")
     if not records:
         print("  Ничего не разобрано: проверьте класс, @scope и @filter.",

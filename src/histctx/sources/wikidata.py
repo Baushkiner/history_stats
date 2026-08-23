@@ -300,6 +300,7 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
                   chunk_size: int = CHUNK_SIZE,
                   require_bbox: bool = True,
                   extra: Optional[list[str]] = None,
+                  max_objects: Optional[int] = None,
                   progress: Optional[Callable[[str], None]] = None) -> list[ContextRecord]:
     """Собирает слой в две ступени по всем государствам-преемникам.
 
@@ -328,6 +329,12 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
             say(f"    {name}: {len(rows)} с координатой, новых {fresh}")
 
     say(f"  всего объектов: {len(qids)}")
+    if max_objects is not None and len(qids) > max_objects:
+        # Проба: обращений к сервису должно быть немного. Сервис ограничивает
+        # частоту, и полная проба крупного слоя (двенадцать чанков) стоит
+        # столько же, сколько сам сбор.
+        qids = qids[:max_objects]
+        say(f"  проба: берём первые {len(qids)}")
     if not qids:
         return []
 
