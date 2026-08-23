@@ -61,7 +61,7 @@ CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 # в data/out/boundaries.
 # PastVu и погода пришли сюда из EXTERNAL: разбор сверен с живым сервисом.
 HARVESTED = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
-             STATE_BORDERS, HARVEST_PRICES, DROUGHT_ATLAS, PASTVU_PHOTOS,
+             STATE_BORDERS, HARVEST_PRICES, DROUGHT_ATLAS,
              WEATHER_STATIONS, WEATHER_REGIONS]
 
 # --- слои для сбора из Викиданных ----------------------------------------
@@ -231,6 +231,7 @@ PLANNED = [
 # взяты из описаний самих проектов и подлежат проверке при первом сборе.
 
 EXTERNAL = [
+    PASTVU_PHOTOS,
     LayerSpec(
         slug="photos_russiainphoto", title="История России в фотографиях", group="culture",
         source="russiainphoto.ru (Мультимедиа Арт Музей)",
