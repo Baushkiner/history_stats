@@ -102,6 +102,10 @@
 - **[heiDATA «Transcultural Empire»](https://heidata.uni-heidelberg.de/dataset.xhtml?persistentId=doi:10.11588/DATA/10064)**
   (CC BY 4.0) — итоги переписей 1897 и 1926 годов по каждой губернии: язык,
   вера, сословие, народность. Не «где жил предок», а «среди кого».
+- **[Свод стачек 1895–1904 годов (IISH)](https://datasets.iisg.amsterdam/dataset.xhtml?persistentId=hdl:10622/LSCGBO)**
+  (CC0) — 7886 стачек, волнений и сходок по отчётам фабричных инспекторов:
+  губерния, уезд, завод, даты, число бастовавших, требования, исход и вызов
+  полиции. Отвечает, почему предок ушёл с завода и откуда полицейский след.
 
 Остаются [PastVu](https://pastvu.com/) (сбор написан,
 `scripts/harvest_pastvu.py`), [История России в фотографиях](https://russiainphoto.ru/)
