@@ -128,6 +128,21 @@ def test_event_with_only_end_date():
     assert (r.year_from, r.year_to) == (1774, 1774)
 
 
+def test_object_opened_after_the_period_keeps_a_sane_interval():
+    """Регрессия: станция 2018 года не должна получить срок «2018–1960».
+
+    Открытый конец дотягивается до 1960 года, но только вперёд. Пока даты
+    объектов брались из одной P571, такие записи были редкостью; с датой
+    официального открытия (P1619) их стало много — метро и позднесоветские
+    станции датированы почти все.
+    """
+    rows = [_row(item="http://www.wikidata.org/entity/Q7", itemLabel="Станция",
+                 coord="Point(37.6 55.7)", start="2018-03-01T00:00:00Z")]
+    r = rows_to_records(rows, SPEC)[0]
+    assert (r.year_from, r.year_to) == (2018, 2018)
+    assert not r.overlaps_years(1800, 1960), "к факту XIX века она не подходит"
+
+
 def test_object_dating_unchanged_by_event_mode():
     rows = [_row(item="http://www.wikidata.org/entity/Q6", itemLabel="Храм",
                  coord="Point(37.6 55.7)", start="1800-01-01T00:00:00Z")]
@@ -154,6 +169,24 @@ def test_kind_defaults_to_object_for_places():
     mod = _harvest_module()
     for name in ("churches", "settlements", "railway_stations"):
         assert mod.parse_query(ROOT / "queries" / f"{name}.rq")["kind"] == "object"
+
+
+def test_railway_stations_ask_for_more_than_the_station_class():
+    """Остановка на дороге называется в Викиданных пятью разными классами.
+
+    `wdt:P279*` вытягивает подклассы сам, поэтому объявлять отдельно нужно
+    только то, до чего этот путь не доходит. Живой запрос показал, что не
+    доходит он до остановочного пункта, разъезда, сортировочной станции и
+    вокзала: у сортировочной связь со станцией есть, но не лучшего ранга,
+    а `wdt:` показывает только лучший. Без этих четырёх у села рядом
+    с дорогой станции бы не нашлось; тест держит список, чтобы его не
+    сократили обратно «для простоты».
+    """
+    mod = _harvest_module()
+    meta = mod.parse_query(ROOT / "queries" / "railway_stations.rq")
+    assert meta["scope"] == "country"
+    assert {q for q, _ in meta["qids"]} == {
+        "Q55488", "Q55678", "Q784159", "Q519608", "Q1339195"}
 
 
 def test_url_falls_back_to_wikidata():
@@ -261,6 +294,21 @@ def test_details_query_switches_dates_for_events():
     obj, event = details_query(["Q1"]), details_query(["Q1"], "event")
     assert "wdt:P571" in obj and "P585" not in obj
     assert "P585" in event and "wdt:P571" not in event
+
+
+def test_details_query_falls_back_to_the_opening_date():
+    """У объекта спрашивается и дата основания, и дата открытия.
+
+    Регрессия слоя станций: одной P571 датировано 6% объектов по России,
+    с P1619 — 65%. Порядок в COALESCE важен: основание главнее открытия,
+    P1619 подставляется только там, где P571 пуста.
+    """
+    obj = details_query(["Q1"])
+    assert "wdt:P1619" in obj
+    assert "COALESCE(?founded, ?opened)" in obj
+    assert "?start" in obj, "разбор ответа читает именно ?start"
+    # У события своя пара свойств: дату открытия ему подставлять не за что.
+    assert "wdt:P1619" not in details_query(["Q1"], "event")
 
 
 def test_dedupe_drops_rows_multiplied_by_p31_and_p131():

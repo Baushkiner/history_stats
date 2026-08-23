@@ -216,8 +216,18 @@ COUNTRIES: tuple[tuple[str, str], ...] = (
 # на свой страх: запрос растёт линейно, а лимит времени не двигается.
 CHUNK_SIZE = 1000
 
-_DATES_OBJECT = """  OPTIONAL { ?item wdt:P571 ?start . }
-  OPTIONAL { ?item wdt:P576 ?end . }"""
+# Дата основания (P571) — не единственная, которой датируют объект. У станций
+# она почти не заполнена: на выборке в 2003 объекта по России P571 нашлась
+# у 124 (6%), а дата официального открытия P1619 — у 1291 (64%); вместе 65%.
+# Поэтому P571 остаётся главной, а P1619 подставляется там, где основания нет.
+# Слоям, где P1619 пуста, добавка ничего не меняет.
+# Условие про isBlank — не украшение: у P571 бывает значение «известно, что
+# есть, но какое — нет». В ответе оно приходит пустым узлом, COALESCE счёл бы
+# его настоящей датой и заслонил бы им дату открытия.
+_DATES_OBJECT = """  OPTIONAL { ?item wdt:P571 ?founded . FILTER(!isBlank(?founded)) }
+  OPTIONAL { ?item wdt:P1619 ?opened . }
+  OPTIONAL { ?item wdt:P576 ?end . }
+  BIND(COALESCE(?founded, ?opened) AS ?start)"""
 
 # У события даты лежат в P580/P582 или в P585 — см. пояснение в rows_to_records.
 _DATES_EVENT = """  OPTIONAL { ?item wdt:P580 ?startTime . }
@@ -385,7 +395,9 @@ def rows_to_records(rows: list[dict], spec: LayerSpec, *,
             else:
                 # Объект основан и не упразднён — считаем его существующим до
                 # конца интересующего нас периода, иначе он выпадет из подбора.
-                year_to = OPEN_END_YEAR
+                # Но тянуть конец назад нельзя: станция, открытая в 2018 году,
+                # получила бы срок «2018–1960» — вывернутый наизнанку.
+                year_to = max(year_from, OPEN_END_YEAR)
                 precision = "part"
         if year_to and not year_from:
             year_from = year_to if is_event else min(year_to, 1800)
