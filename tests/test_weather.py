@@ -131,6 +131,54 @@ def test_single_station_does_not_speak_for_a_whole_province():
     assert region_records(series(YEARS, dry_years=(1891,)), source="тест") == []
 
 
+def rescaled(observations, factor):
+    """Тот же ряд, но станция суше: другое место, а не другая погода."""
+    return [o.__class__(**{**o.__dict__, "prcp": o.prcp * factor}) for o in observations]
+
+
+def test_a_station_that_appears_late_does_not_invent_a_drought():
+    """Состав станций меняется — губернская норма от этого зависеть не должна.
+
+    Сухая станция, открытая в 1906 году, роняет простое среднее по губернии
+    вдвое, и вся вторая половина ряда становится «засухой». Погоды в этом нет:
+    поменялось не небо, а список тех, кто мерил.
+    """
+    old = series(YEARS, station="A")
+    new = rescaled(series(range(1906, 1911), station="B", lat=53.4, lon=50.4), 0.2)
+    assert region_records(old + new, source="тест") == []
+
+
+def test_real_drought_survives_the_correction():
+    """Приведение к общей базе убирает разницу мест, а не отклонение года."""
+    obs = (series(YEARS, station="A", dry_years=(1891,))
+           + rescaled(series(YEARS, station="B", lat=53.4, lon=50.4, dry_years=(1891,)), 0.2))
+    recs = region_records(obs, source="тест")
+    assert [r.year_from for r in recs] == [1891]
+    assert recs[0].category == "засуха"
+
+
+def test_year_with_one_station_is_kept_but_marked():
+    """Ничего не выбрасывается молча: за XIX век другой записи не будет вовсе."""
+    obs = (series(YEARS, station="A", dry_years=(1891,))
+           + series(range(1900, 1911), station="B", lat=53.4, lon=50.4))
+    recs = region_records(obs, source="тест")
+    assert len(recs) == 1
+    rec = recs[0]
+    assert rec.year_from == 1891 and rec.confidence == "thin_coverage"
+    assert "одна станция" in rec.summary
+    assert rec.extra["stations"] == 1 and rec.extra["stations_total"] == 2
+
+
+def test_station_count_is_the_one_of_that_year():
+    """«Осреднено по 89 станциям» в 1844 году — неправда, если мерила одна."""
+    obs = (series(YEARS, station="A", dry_years=(1891,))
+           + series(YEARS, station="B", lat=53.4, lon=50.4, dry_years=(1891,))
+           + series(range(1905, 1911), station="C", lat=53.5, lon=50.5))
+    rec = region_records(obs, source="тест")[0]
+    assert rec.extra["stations"] == 2 and rec.extra["stations_total"] == 3
+    assert "осреднено по 2 станциям" in rec.summary
+
+
 def test_source_and_license_reach_the_record():
     recs = station_records(series(YEARS, dry_years=(1891,)), source="meteo.ru",
                            url="http://meteo.ru/data", license="по условиям источника")

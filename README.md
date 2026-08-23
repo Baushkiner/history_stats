@@ -84,7 +84,13 @@
 самой станции), и велико по величине (засуха — осадков ≤ 75% нормы). Слоёв
 два: по станциям и осреднённый по губерниям, потому что до 1880-х годов
 станций единицы, а губерния у факта известна почти всегда
-(`histctx.sources.weather`, `docs/HARVEST.md`).
+(`histctx.sources.weather`, `docs/HARVEST.md`). Ряд берётся из GHCN-M —
+месячных наблюдений NOAA: 2 587 станций в границах РИ/СССР за 1800–1960 годы,
+на выходе 9 678 точек и 1 856 записей по губерниям
+(`histctx.sources.ghcn`). Слой сам находит голодные годы: засуха 1891 года
+стоит в Симбирской, Вятской, Пермской и Курской губерниях, засуха 1921-го —
+в Самарской, Симбирской, Вятской и Херсонской. Ни один голодный год в расчёт
+не подставлялся.
 
 **Источники помимо Викиданных.** Викиданные удобны — CC0 и машинный ответ, —
 но самое ценное собрано людьми в других проектах, и каталог перекосило в их
@@ -133,18 +139,23 @@ pip install geonamescache
 python3 scripts/harvest_geonames.py --probe
 python3 scripts/harvest_geonames.py --build
 
-# 6. Погода: ряды наблюдений -> слой аномалий (см. docs/HARVEST.md)
-python3 scripts/harvest_weather.py --probe data/raw/meteo/*.csv --map "ГОД=year,МЕС=month"
-python3 scripts/harvest_weather.py --build data/raw/meteo/*.csv --map "..." \
-    --source "ВНИИГМИ-МЦД, meteo.ru" --url "http://meteo.ru/data"
-
-# 7. Лагерные управления с «Карты ГУЛАГа»
+# 6. Лагерные управления с «Карты ГУЛАГа»
 python3 scripts/harvest_gulag.py --check
 python3 scripts/harvest_gulag.py --build
 
-# 8. Границы губерний и уездов и итоги переписей 1897 и 1926 годов
+# 7. Границы губерний и уездов и итоги переписей 1897 и 1926 годов
 python3 scripts/harvest_admin_gis.py --check
 python3 scripts/harvest_admin_gis.py --build
+
+# 8. Погода: месячные ряды GHCN с NOAA -> слой аномалий (см. docs/HARVEST.md).
+#    После границ: губерния станции берётся из полигонов 1897 года.
+#    --fetch печатает готовую команду --build вместе с правами и ссылкой.
+python3 scripts/harvest_weather.py --fetch
+python3 scripts/harvest_weather.py --probe data/raw/meteo/ghcn.csv
+python3 scripts/harvest_weather.py --build data/raw/meteo/ghcn.csv \
+    --source "GHCN-M v4, NOAA NCEI" \
+    --url "https://www.ncei.noaa.gov/products/land-based-station/global-historical-climatology-network-monthly" \
+    --license "данные NOAA/NCEI — общественное достояние (работа правительства США), ограничений на использование нет; NOAA требует ссылки на набор и гарантий точности не даёт"
 
 # посмотреть, что покажется рядом с конкретным фактом
 python3 scripts/context.py --lat 53.20 --lon 50.15 --year 1891 \
@@ -234,7 +245,7 @@ src/histctx/
   registry.py     каталог слоёв: собранные, запросы, внешние проекты
   adapters/       исходные файлы проекта -> единая схема
   sources/        внешние источники: wikidata.py, pastvu.py, weather.py,
-                  geonames.py, gulag.py, admin_gis.py, ristat.py;
+                  ghcn.py, geonames.py, gulag.py, admin_gis.py, ristat.py;
                   shapefile.py и geopackage.py — чтение границ без geopandas
 data/curated/     подборки, которые ведутся вручную (state_events.json)
 queries/          SPARQL-запросы к Викиданным
