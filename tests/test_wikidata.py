@@ -419,3 +419,30 @@ def test_probe_limits_an_unconverted_query():
     client = _FakeClient([[]])
     mod.collect(client, meta, SPEC, paged=False, page_size=5000, max_objects=25)
     assert "LIMIT 25" in client.asked[0]
+
+
+def test_timeout_is_not_retried_five_times():
+    """Регрессия: 504 повторялся пятикратно и бил по общему адресу.
+
+    Лимит времени повтором не лечится — тяжёлый запрос лёгким не станет.
+    Пока повторов было пять, один упёршийся запрос отбирал попытки у
+    соседних слоёв: адрес, с которого мы приходим, у всех один.
+    """
+    import urllib.error
+
+    client = SparqlClient(cache_dir=None, max_retries=5)
+    calls = []
+
+    def timeout(req, timeout=None):
+        calls.append(1)
+        raise urllib.error.HTTPError("url", 504, "Gateway Timeout", {}, None)
+
+    import urllib.request
+    original = urllib.request.urlopen
+    urllib.request.urlopen = timeout
+    try:
+        with pytest.raises(SparqlError, match="дробить"):
+            client.query("SELECT ?x WHERE { ?x ?y ?z }", use_cache=False)
+    finally:
+        urllib.request.urlopen = original
+    assert len(calls) == 2, f"504 должен обрываться на второй попытке, было {len(calls)}"
