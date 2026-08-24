@@ -151,9 +151,6 @@ class SparqlClient:
                 if exc.code == 504 and attempt + 1 >= TIMEOUT_ATTEMPTS:
                     # 504 — запрос не уложился в лимит времени. Повтор того же
                     # запроса не лечится ожиданием: тяжёлым он и останется.
-                    # Пятикратный повтор здесь только бьёт по адресу, с которого
-                    # работают и остальные слои. Запрос надо дробить, о чём
-                    # и говорит сообщение.
                     raise SparqlError(
                         "запрос не уложился в лимит времени сервиса (HTTP 504). "
                         "Повтор не поможет — запрос надо дробить: сузить класс, "
@@ -161,16 +158,14 @@ class SparqlClient:
                     ) from exc
             except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
                 last = exc
-            except (json.JSONDecodeError, gzip.BadGzipFile, EOFError,
+            except (json.JSONDecodeError, EOFError, gzip.BadGzipFile,
                     http.client.IncompleteRead) as exc:
                 # Ответ оборвался на середине — сервис не уложился в свой лимит
                 # времени. Повтор иногда проходит, но чаще запрос надо дробить.
-                #
-                # Обрыв выглядит по-разному в зависимости от того, докуда дошёл
-                # ответ. Без сжатия это неполный JSON, а со сжатием — оборванный
-                # поток gzip, и он приходит как BadGzipFile, EOFError или
-                # IncompleteRead. Ни одно из трёх не наследует URLError, так что
-                # без этой строки обрыв на одной стране ронял весь сбор целиком.
+                # Обрыв сжатого ответа виден не как испорченный JSON, а как
+                # обрыв самого gzip-потока: без этих трёх исключений он
+                # пролетал мимо повторов и мимо обработчиков SparqlError,
+                # роняя весь сбор посреди слоя.
                 last = exc
             except UnicodeEncodeError as exc:
                 # Заголовки HTTP кодируются latin-1: повтор ничего не изменит.
@@ -237,15 +232,44 @@ COUNTRIES: tuple[tuple[str, str], ...] = (
     ("Q36", "Польша"), ("Q33", "Финляндия"),
 )
 
+# Государства, которых уже нет. У здания `P17` указывает на нынешнюю страну,
+# а у события — на ту, что существовала в момент события, и семнадцати
+# преемников для событий недостаточно. Проверено на девяти известных
+# событиях: у семи `P17` ведёт только на историческое государство и на
+# нынешнее не ведёт вовсе.
+#
+#   Восстание декабристов (Q126306)      P17 = Российская империя
+#   Ходынская катастрофа (Q942894)       P17 = Российская империя
+#   Чумной бунт (Q4518057)               P17 = Российская империя
+#   Кровавое воскресенье (Q185642)       P17 = Российская империя
+#   Ленский расстрел (Q578858)           P17 = Российская империя
+#   Пожар Москвы 1812 года (Q897785)     P17 = Российская империя
+#   Куренёвская трагедия (Q4248274)      P17 = СССР
+#   Кронштадтское восстание (Q208300)    P17 = РСФСР и Россия
+#   Тамбовское восстание (Q811250)       P17 не проставлен вовсе
+#
+# То есть отбор по нынешним государствам терял даже восстание декабристов —
+# канонический экземпляр класса «восстание». Отсюда этот второй список; он
+# добавляется к обходу только для слоёв событий (`kind="event"`), потому что
+# менять отбор у слоёв зданий — отдельная работа с пересчётом их объёмов.
+# Предложение к общему сбору: те же государства нужны и церквям, и заводам —
+# храм с `P17 = Российская империя` сейчас теряется так же.
+#
+# РСФСР в Викиданных двумя элементами (Q2184 и Q2305208) — это не ошибка
+# списка, а дублирование в самих Викиданных; берутся оба.
+HISTORICAL_COUNTRIES: tuple[tuple[str, str], ...] = (
+    ("Q34266", "Российская империя"), ("Q15180", "СССР"),
+    ("Q2184", "РСФСР"), ("Q2305208", "РСФСР (второй элемент)"),
+    ("Q139319", "Российская республика"), ("Q172107", "Речь Посполитая"),
+)
+
 # Тысяча Q-номеров в VALUES — примерно восемь секунд на ответ. Больше берём
 # на свой страх: запрос растёт линейно, а лимит времени не двигается.
 CHUNK_SIZE = 1000
 
 # Дата основания (P571) — не единственная, которой датируют объект. У станций
 # она почти не заполнена: на выборке в 2003 объекта по России P571 нашлась
-# у 124 (6%), а дата официального открытия P1619 — у 1291 (64%); вместе 65%.
-# Поэтому P571 остаётся главной, а P1619 подставляется там, где основания нет.
-# Слоям, где P1619 пуста, добавка ничего не меняет.
+# у 124 (6%), а дата официального открытия P1619 — у 1291 (64%).
 # Условие про isBlank — не украшение: у P571 бывает значение «известно, что
 # есть, но какое — нет». В ответе оно приходит пустым узлом, COALESCE счёл бы
 # его настоящей датой и заслонил бы им дату открытия.
@@ -253,6 +277,24 @@ _DATES_OBJECT = """  OPTIONAL { ?item wdt:P571 ?founded . FILTER(!isBlank(?found
   OPTIONAL { ?item wdt:P1619 ?opened . }
   OPTIONAL { ?item wdt:P576 ?end . }
   BIND(COALESCE(?founded, ?opened) AS ?start)"""
+
+# Класс «населённый пункт»: им ограничено место, у которого событию можно
+# занять координату. Без ограничения `P276` приводит и губернии — у
+# Кыштымского волнения там Пермская губерния, у Лучайского бунта Виленская, —
+# а точка в середине губернии выглядит на карте достоверно и врёт
+# (`docs/SCHEMA.md`, раздел про `scope`). Город, село и посад проходят,
+# губерния и уезд — нет.
+SETTLEMENT = "Q486972"
+
+
+def _coord_via_place(var: str, indent: str) -> str:
+    """Координата населённого пункта, в котором произошло событие."""
+    return (
+        f"{indent}?item wdt:P276 ?place .\n"
+        f"{indent}?place wdt:P31/wdt:P279* wd:{SETTLEMENT} ;\n"
+        f"{indent}       wdt:P625 {var} .\n"
+    )
+
 
 # У события даты лежат в P580/P582 или в P585 — см. пояснение в rows_to_records.
 _DATES_EVENT = """  OPTIONAL { ?item wdt:P580 ?startTime . }
@@ -263,34 +305,79 @@ _DATES_EVENT = """  OPTIONAL { ?item wdt:P580 ?startTime . }
 
 
 def ids_query(classes: list[str], country: str,
-              extra: Optional[list[str]] = None) -> str:
+              extra: Optional[list[str]] = None, kind: str = "object") -> str:
     """Ступень 1: Q-номера объектов класса с координатами в одном государстве.
 
     `extra` — дополнительные строки условия из директив `@filter` в `.rq`:
     ими слой сужается там, где одного класса мало.
+
+    `kind="event"` меняет то, откуда берётся координата: у события своей
+    `P625` часто нет, оно привязано к месту через `P276`. Тогда координата
+    берётся у места — см. пояснение в `details_query`.
     """
     values = " ".join(f"wd:{c}" for c in classes)
     tail = "".join(f"  {line}\n" for line in (extra or []))
+    if kind == "event":
+        where = (
+            "  ?item wdt:P31/wdt:P279* ?cls ;\n"
+            f"        wdt:P17 wd:{country} .\n"
+            "  { ?item wdt:P625 ?coord }\n"
+            "  UNION {\n"
+            f"{_coord_via_place('?coord', '    ')}"
+            "  }\n"
+        )
+    else:
+        where = (
+            "  ?item wdt:P31/wdt:P279* ?cls ;\n"
+            f"        wdt:P17 wd:{country} ;\n"
+            "        wdt:P625 ?coord .\n"
+        )
     return (
         "SELECT ?item ?coord WHERE {\n"
         f"  VALUES ?cls {{ {values} }}\n"
-        "  ?item wdt:P31/wdt:P279* ?cls ;\n"
-        f"        wdt:P17 wd:{country} ;\n"
-        "        wdt:P625 ?coord .\n"
+        f"{where}"
         f"{tail}"
         "}"
     )
 
 
 def details_query(qids: list[str], kind: str = "object") -> str:
-    """Ступень 2: подробности к готовому списку Q-номеров."""
+    """Ступень 2: подробности к готовому списку Q-номеров.
+
+    У события координата берётся из двух мест. Своя `P625` есть не всегда:
+    Чумной бунт и Кровавое воскресенье её не имеют, но у обоих проставлено
+    `P276` — место события (Москва, Санкт-Петербург). Тогда точка берётся
+    у места, а запись помечается `confidence = place_level`: координата
+    указывает на населённый пункт, а не на само место события.
+
+    Место при этом обязано быть населённым пунктом (`SETTLEMENT`). `P276`
+    сплошь и рядом указывает на губернию — у Кыштымского волнения на
+    Пермскую, у Лучайского бунта на Виленскую, — и такую координату брать
+    нельзя: точка в середине губернии выглядит на карте достоверно и врёт.
+    `P131` не годится по той же причине и целиком (`docs/SCHEMA.md`, раздел
+    про `scope`).
+    """
     values = " ".join(f"wd:{q}" for q in qids)
     dates = _DATES_EVENT if kind == "event" else _DATES_OBJECT
+    if kind == "event":
+        coord = (
+            "  OPTIONAL { ?item wdt:P625 ?ownCoord . }\n"
+            "  OPTIONAL {\n"
+            f"{_coord_via_place('?placeCoord', '    ')}"
+            "  }\n"
+            "  BIND(COALESCE(?ownCoord, ?placeCoord) AS ?coord)\n"
+            '  BIND(IF(BOUND(?ownCoord), "own", "place") AS ?coordSource)\n'
+        )
+        head = ("SELECT ?item ?itemLabel ?coord ?coordSource ?start ?end "
+                "?adminLabel ?typeLabel ?article ?image ?description WHERE {\n")
+    else:
+        coord = "  ?item wdt:P625 ?coord .\n"
+        head = ("SELECT ?item ?itemLabel ?coord ?start ?end ?adminLabel "
+                "?typeLabel ?article ?image ?description WHERE {\n")
     return (
-        "SELECT ?item ?itemLabel ?coord ?start ?end ?adminLabel ?typeLabel "
-        "?article ?image ?description WHERE {\n"
+        f"{head}"
         f"  VALUES ?item {{ {values} }}\n"
-        "  ?item wdt:P625 ?coord .\n"
+        f"{coord}"
         f"{dates}\n"
         "  OPTIONAL { ?item wdt:P131 ?admin . }\n"
         "  OPTIONAL { ?item wdt:P31 ?type . }\n"
@@ -332,12 +419,18 @@ def dedupe(records: list[ContextRecord]) -> list[ContextRecord]:
 def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
                   kind: str = "object",
                   countries: tuple[tuple[str, str], ...] = COUNTRIES,
+                  history: tuple[tuple[str, str], ...] = (),
                   chunk_size: int = CHUNK_SIZE,
                   require_bbox: bool = True,
                   extra: Optional[list[str]] = None,
                   max_objects: Optional[int] = None,
                   progress: Optional[Callable[[str], None]] = None) -> list[ContextRecord]:
     """Собирает слой в две ступени по всем государствам-преемникам.
+
+    `history` — государства, которых уже нет (`HISTORICAL_COUNTRIES`). Обход
+    по ним идёт тем же способом и добавляется к нынешним, а не заменяет их:
+    у Кронштадтского восстания `P17` указывает и на РСФСР, и на Россию, и
+    терять ни то, ни другое нельзя. Повторы отсеиваются по Q-номеру.
 
     Ошибка на одном государстве или на одном чанке не отменяет сбор: она
     печатается и работа идёт дальше. Потерять область хуже, чем потерять всё,
@@ -347,9 +440,9 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
 
     qids: list[str] = []
     seen: set[str] = set()
-    for country, name in countries:
+    for country, name in tuple(countries) + tuple(history):
         try:
-            rows = client.query(ids_query(classes, country, extra))
+            rows = client.query(ids_query(classes, country, extra, kind))
         except SparqlError as exc:
             say(f"    {name}: ОШИБКА — {exc}")
             continue
@@ -399,6 +492,10 @@ def rows_to_records(rows: list[dict], spec: LayerSpec, *,
     интересующего периода. Событие — эпидемия, восстание, пожар — случается
     и заканчивается; дотягивать его до 1960 года нельзя, иначе холера 1848
     года окажется «подходящей» к факту 1950 года.
+
+    `?coordSource` приходит только у событий (см. `details_query`). Значение
+    `place` означает, что координата взята у места события, а не у самого
+    события: запись помечается `place_level` и остаётся в слое.
     """
     is_event = kind == "event"
     out: list[ContextRecord] = []
@@ -423,9 +520,7 @@ def rows_to_records(rows: list[dict], spec: LayerSpec, *,
                 # Но тянуть конец назад нельзя: основанный позже 1960 года
                 # получил бы вывернутый наизнанку срок — «2018–1960», — и
                 # `overlaps_years` не нашёл бы объект даже в его собственном
-                # году, хотя в выгрузку он всё равно попал бы. Такие объекты есть:
-                # станции нашего века, газовые месторождения, заводы
-                # шестидесятых приходят вместе с прочими.
+                # году, хотя в выгрузку он всё равно попал бы.
                 year_to = max(year_from, OPEN_END_YEAR)
                 precision = "part"
         if year_to and not year_from:
@@ -433,7 +528,9 @@ def rows_to_records(rows: list[dict], spec: LayerSpec, *,
             precision = "year" if is_event else "part"
 
         qid = _qid(_val(row, "item"))
+        borrowed = _val(row, "coordSource") == "place"
         out.append(spec.new_record(
+            confidence="place_level" if borrowed else "ok",
             title=clean_text(_val(row, "itemLabel")) or qid or "Без названия",
             category=clean_text(_val(row, "typeLabel")),
             lat=lat, lon=lon,

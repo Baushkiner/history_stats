@@ -26,7 +26,8 @@ from histctx.io_formats import write_geojson, write_jsonl, write_xlsx  # noqa: E
 from histctx.registry import BY_SLUG  # noqa: E402
 from histctx.schema import LayerSpec  # noqa: E402
 from histctx.sources.wikidata import (  # noqa: E402
-    COUNTRIES, SparqlClient, SparqlError, collect_layer, rows_to_records, verify_qids,
+    COUNTRIES, HISTORICAL_COUNTRIES, SparqlClient, SparqlError, collect_layer,
+    rows_to_records, verify_qids,
 )
 
 QUERY_DIR = ROOT / "queries"
@@ -114,6 +115,7 @@ def check_queries(client: SparqlClient, metas: list[dict]) -> bool:
 def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
             paged: bool, page_size: int,
             countries: tuple = COUNTRIES,
+            history: tuple = (),
             max_objects: int = None) -> list:
     """Собирает записи слоя — тем способом, который объявлен в `@scope`."""
     classes = [qid for qid, _ in meta["qids"]]
@@ -124,7 +126,7 @@ def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
                 "именно эти классы и собираются")
         return collect_layer(
             client, classes, spec,
-            kind=meta["kind"], countries=countries,
+            kind=meta["kind"], countries=countries, history=history,
             extra=meta["filters"], max_objects=max_objects, progress=print,
         )
 
@@ -147,13 +149,23 @@ def probe(client: SparqlClient, meta: dict, spec: LayerSpec) -> int:
 
     Нужна до полного сбора. Запрос, который не выполняется или отдаёт пусто,
     должен быть виден сразу, а не через сорок минут обхода семнадцати стран.
+
+    Государство для пробы выбирается по виду слоя. Здания пробуются по
+    России, а события — по Российской империи: у события `P17` указывает на
+    государство времён события, и проба слоя восстаний по нынешней России
+    показала бы пустоту, которая ничего не значит. Обращений к сервису это
+    не добавляет — государство по-прежнему одно.
     """
-    print(f"Проба слоя «{meta['title']}» ({meta['layer']}), способ: {meta['scope']}")
+    one = HISTORICAL_COUNTRIES[:1] if meta["kind"] == "event" else COUNTRIES[:1]
+    print(f"Проба слоя «{meta['title']}» ({meta['layer']}), "
+          f"способ: {meta['scope']}, государство: {one[0][1]}")
     records = collect(client, meta, spec, paged=False, page_size=5000,
-                      countries=COUNTRIES[:1], max_objects=PROBE_OBJECTS)
+                      countries=one, max_objects=PROBE_OBJECTS)
     print(f"\n  разобрано записей: {len(records)}")
     if not records:
-        print("  Ничего не разобрано: проверьте класс, @scope и @filter.",
+        print(f"  Ничего не разобрано по государству «{one[0][1]}»: проверьте "
+              "класс, @scope и @filter. Для слоя событий пусто здесь может "
+              "означать и то, что в Викиданных такого просто нет.",
               file=sys.stderr)
         return 1
 
@@ -161,6 +173,11 @@ def probe(client: SparqlClient, meta: dict, spec: LayerSpec) -> int:
     with_region = sum(1 for r in records if r.region)
     print(f"  с датировкой: {dated} ({dated * 100 // len(records)}%)")
     print(f"  с губернией или областью: {with_region}")
+    # Сколько записей встало на карту по координате места события, а не по
+    # собственной: у слоёв событий это и есть разница между слоем и пустотой.
+    borrowed = sum(1 for r in records if r.confidence == "place_level")
+    if borrowed:
+        print(f"  координата взята у места события (P276): {borrowed}")
     print("\n  примеры:")
     for rec in records[:5]:
         years = rec.period_raw or "без даты"
@@ -172,10 +189,25 @@ def probe(client: SparqlClient, meta: dict, spec: LayerSpec) -> int:
 def harvest(client: SparqlClient, meta: dict, spec: LayerSpec, out_dir: Path,
             paged: bool, page_size: int) -> int:
     print(f"Сбор слоя «{meta['title']}» ({meta['layer']})…")
-    records = collect(client, meta, spec, paged=paged, page_size=page_size)
+    # У события P17 указывает на государство времён события, а не на нынешнее,
+    # поэтому слои событий обходят ещё и исторические государства. Проба этого
+    # не делает намеренно: она стоит два обращения к сервису, и так и должно
+    # остаться.
+    records = collect(client, meta, spec, paged=paged, page_size=page_size,
+                      history=HISTORICAL_COUNTRIES if meta["kind"] == "event" else ())
     print(f"  с координатами в границах РИ/СССР: {len(records)}")
     dated = sum(1 for r in records if r.has_time)
     print(f"  с датировкой: {dated}")
+
+    if not records:
+        # Ошибка на отдельном государстве или чанке сбор не отменяет — иначе
+        # одна осечка сервиса стоила бы всего слоя. Но пустой результат может
+        # означать и то, что не прошло вообще ничего, а запись пустого слоя
+        # затрёт прошлую удачную выгрузку. Молча подменять данные пустотой
+        # нельзя: файлы остаются как были.
+        print(f"  ПУСТО — файлы {spec.slug}.* не перезаписаны "
+              f"(прошлая выгрузка сохранена)", file=sys.stderr)
+        return 0
 
     slug = spec.slug
     write_geojson(records, out_dir / "geojson" / f"{slug}.geojson", layer_title=spec.title)
@@ -212,7 +244,7 @@ def main() -> int:
         if unknown:
             print(f"Неизвестные слои: {', '.join(sorted(unknown))}", file=sys.stderr)
             return 1
-    elif not args.all and not args.check:
+    elif not args.all and not args.check and not args.probe:
         ap.error("укажите --layer <слой>, --all, --check или --probe")
 
     client = SparqlClient(cache_dir=None if args.no_cache else args.cache)
