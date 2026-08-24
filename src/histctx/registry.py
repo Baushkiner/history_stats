@@ -86,7 +86,7 @@ PLANNED = [
     ),
     LayerSpec(
         slug="other_faiths", title="Мечети, синагоги, кирхи, костёлы", group="faith",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=2500,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=3500,
         description=(
             "Неправославные общины. Для многих родов это единственный способ найти "
             "нужный тип метрических записей: раввинат, мечеть, приход костёла."
