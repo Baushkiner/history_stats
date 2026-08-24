@@ -99,7 +99,11 @@ def write_xlsx(records: Sequence[ContextRecord], path: Path, *, sheet_name: str 
     path.parent.mkdir(parents=True, exist_ok=True)
     wb = Workbook()
     ws = wb.active
-    ws.title = sheet_name[:31] or "Данные"
+    # Через ту же очистку, что и многолистовая выгрузка: openpyxl запрещает
+    # в имени листа `[]:*?/\`, и на двоеточии сбор падал уже после того, как
+    # записал GeoJSON, — слой собран, а команда вернула ошибку. Названия
+    # слоёв пишут люди, и двоеточие в них дело обычное.
+    ws.title = _safe_sheet(sheet_name, wb) if sheet_name else "Данные"
 
     headers = [COLUMNS_RU[c] if russian_headers else c for c in COLUMNS]
     ws.append(headers)

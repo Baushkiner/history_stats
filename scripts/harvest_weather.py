@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """Погодные аномалии из ряда метеонаблюдений.
 
+    # забрать месячные ряды GHCN с NOAA и привести их к общему виду
+    python3 scripts/harvest_weather.py --fetch
+
     # что в файле и разбирается ли он
-    python3 scripts/harvest_weather.py --probe data/raw/meteo/moscow.csv \
-        --map "STATION=station_id,YEAR=year,MONTH=month,TAVG=tavg,PRCP=prcp"
+    python3 scripts/harvest_weather.py --probe data/raw/meteo/ghcn.csv
 
     # собрать слои
-    python3 scripts/harvest_weather.py --build data/raw/meteo/*.csv \
-        --source "ВНИИГМИ-МЦД, meteo.ru" --url http://meteo.ru/data
+    python3 scripts/harvest_weather.py --build data/raw/meteo/ghcn.csv \
+        --source "GHCN-M v4, NOAA NCEI" --license "данные NOAA — общественное достояние"
 
-Скрипт не ходит в сеть: он принимает уже скачанные ряды. Разделение
-намеренное — форматов у метеоданных много, а «что считать засухой» одно
-и живёт в `histctx.sources.weather`.
+Три шага — три разные работы, и они намеренно разделены. `--fetch` знает про
+GHCN и ни про что больше; `--probe` и `--build` не знают ни про какой источник
+и принимают любой ряд, приведённый к общему виду. Форматов у метеоданных
+много, а «что считать засухой» одно — оно живёт в `histctx.sources.weather`
+и от источника не зависит.
 
 Общий формат ряда (колонки; порядок неважен, имена задаются ключом --map):
 
@@ -34,10 +38,16 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from histctx.io_formats import write_geojson, write_records_json  # noqa: E402
+from histctx.sources import ghcn  # noqa: E402
 from histctx.sources.weather import (  # noqa: E402
     MIN_YEARS_FOR_BASELINE, WEATHER_REGIONS, WEATHER_STATIONS, Z_THRESHOLD,
     WeatherError, find_anomalies, read_series, region_records, station_records,
 )
+
+# Куда ложатся скачанные архивы и приведённый ряд. В репозиторий они не идут:
+# архивы GHCN весят сотни мегабайт и пересобираются одной командой.
+METEO_DIR = ROOT / "data" / "raw" / "meteo"
+SERIES_PATH = METEO_DIR / "ghcn.csv"
 
 
 def parse_map(text: str | None) -> dict:
@@ -51,6 +61,54 @@ def parse_map(text: str | None) -> dict:
             raise SystemExit(f"--map: ожидалось «колонка=поле», получено {pair!r}")
         out[src.strip()] = dst.strip()
     return out
+
+
+def parse_years(text: str) -> tuple[int, int]:
+    """«1800-1960» -> (1800, 1960)."""
+    first, _, last = text.partition("-")
+    try:
+        years = (int(first), int(last))
+    except ValueError:
+        raise SystemExit(f"--years: ожидалось «1800-1960», получено {text!r}")
+    if years[0] > years[1]:
+        raise SystemExit(f"--years: {years[0]} позже {years[1]}")
+    return years
+
+
+def fetch(series_path: Path, *, cache_dir: Path, years: tuple[int, int],
+          provinces_path: Path | None, flavour: str, refresh: bool) -> int:
+    """Забирает месячные ряды GHCN и пишет их в приведённом виде."""
+    provinces = None
+    if provinces_path is not None:
+        provinces = ghcn.Provinces.load(provinces_path)
+        print(f"губернии: {len(provinces)} полигонов из {provinces_path}")
+    else:
+        print("губернии не подставляются: слой по губерниям не построится")
+
+    rows, stats = ghcn.collect(cache_dir, years=years, provinces=provinces,
+                               flavour=flavour, refresh=refresh, log=print)
+    if not rows:
+        print("Из GHCN не пришло ни одного наблюдения — сбор остановлен.", file=sys.stderr)
+        return 1
+
+    written = ghcn.write_series(rows, series_path)
+    print(f"\n{series_path}: {written} наблюдений")
+    print(f"  станций: {stats['stations']}, из них с губернией: "
+          f"{stats['stations_with_region']} в {stats['regions']} губерниях")
+    print(f"  наблюдений с губернией: {stats['rows_with_region']}")
+    print(f"  температура: {stats['tavg']}, осадки: {stats['prcp']}")
+    print(f"  права: {ghcn.LICENSE}")
+    print(f"  как ссылаться: {ghcn.CITATION}")
+    # Права у погоды записываются при сборе, а не в спецификации слоя: ряд
+    # может быть любой. Поэтому команда печатается целиком — вместе с тем,
+    # что мы про права GHCN выяснили.
+    print("\nДальше — проба и сборка:\n"
+          f"  python3 scripts/harvest_weather.py --probe {series_path}\n"
+          f"  python3 scripts/harvest_weather.py --build {series_path} \\\n"
+          f'      --source "{ghcn.SOURCE}" \\\n'
+          f'      --url "{ghcn.PRODUCT_URL}" \\\n'
+          f'      --license "{ghcn.LICENSE}"')
+    return 0
 
 
 def probe(paths: list[Path], mapping: dict, threshold: float) -> int:
@@ -77,6 +135,14 @@ def probe(paths: list[Path], mapping: dict, threshold: float) -> int:
         print(f"  лет с аномалией: {len(anomalies)}")
         for year, items in sorted(anomalies.items())[:5]:
             print(f"    {year}: " + ", ".join(f"{a.kind} ({a.z:+.1f}σ)" for a in items))
+        if len(stations) > 1:
+            # Проба считает по файлу целиком, а в файле со многими станциями
+            # состав станций год от года меняется — и ранние годы выпадают
+            # из «нормы» просто потому, что тогда мерила другая треть страны.
+            # В слое норма считается по каждой станции отдельно; здесь это
+            # обзор формата, а не результат сбора.
+            print("    (по файлу целиком: в слое норма считается по каждой станции "
+                  "и по каждой губернии отдельно)")
     return 0
 
 
@@ -96,8 +162,11 @@ def build(paths: list[Path], mapping: dict, *, source: str, url: str | None,
         return 1
 
     if points:
+        # Слой станций — тысячи точек, у которых слой, источник и права
+        # одинаковы. Вынесенные на уровень коллекции, они экономят треть файла;
+        # для слоя, который никому ещё не отдавали, это можно решить сразу.
         n = write_geojson(points, out_dir / "geojson" / f"{WEATHER_STATIONS.slug}.geojson",
-                          layer_title=WEATHER_STATIONS.title)
+                          layer_title=WEATHER_STATIONS.title, hoist_shared=True)
         print(f"  geojson/{WEATHER_STATIONS.slug}.geojson: {n} точек")
     if regions:
         write_records_json(regions, out_dir / f"{WEATHER_REGIONS.slug}.json",
@@ -109,9 +178,25 @@ def build(paths: list[Path], mapping: dict, *, source: str, url: str | None,
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--fetch", action="store_true",
+                    help="забрать месячные ряды GHCN с NOAA и привести их к общему виду")
     ap.add_argument("--probe", nargs="+", type=Path, metavar="FILE")
     ap.add_argument("--build", nargs="+", type=Path, metavar="FILE")
     ap.add_argument("--map", dest="mapping", help="соответствие колонок: «ГОД=year,МЕСЯЦ=month»")
+    ap.add_argument("--series", type=Path, default=SERIES_PATH,
+                    help="куда положить приведённый ряд GHCN")
+    ap.add_argument("--cache", type=Path, default=METEO_DIR,
+                    help="где держать скачанные архивы GHCN")
+    ap.add_argument("--years", default=f"{ghcn.YEARS[0]}-{ghcn.YEARS[1]}",
+                    help="окно лет для ряда GHCN: норма считается по нему же")
+    ap.add_argument("--regions", type=Path, default=ROOT / ghcn.PROVINCES_PATH,
+                    help="полигоны губерний, по которым станция получает губернию")
+    ap.add_argument("--no-regions", action="store_true",
+                    help="собрать ряд без губерний: слой по губерниям тогда не построится")
+    ap.add_argument("--adjusted", action="store_true",
+                    help="брать выровненный по соседям ряд температуры (qcf) вместо измеренного")
+    ap.add_argument("--refresh", action="store_true",
+                    help="перекачать архивы GHCN, даже если они уже скачаны")
     ap.add_argument("--source", default="ряд метеонаблюдений",
                     help="как назвать источник в записях — попадёт в выгрузку")
     ap.add_argument("--url", default=None, help="ссылка на источник ряда")
@@ -121,15 +206,22 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=ROOT / "data" / "out")
     args = ap.parse_args()
 
-    if not args.probe and not args.build:
-        ap.error("укажите --probe или --build")
+    if not args.fetch and not args.probe and not args.build:
+        ap.error("укажите --fetch, --probe или --build")
 
     mapping = parse_map(args.mapping)
     try:
+        if args.fetch:
+            return fetch(args.series, cache_dir=args.cache, years=parse_years(args.years),
+                         provinces_path=None if args.no_regions else args.regions,
+                         flavour="qcf" if args.adjusted else "qcu", refresh=args.refresh)
         if args.probe:
             return probe(args.probe, mapping, args.threshold)
         return build(args.build, mapping, source=args.source, url=args.url,
                      license=args.license, out_dir=args.out, threshold=args.threshold)
+    except ghcn.GhcnError as exc:
+        print(f"GHCN не забрался: {exc}", file=sys.stderr)
+        return 1
     except WeatherError as exc:
         print(f"Ряд не разобран: {exc}", file=sys.stderr)
         return 1
