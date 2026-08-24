@@ -205,7 +205,11 @@ def test_churches_filter_makes_a_valid_query():
 
     meta = _meta("churches")
     sparql = ids_query([qid for qid, _ in meta["qids"]], "Q159", meta["filters"])
-    assert "NOT EXISTS" in sparql, "сужение churches не попало в запрос"
+    # Проверяется смысл, а не форма записи: сужение может быть и `MINUS`,
+    # и `FILTER NOT EXISTS` — важно, что классы иных конфессий из слоя
+    # исключены и что в запросе они названы поимённо.
+    assert ("MINUS" in sparql or "NOT EXISTS" in sparql), \
+        "сужение churches не попало в запрос"
     prepareQuery(sparql, initNs={
         "wd": rdflib.Namespace("http://www.wikidata.org/entity/"),
         "wdt": rdflib.Namespace("http://www.wikidata.org/prop/direct/"),
