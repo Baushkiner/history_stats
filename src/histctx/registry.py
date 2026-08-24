@@ -49,6 +49,7 @@ from .sources.cshapes import STATE_BORDERS                  # noqa: E402
 from .sources.drought import DROUGHT_ATLAS                  # noqa: E402
 from .sources.gulag import GULAG_CAMPS                      # noqa: E402
 from .sources.ristat import RISTAT_BOUNDARIES               # noqa: E402
+from .sources.strikes import STRIKES                        # noqa: E402
 from .sources.pastvu import PASTVU_PHOTOS                  # noqa: E402
 from .sources.weather import WEATHER_REGIONS, WEATHER_STATIONS  # noqa: E402
 
@@ -62,7 +63,7 @@ CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 # PastVu и погода пришли сюда из EXTERNAL: разбор сверен с живым сервисом.
 HARVESTED = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
              STATE_BORDERS, HARVEST_PRICES, DROUGHT_ATLAS,
-             WEATHER_STATIONS, WEATHER_REGIONS]
+             WEATHER_STATIONS, WEATHER_REGIONS, STRIKES]
 
 # --- слои для сбора из Викиданных ----------------------------------------
 # Поле `query` указывает на файл в каталоге queries/.

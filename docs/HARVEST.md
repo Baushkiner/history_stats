@@ -23,6 +23,8 @@
 | `heidata.uni-heidelberg.de`, `doi.org` | Полигоны губерний 1897 и 1926 годов с итогами переписей (CC BY 4.0) |
 | `datasets.iisg.amsterdam`, `ristat.org` | RISTAT: границы уездов 1897 года (CC0) и статистические таблицы ERRHS |
 | `icr.ethz.ch` | CShapes 2.0 — границы государств по датам их изменения (CC BY-NC-SA 4.0). Рвёт скачивание: сбор повторяет попытку |
+| `datasets.iisg.amsterdam`, `ristat.org` | RISTAT: границы уездов 1897 года (CC0), статистические таблицы ERRHS и свод стачек 1895–1904 годов (CC0) |
+| `icr.ethz.ch` | CShapes 2.0 — границы государств по годам |
 | `gulagmap.ru` | Лагерные управления 1918–1960 годов: `/api/camps` и три справочника к нему |
 | `russiainphoto.ru` | Фотоархив МАММ — снимки только после договорённости, см. `docs/CATALOG.md` |
 | `heidata.uni-heidelberg.de`, `doi.org` | Полигоны губерний и уездов переписей 1897 и 1926 годов |
@@ -50,6 +52,12 @@
 объявлены проходом по каталогу 23.08.2026, сборщиков у них ещё нет, а адреса
 понадобились уже на проверке — без них следующий проход снова упрётся
 в CONNECT и будет гадать, зачем эти домены нужны.
+Ближайшие кандидаты: `www.ncei.noaa.gov` (реконструкция засух по годичным
+кольцам, NOAA Paleoclimatology) и статистические таблицы ERRHS с
+`datasets.iisg.amsterdam` — оба домена уже в таблице выше. Третий,
+`dataverse.harvard.edu`, в таблице ещё не появился: наборы Imperiia Project
+(1820-е годы, CC BY-NC-SA 4.0) записаны в журнал дискавери со статусом «на
+очереди», и строка домена придёт вместе со сборщиком, а не раньше.
 
 ## Порядок
 
@@ -102,6 +110,9 @@ python3 scripts/harvest_weather.py --build data/raw/meteo/ghcn.csv \
     --source "GHCN-M v4, NOAA NCEI" \
     --url "https://www.ncei.noaa.gov/products/land-based-station/global-historical-climatology-network-monthly" \
     --license "данные NOAA/NCEI — общественное достояние (работа правительства США), ограничений на использование нет; NOAA требует ссылки на набор и гарантий точности не даёт"
+# 7. Стачки и рабочие волнения 1895–1904 годов: свод IISH (CC0)
+python3 scripts/harvest_strikes.py --probe
+python3 scripts/harvest_strikes.py --build
 ```
 
 Населённые места — единственный слой, который собирается в закрытом
@@ -109,6 +120,10 @@ python3 scripts/harvest_weather.py --build data/raw/meteo/ghcn.csv \
 где закрыты сайты источников, а набор GeoNames приезжает внутри пакета
 `geonamescache`. Данные под CC BY 4.0 — ссылка на GeoNames проставляется в
 каждой записи.
+
+Свод стачек скачивается один раз в `data/cache/strikes/` (5 МБ TSV) и
+пересобирается тем же `--build`; выгрузка слоя — `data/out/jsonl/`, в
+репозиторий она не идёт: записи территориальные, GeoJSON у них не бывает.
 
 Границы и переписи скачиваются один раз и остаются в `data/cache/boundaries/`:
 наборы весят мегабайты и с 2015 года не менялись. Кэш в репозиторий не идёт
