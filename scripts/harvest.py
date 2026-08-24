@@ -43,7 +43,11 @@ SCOPES = TWO_STAGE + ("box",)
 # полная проба крупного слоя — это двенадцать чанков подряд, то есть цена
 # самого сбора. Тысячи хватает, чтобы увидеть, что разбор работает.
 PROBE_OBJECTS = 1000
-_RE_META = re.compile(r"^#\s*@(\w+)\s+(.*)$")
+# Значение необязательно (`\s*`, а не `\s+`) нарочно: директива без значения
+# — `# @owner` — иначе была бы неотличима от обычного комментария и пропала
+# бы молча. Так она доходит до проверки заголовка пустой строкой и там же
+# получает жалобу.
+_RE_META = re.compile(r"^#\s*@(\w+)\s*(.*)$")
 
 
 def parse_query(path: Path) -> dict:
@@ -63,7 +67,10 @@ def parse_query(path: Path) -> dict:
                `box` (по умолчанию) — старый способ, тело файла выполняется
                как есть;
       @filter  дополнительная строка условия для первой ступени,
-               можно повторять. Только при `@scope country` и `@scope class`.
+               можно повторять. Только при `@scope country` и `@scope class`;
+      @owner   `P127` — добавить владельца в поле «действующее лицо».
+               Только при `@scope country`, см. пояснение в
+               `sources/wikidata.py` и в `queries/estates.rq`.
     """
     meta: dict = {"qids": [], "filters": [], "path": path}
     body: list[str] = []
@@ -125,6 +132,12 @@ def check_queries(client: SparqlClient, metas: list[dict]) -> bool:
             else:
                 print(f"  [НЕ ТОТ]   {qid:10s} объявлен «{declared}», на деле «{actual}»  ({meta['layer']})")
                 ok = False
+        # Директивы сверяются здесь же, а не при сборе: `--check` — это тот
+        # самый проверочный первый запуск из docs/HARVEST.md, и он обязан
+        # ловить описку в заголовке до того, как начнётся обход стран.
+        for line in check_directives(meta):
+            print(line)
+            ok = False
     print()
     return ok
 
@@ -138,6 +151,23 @@ def layer_countries(meta: dict, countries: tuple = COUNTRIES) -> tuple:
     СССР, а то и вовсе не указан.
     """
     return WORLD if meta["scope"] == "class" else countries
+def check_directives(meta: dict) -> list[str]:
+    """Проверяет директивы заголовка, кроме `@qid`. Возвращает жалобы."""
+    bad = []
+    owner = meta.get("owner")
+    if owner is not None:
+        # Пустая строка — директива без значения (`# @owner`). Такая строка
+        # не должна проходить молча: слой собрался бы без владельцев, а
+        # пустое поле читается как «в Викиданных владелец не указан».
+        if owner != "P127":
+            bad.append(f"  [НЕ ТО]    @owner понимает только P127, а не «{owner}»"
+                       f"  ({meta['layer']})")
+        elif meta["scope"] != "country":
+            # При `@scope box` тело файла выполняется как есть, и движок в
+            # запрос ничего не добавляет: директива не сработала бы.
+            bad.append(f"  [НЕ ТАМ]   @owner работает только при @scope country"
+                       f"  ({meta['layer']})")
+    return bad
 
 
 def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
@@ -147,6 +177,11 @@ def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
             max_objects: int = None) -> list:
     """Собирает записи слоя — тем способом, который объявлен в `@scope`."""
     classes = [qid for qid, _ in meta["qids"]]
+    # Заголовок уже проверен `check_queries`, и сбор сюда не дошёл бы, если
+    # проверка не прошла. Здесь остаётся страховка на прямой вызов.
+    bad = check_directives(meta)
+    if bad:
+        raise SparqlError(f"{meta['layer']}: {'; '.join(s.strip() for s in bad)}")
     if meta["scope"] in TWO_STAGE:
         if not classes:
             raise SparqlError(
@@ -156,7 +191,8 @@ def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
             client, classes, spec,
             kind=meta["kind"], countries=layer_countries(meta, countries),
             history=history,
-            extra=meta["filters"], max_objects=max_objects, progress=print,
+            extra=meta["filters"], with_owner=bool(meta.get("owner")),
+            max_objects=max_objects, progress=print,
         )
 
     if max_objects is not None:
