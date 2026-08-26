@@ -40,6 +40,7 @@ from histctx.geo import extract_region  # noqa: E402
 from histctx.io_formats import (  # noqa: E402
     read_layers, write_geojson, write_jsonl, write_records_json, write_xlsx_multi,
 )
+from histctx.periods import PRECISION_OPEN  # noqa: E402
 from histctx.registry import ALL_LAYERS, BY_SLUG  # noqa: E402
 from histctx.schema import GROUPS, ContextRecord, LayerSpec  # noqa: E402
 from histctx.sources.wikidata import OPEN_END_YEAR  # noqa: E402
@@ -244,8 +245,8 @@ MARKS = {
 
 PRECISION_RU = {
     "day": "до дня", "month": "до месяца", "season": "до сезона", "year": "до года",
-    "decade": "до десятилетия", "part": "часть века или открытый срок",
-    "century": "век целиком", "era": "именованная эпоха", "unknown": "не определена",
+    "decade": "до десятилетия", "part": "часть века", "century": "век целиком",
+    "era": "именованная эпоха", "open": "открытый срок", "unknown": "не определена",
 }
 
 
@@ -337,13 +338,13 @@ def build_report(layers: dict, specs: dict) -> str:
         lines.append(f"- {PRECISION_RU.get(key, key)}: {cnt}")
     lines.append("")
     open_ended = sum(1 for records in layers.values() for r in records
-                     if r.date_precision == "part" and r.year_to == OPEN_END_YEAR
-                     and r.year_from != r.year_to)
+                     if r.date_precision == PRECISION_OPEN)
     if open_ended:
-        lines.append(f"Из них {open_ended} — открытый срок: у объекта известен год "
-                     f"основания, а конца нет, и он растянут до {OPEN_END_YEAR} года, "
-                     "чтобы объект не выпал из подбора. Это не измеренная датировка, "
-                     "и при ранжировании такая запись понижается наравне с «19 в.».")
+        lines.append(f"«Открытый срок» — это {open_ended} записей, у которых измерен "
+                     f"один конец: объект основан и не упразднён, и срок растянут до "
+                     f"{OPEN_END_YEAR} года, чтобы он не выпал из подбора. Ширина "
+                     "такого интервала — свойство рамки проекта, а не источника, "
+                     "поэтому датированной записью он считается с оговоркой.")
         lines.append("")
 
     lines.append("## Покрытие по территориям")

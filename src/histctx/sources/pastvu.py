@@ -356,7 +356,11 @@ def photos_to_records(photos: list[dict], spec: LayerSpec = PASTVU_PHOTOS, *,
             lat=lat, lon=lon,
             year_from=year_from,
             year_to=year_to,
-            date_precision="year" if span == 0 else "part",
+            # `year` и `year2` оба названы автором снимка: точность — год,
+            # а то, что момент внутри интервала неизвестен, помечено
+            # `date_approx`. «Часть века» здесь была неправдой: 1893–1896 —
+            # не половина столетия.
+            date_precision="year",
             date_approx=span > 0,
             period_raw=str(year_from) if span == 0 else f"{year_from}–{year_to}",
             summary=f"Снимок PastVu: {title}.",

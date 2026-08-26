@@ -62,6 +62,7 @@ import re
 from typing import Callable, Iterable, Optional
 
 from ..geo import extract_district, extract_region, in_bbox, valid_coords
+from ..periods import PRECISION_OPEN
 from ..schema import ContextRecord, LayerSpec, clean_text
 # Разбор Point(), Q-номеров и дат Викиданных уже написан для основного сбора.
 # Второй такой же разбор — второе место, где его чинить.
@@ -611,9 +612,11 @@ def _rename_record(place: _Place, link: dict, new: str, year: int,
         year_from=year_from,
         year_to=year,
         # Год начала неизвестен — интервал растянут до начала интересующего
-        # периода, и это «часть века», а не год. Если растягивать некуда
-        # (переименование раньше 1800 года), запись сжимается в сам год смены.
-        date_precision="year" if start is not None or year_from == year else "part",
+        # периода, и это открытый срок, а не год: измерен только конец, начало
+        # взято из рамки проекта. Если растягивать некуда (переименование
+        # раньше 1800 года), запись сжимается в сам год смены.
+        date_precision=("year" if start is not None or year_from == year
+                        else PRECISION_OPEN),
         date_approx=start is None,
         period_raw=_period_raw(start, year),
         summary=build_summary(old, new, year, start, place.label),
