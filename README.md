@@ -184,6 +184,10 @@ python3 scripts/harvest_weather.py --build data/raw/meteo/ghcn.csv \
     --url "https://www.ncei.noaa.gov/products/land-based-station/global-historical-climatology-network-monthly" \
     --license "данные NOAA/NCEI — общественное достояние (работа правительства США), ограничений на использование нет; NOAA требует ссылки на набор и гарантий точности не даёт"
 
+# посмотреть собранный слой таблицей — сети не требует, слой берётся с диска
+python3 scripts/export_xlsx.py --list
+python3 scripts/export_xlsx.py --layer disasters
+
 # посмотреть, что покажется рядом с конкретным фактом
 python3 scripts/context.py --lat 53.20 --lon 50.15 --year 1891 \
     --region "Самарская губерния"
@@ -278,6 +282,7 @@ python3 -m pytest tests/ -q
 | `data/out/jsonl/<слой>.jsonl` | Слой построчно; сюда попадают и записи без точки |
 | `data/out/territorial_events.json` | События без точки: лента времени рядом с фактом |
 | `data/out/all_layers.xlsx` | Все слои, по вкладке на слой, русские заголовки |
+| `data/out/xlsx/<слой>.xlsx` | Отдельный слой таблицей: пишется сбором, пересобирается `scripts/export_xlsx.py` без обращения к сети |
 | `data/out/context.jsonl` | Для загрузки в базу |
 | `data/out/name_variants.json` | Указатель написаний названий для поиска |
 | `data/out/report.md` | Отчёт о качестве |
@@ -300,7 +305,8 @@ src/histctx/
 data/curated/     подборки, которые ведутся вручную (state_events.json)
 queries/          SPARQL-запросы к Викиданным
 scripts/          build_core.py, harvest.py, harvest_pastvu.py,
-                  harvest_geonames.py, harvest_weather.py, context.py
+                  harvest_geonames.py, harvest_weather.py, context.py,
+                  export_xlsx.py — собранный слой в таблицу
 docs/             CATALOG.md, DISCOVERY.md, HARVEST.md, SCHEMA.md,
                   ENRICHMENT.md
 ```

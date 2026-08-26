@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from histctx.enrich import ContextEngine, Fact  # noqa: E402
+from histctx.io_formats import read_geojson, read_jsonl  # noqa: E402
 from histctx.schema import ContextRecord  # noqa: E402
 
 
@@ -34,55 +35,22 @@ def load_records(out_dir: Path) -> list[ContextRecord]:
     """
     jsonl = out_dir / "context.jsonl"
     if jsonl.exists():
-        return [_from_row(json.loads(line)) for line in jsonl.read_text(encoding="utf-8").splitlines() if line.strip()]
+        return read_jsonl(jsonl)
 
     records: list[ContextRecord] = []
     seen: set[str] = set()
     for path in sorted((out_dir / "geojson").glob("*.geojson")):
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        # `write_geojson(hoist_shared=True)` выносит свойства, одинаковые у
-        # всех записей, на уровень коллекции — в поле `layer`. Без обратной
-        # склейки такой слой не читается вовсе: у его фич нет даже имени слоя,
-        # и сборка падала на населённых местах.
-        shared = payload.get("layer") or {}
-        for feat in payload.get("features", []):
-            geometry = feat.get("geometry") or {}
-            props = {**shared, **dict(feat.get("properties", {}))}
-            # Слой контекста — это точки с полем `layer`. Полигон границ или
-            # чужой GeoJSON, случайно оказавшийся в каталоге, пропускается:
-            # уронить подбор он не должен, а притвориться записью не может.
-            if geometry.get("type") != "Point" or "layer" not in props:
-                continue
-            props.pop("extra", None)
-            lon, lat = geometry["coordinates"]
-            props["lat"], props["lon"] = lat, lon
-            record = _from_row(props)
+        for record in read_geojson(path):
             seen.add(record.uid)
             records.append(record)
 
     for path in sorted((out_dir / "jsonl").glob("*.jsonl")):
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            record = _from_row(json.loads(line))
+        for record in read_jsonl(path):
             if record.uid in seen:
                 continue
             seen.add(record.uid)
             records.append(record)
     return records
-
-
-def _from_row(row: dict) -> ContextRecord:
-    row = {k: v for k, v in row.items() if k != "extra"}
-    row["date_approx"] = row.get("date_approx") in (True, "да")
-    # В выгрузке перечень губерний — строка «А; Б»; в записи это список.
-    regions = row.get("regions")
-    if isinstance(regions, str):
-        row["regions"] = [part.strip() for part in regions.split(";") if part.strip()]
-    elif regions is None:
-        row["regions"] = []
-    allowed = set(ContextRecord.__dataclass_fields__)
-    return ContextRecord(**{k: v for k, v in row.items() if k in allowed})
 
 
 def main() -> int:

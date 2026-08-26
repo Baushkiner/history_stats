@@ -1,4 +1,4 @@
-"""Выгрузка слоёв в GeoJSON и XLSX."""
+"""Выгрузка слоёв в GeoJSON, XLSX и JSONL — и чтение выгруженного обратно."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from .schema import COLUMNS, COLUMNS_RU, ContextRecord
+from .schema import COLUMNS, COLUMNS_RU, SCOPE_POINT, ContextRecord
 
 
 # Свойства, одинаковые у всех записей слоя: название слоя, источник, права.
@@ -172,6 +172,73 @@ def write_jsonl(records: Iterable[ContextRecord], path: Path) -> int:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
             n += 1
     return n
+
+
+# --- Чтение выгруженного обратно -------------------------------------------
+#
+# Выгрузка — не конечная станция: собранный слой нужно и перечитать. Из него
+# строится индекс подбора (`scripts/context.py`) и делается таблица для
+# человека (`scripts/export_xlsx.py`), причём во втором случае повторять сбор
+# из сети незачем — слой уже лежит на диске.
+
+
+def record_from_row(row: dict) -> ContextRecord:
+    """Собирает запись обратно из строки выгрузки — GeoJSON, JSONL или XLSX.
+
+    Выгрузка местами не равна записи: булево поле в таблице записано словом
+    «да», перечень губерний — строкой «А; Б», а лишние ключи (`extra`,
+    заголовки чужого файла) в запись не входят вовсе.
+    """
+    row = {k: v for k, v in row.items() if k != "extra"}
+    row["date_approx"] = row.get("date_approx") in (True, "да")
+    # В выгрузке перечень губерний — строка «А; Б»; в записи это список.
+    regions = row.get("regions")
+    if isinstance(regions, str):
+        row["regions"] = [part.strip() for part in regions.split(";") if part.strip()]
+    elif regions is None:
+        row["regions"] = []
+    allowed = set(ContextRecord.__dataclass_fields__)
+    return ContextRecord(**{k: v for k, v in row.items() if k in allowed})
+
+
+def read_geojson(path: Path) -> list[ContextRecord]:
+    """Читает слой из GeoJSON. Не-записи пропускаются молча.
+
+    Свойства, вынесенные `write_geojson(hoist_shared=True)` на уровень
+    коллекции, склеиваются обратно: без этого у фич такого слоя нет даже
+    имени слоя. Полигон границ или чужой GeoJSON, случайно оказавшийся в
+    каталоге слоёв, пропускается — уронить чтение он не должен, а
+    притвориться записью не может.
+    """
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    shared = payload.get("layer") or {}
+    records = []
+    for feat in payload.get("features", []):
+        geometry = feat.get("geometry") or {}
+        props = {**shared, **dict(feat.get("properties", {}))}
+        if geometry.get("type") != "Point" or "layer" not in props:
+            continue
+        props.pop("extra", None)
+        lon, lat = geometry["coordinates"]
+        props["lat"], props["lon"] = lat, lon
+        props.setdefault("scope", SCOPE_POINT)
+        records.append(record_from_row(props))
+    return records
+
+
+def read_jsonl(path: Path) -> list[ContextRecord]:
+    """Читает построчный JSON — сюда попадают и записи без координат."""
+    records = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            records.append(record_from_row(json.loads(line)))
+    return records
+
+
+def read_records_json(path: Path) -> list[ContextRecord]:
+    """Читает выгрузку `write_records_json` — события без точки одним массивом."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return [record_from_row(row) for row in payload.get("records", [])]
 
 
 def _cell(value):
