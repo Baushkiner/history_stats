@@ -20,69 +20,17 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from histctx.enrich import ContextEngine, Fact  # noqa: E402
+from histctx.io_formats import read_context  # noqa: E402
 from histctx.schema import ContextRecord  # noqa: E402
 
 
 def load_records(out_dir: Path) -> list[ContextRecord]:
-    """Читает context.jsonl, а при его отсутствии — собранные слои из out_dir.
+    """Читает выгрузку из data/out.
 
-    Слоёв два вида, и одним проходом их не собрать. Точечные лежат в
-    `geojson/`, территориальные — губернские итоги переписи, события без
-    точки — в GeoJSON не попадают по определению: у них нет координаты.
-    Они лежат построчным JSON в `jsonl/`, и без второго прохода такой слой
-    был бы собран впустую. Повторы отсеиваются по `uid`.
+    Разбор форматов — `histctx.io_formats`: тем же чтением пользуется отчёт о
+    качестве, и расходиться им нельзя.
     """
-    jsonl = out_dir / "context.jsonl"
-    if jsonl.exists():
-        return [_from_row(json.loads(line)) for line in jsonl.read_text(encoding="utf-8").splitlines() if line.strip()]
-
-    records: list[ContextRecord] = []
-    seen: set[str] = set()
-    for path in sorted((out_dir / "geojson").glob("*.geojson")):
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        # `write_geojson(hoist_shared=True)` выносит свойства, одинаковые у
-        # всех записей, на уровень коллекции — в поле `layer`. Без обратной
-        # склейки такой слой не читается вовсе: у его фич нет даже имени слоя,
-        # и сборка падала на населённых местах.
-        shared = payload.get("layer") or {}
-        for feat in payload.get("features", []):
-            geometry = feat.get("geometry") or {}
-            props = {**shared, **dict(feat.get("properties", {}))}
-            # Слой контекста — это точки с полем `layer`. Полигон границ или
-            # чужой GeoJSON, случайно оказавшийся в каталоге, пропускается:
-            # уронить подбор он не должен, а притвориться записью не может.
-            if geometry.get("type") != "Point" or "layer" not in props:
-                continue
-            props.pop("extra", None)
-            lon, lat = geometry["coordinates"]
-            props["lat"], props["lon"] = lat, lon
-            record = _from_row(props)
-            seen.add(record.uid)
-            records.append(record)
-
-    for path in sorted((out_dir / "jsonl").glob("*.jsonl")):
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            record = _from_row(json.loads(line))
-            if record.uid in seen:
-                continue
-            seen.add(record.uid)
-            records.append(record)
-    return records
-
-
-def _from_row(row: dict) -> ContextRecord:
-    row = {k: v for k, v in row.items() if k != "extra"}
-    row["date_approx"] = row.get("date_approx") in (True, "да")
-    # В выгрузке перечень губерний — строка «А; Б»; в записи это список.
-    regions = row.get("regions")
-    if isinstance(regions, str):
-        row["regions"] = [part.strip() for part in regions.split(";") if part.strip()]
-    elif regions is None:
-        row["regions"] = []
-    allowed = set(ContextRecord.__dataclass_fields__)
-    return ContextRecord(**{k: v for k, v in row.items() if k in allowed})
+    return read_context(out_dir)
 
 
 def main() -> int:
