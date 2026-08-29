@@ -4,7 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "histctx"
-version = "0.2.0"
+# Версия одна, и живёт она в коде: из неё же собирается подпись, с которой
+# сборщики ходят к источникам (`histctx.net.USER_AGENT`). Написанная тут
+# вторично, она рано или поздно разъедется с той, что уходит в сеть.
+dynamic = ["version"]
 description = "Сбор и нормализация исторического контекста для генеалогической карты"
 requires-python = ">=3.10"
 dependencies = [
@@ -19,6 +22,9 @@ dev = ["pytest>=7.0", "rdflib>=6.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "histctx.__version__"}
 
 [tool.ruff]
 # Договорённости о виде кода записаны здесь, чтобы о них не спорили в ревью.
