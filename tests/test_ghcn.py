@@ -133,6 +133,20 @@ def test_prcp_gaps_and_flagged_values_are_dropped():
     assert list(ghcn.parse_prcp(lines)) == []
 
 
+def test_line_cut_before_the_quality_flag_is_dropped():
+    """Обрезанная строка не должна читаться как выдержавшая контроль качества.
+
+    Флаг стоит на 99-м знаке, значение — раньше. Строка, оборванная между
+    ними, даёт значение и пустой флаг: по виду — проверенное измерение,
+    на деле — обрывок файла.
+    """
+    line = prcp_line("RSM00034880", "ASTRAKHAN'", 46.27, 48.03, 1891, 7, 1029)
+    cut = line[:98]
+    assert len(cut) > 96, "обрезаем именно там, где значение уже прочитано, а флаг ещё нет"
+    assert ghcn.to_int(cut[90:96]) == 1029
+    assert list(ghcn.parse_prcp([cut])) == []
+
+
 def test_comma_inside_the_station_name_does_not_shift_columns():
     """Файл выглядит как CSV, но по readme это фиксированная ширина.
 
