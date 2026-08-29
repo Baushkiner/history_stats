@@ -43,15 +43,11 @@ from dataclasses import dataclass, field
 from typing import Iterator, Optional
 
 from ..geo import in_bbox, valid_coords
+from ..net import RETRY_CODES, USER_AGENT, wait_for_pause
 from ..schema import ContextRecord, LayerSpec, clean_text
 
 ENDPOINT = "https://api.pastvu.com/api2"
 
-# Заголовки HTTP кодируются latin-1 — в User-Agent только ASCII.
-USER_AGENT = (
-    "histctx/0.2 (https://xn----ctbkalderxbemeylx6aq.xn--p1ai/; "
-    "historical context harvesting for genealogy)"
-)
 
 # Нижняя граница датировок в самом PastVu и верхняя граница нашего периода.
 YEAR_MIN, YEAR_MAX = 1826, 1960
@@ -221,7 +217,7 @@ class PastVuClient:
                     return json.loads(resp.read().decode("utf-8"))
             except urllib.error.HTTPError as exc:
                 last = exc
-                if exc.code not in (429, 500, 502, 503, 504):
+                if exc.code not in RETRY_CODES:
                     body = exc.read()[:400].decode("utf-8", "replace")
                     raise PastVuError(f"HTTP {exc.code}: {body}") from exc
             except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
@@ -235,10 +231,7 @@ class PastVuClient:
 
     def _throttle(self) -> None:
         """Пауза между запросами: сервис небольшой, выгружать его нахрапом нельзя."""
-        wait = self.pause_sec - (time.monotonic() - self._last_call)
-        if wait > 0:
-            time.sleep(wait)
-        self._last_call = time.monotonic()
+        self._last_call = wait_for_pause(self._last_call, self.pause_sec)
 
 
 def cluster_zoom(bbox: tuple) -> int:

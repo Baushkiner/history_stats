@@ -24,6 +24,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
+from ..net import USER_AGENT
 from ..schema import LayerSpec
 from .geopackage import GeoPackageError, read_features
 
@@ -31,10 +32,6 @@ HANDLE = "hdl:10622/DN9QDM"
 DATASET_URL = f"https://datasets.iisg.amsterdam/dataset.xhtml?persistentId={HANDLE}"
 FILE_URL = "https://datasets.iisg.amsterdam/api/access/datafile/{file_id}"
 
-USER_AGENT = (
-    "histctx/0.2 (https://xn----ctbkalderxbemeylx6aq.xn--p1ai/; "
-    "historical context harvesting for genealogy)"
-)
 
 CITATION = (
     "Kessler, Gijs; Markevich, Andrei. Electronic Repository of Russian Historical "

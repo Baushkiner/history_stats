@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Callable, Iterator, Optional
 
 from ..geo import in_bbox, valid_coords
+from ..net import RETRY_CODES, USER_AGENT, wait_for_pause
 from ..periods import PRECISION_OPEN
 from ..schema import ContextRecord, LayerSpec, clean_text
 
@@ -51,12 +52,6 @@ _last_request_at = 0.0
 # открытой датировкой: храм основан в 1800 году и не упразднён.
 OPEN_END_YEAR = 1960
 
-# Викимедиа требует содержательный User-Agent и блокирует запросы без него.
-# Только ASCII: заголовки HTTP кодируются latin-1, кириллица здесь падает.
-USER_AGENT = (
-    "histctx/0.1 (https://xn----ctbkalderxbemeylx6aq.xn--p1ai/; "
-    "historical context harvesting for genealogy)"
-)
 
 _RE_POINT = re.compile(r"Point\(([-\d.eE]+)\s+([-\d.eE]+)\)")
 _RE_QID = re.compile(r"/entity/(Q\d+)$")
@@ -112,10 +107,7 @@ class SparqlClient:
     def _throttle(self) -> None:
         """Держит паузу между обращениями к сервису — на весь процесс."""
         global _last_request_at
-        wait = MIN_INTERVAL_SEC - (time.monotonic() - _last_request_at)
-        if wait > 0:
-            time.sleep(wait)
-        _last_request_at = time.monotonic()
+        _last_request_at = wait_for_pause(_last_request_at, MIN_INTERVAL_SEC)
 
     def _request(self, sparql: str) -> dict:
         data = urllib.parse.urlencode({"query": sparql, "format": "json"}).encode("utf-8")
@@ -143,7 +135,7 @@ class SparqlClient:
             except urllib.error.HTTPError as exc:
                 last = exc
                 # 429 — превышен лимит, 503 — сервис занят: обе ошибки временные.
-                if exc.code not in (429, 500, 502, 503, 504):
+                if exc.code not in RETRY_CODES:
                     raise SparqlError(f"HTTP {exc.code}: {exc.read()[:400].decode('utf-8', 'replace')}") from exc
                 if exc.code == 429:
                     # Обычный отступ здесь не помогает: сервис переводит адрес

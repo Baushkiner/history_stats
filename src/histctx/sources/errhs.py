@@ -56,6 +56,7 @@ from pathlib import Path
 from typing import Iterable, Optional, Sequence
 
 from ..geo import extract_region, region_key
+from ..net import RETRY_CODES, USER_AGENT, wait_for_pause
 from ..schema import SCOPE_REGION, ContextRecord, LayerSpec, clean_text
 
 HARVEST_PRICES = LayerSpec(
@@ -86,11 +87,6 @@ HARVEST_PRICES = LayerSpec(
 CATALOG_URL = "https://ristat.org/ru/catalog"
 FORM_ID = "querytool_catalog_form"
 
-# Заголовки HTTP кодируются latin-1 — в User-Agent только ASCII.
-USER_AGENT = (
-    "histctx/0.2 (https://xn----ctbkalderxbemeylx6aq.xn--p1ai/; "
-    "historical context harvesting for genealogy)"
-)
 
 # Темы каталога и опорные срезы, для которых они существуют. Сочетания
 # сверены с чекбоксами формы: не у всякой темы есть все пять срезов.
@@ -283,7 +279,7 @@ class RistatCatalog:
                     return resp.read()
             except urllib.error.HTTPError as exc:
                 last = exc
-                if exc.code not in (429, 500, 502, 503, 504):
+                if exc.code not in RETRY_CODES:
                     body = exc.read()[:300].decode("utf-8", "replace")
                     raise ErrhsError(f"HTTP {exc.code} на {url}: {body}") from exc
             except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
@@ -295,10 +291,7 @@ class RistatCatalog:
 
     def _throttle(self) -> None:
         """Пауза между запросами: каталог собирает архив на лету, и торопить его нечем."""
-        wait = self.pause_sec - (time.monotonic() - self._last_call)
-        if wait > 0:
-            time.sleep(wait)
-        self._last_call = time.monotonic()
+        self._last_call = wait_for_pause(self._last_call, self.pause_sec)
 
 
 def read_table(raw: bytes, *, what: str = "выгрузка") -> tuple[list[str], list[dict]]:

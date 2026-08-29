@@ -62,13 +62,8 @@ from pathlib import Path
 from typing import Iterable, Optional, Sequence
 
 from ..geo import in_bbox, valid_coords
+from ..net import USER_AGENT
 from ..schema import ContextRecord, LayerSpec
-
-# Заголовки HTTP кодируются latin-1 — в User-Agent только ASCII.
-USER_AGENT = (
-    "histctx/0.2 (https://xn----ctbkalderxbemeylx6aq.xn--p1ai/; "
-    "historical context harvesting for genealogy)"
-)
 
 
 @dataclass(frozen=True)

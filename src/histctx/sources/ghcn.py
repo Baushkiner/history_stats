@@ -56,6 +56,7 @@ from pathlib import Path
 from typing import Iterable, Iterator, Optional
 
 from ..geo import in_bbox
+from ..net import USER_AGENT
 from ..schema import clean_text
 from .weather import COLUMNS, GHCN_URL
 
@@ -94,11 +95,6 @@ CITATION = (
     "GHCN Monthly Precipitation, Version 4, doi:10.25921/67zp-5m03"
 )
 
-# Заголовки HTTP кодируются latin-1 — в User-Agent только ASCII.
-USER_AGENT = (
-    "histctx/0.2 (https://xn----ctbkalderxbemeylx6aq.xn--p1ai/; "
-    "historical context harvesting for genealogy)"
-)
 
 # Коды стран в идентификаторе GHCN (первые два знака, FIPS). Список — это
 # территория Российской империи и СССР, а не сегодняшняя Россия: предок из
