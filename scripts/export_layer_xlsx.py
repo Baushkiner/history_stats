@@ -61,26 +61,80 @@ COMPUTED = [
 ]
 
 
-def load(slug: str, src: Path) -> tuple[list[dict], dict]:
-    """Читает слой и возвращает записи вместе с шапкой файла."""
-    with src.open(encoding="utf-8") as fh:
-        payload = json.load(fh)
-    features = payload.get("features") or []
-    if not features:
-        raise SystemExit(f"{src}: в слое нет записей — сначала соберите его")
+def sources_for(slug: str, out_dir: Path) -> list[Path]:
+    """Файлы выгрузки, где могут лежать записи слоя, — от полного к частному.
 
-    rows = []
-    for feature in features:
-        props = dict(feature.get("properties") or {})
-        geometry = feature.get("geometry") or {}
-        lat = lon = None
-        if geometry.get("type") == "Point":
-            coords = geometry.get("coordinates") or []
-            if len(coords) >= 2:
-                lon, lat = float(coords[0]), float(coords[1])
-        props["lat"], props["lon"] = lat, lon
-        props["in_frame"] = ("да" if (lat is not None and in_bbox(lat, lon))
-                             else "нет" if lat is not None else "нет координаты")
+    Полнота у файлов разная, и брать только GeoJSON нельзя: в нём по
+    определению нет записей без координаты, а целые слои из таких и состоят —
+    `state_events` весь территориальный, 166 записей и ни одной точки.
+    """
+    return [
+        out_dir / "jsonl" / f"{slug}.jsonl",       # полнее всех, но пишется не всеми сборщиками
+        out_dir / "geojson" / f"{slug}.geojson",   # только точки
+        out_dir / "context.jsonl",                 # всё вместе, фильтруем по слою
+        out_dir / "territorial_events.json",       # события без координаты
+    ]
+
+
+def read_any(path: Path) -> list[dict]:
+    """Читает выгрузку любого из трёх видов и отдаёт плоские записи."""
+    if path.suffix == ".jsonl":
+        with path.open(encoding="utf-8") as fh:
+            return [json.loads(line) for line in fh if line.strip()]
+    with path.open(encoding="utf-8") as fh:
+        payload = json.load(fh)
+    if isinstance(payload, dict) and payload.get("type") == "FeatureCollection":
+        rows = []
+        for feature in payload.get("features") or []:
+            props = dict(feature.get("properties") or {})
+            geometry = feature.get("geometry") or {}
+            if geometry.get("type") == "Point":
+                coords = geometry.get("coordinates") or []
+                if len(coords) >= 2:
+                    props["lon"], props["lat"] = float(coords[0]), float(coords[1])
+            rows.append(props)
+        return rows
+    if isinstance(payload, dict) and "records" in payload:
+        return list(payload["records"])
+    return list(payload) if isinstance(payload, list) else []
+
+
+def load(slug: str, out_dir: Path) -> tuple[list[dict], dict]:
+    """Собирает записи слоя из всех файлов выгрузки, где они есть.
+
+    Повторы снимаются по `uid`: одна и та же запись лежит и в `jsonl/`, и в
+    `geojson/`, и в общей `context.jsonl`. Кто попал первым — тот и остался,
+    а порядок файлов идёт от полного к частному.
+    """
+    rows, seen, used = [], set(), []
+    header: dict = {}
+    for path in sources_for(slug, out_dir):
+        if not path.exists():
+            continue
+        if path.name.endswith(".geojson"):
+            with path.open(encoding="utf-8") as fh:
+                header = {k: v for k, v in json.load(fh).items() if k != "features"}
+        taken = 0
+        for props in read_any(path):
+            if props.get("layer") not in (slug, None) or props.get("uid") in seen:
+                continue
+            if props.get("layer") is None and path.name in ("context.jsonl",
+                                                            "territorial_events.json"):
+                continue                      # общий файл без пометки слоя — не наш
+            seen.add(props.get("uid"))
+            rows.append(dict(props))
+            taken += 1
+        if taken:
+            used.append(f"{path.relative_to(out_dir)} — {taken}")
+
+    if not rows:
+        raise SystemExit(f"Записей слоя {slug} в {out_dir} нет — сначала соберите его")
+
+    for props in rows:
+        lat, lon = props.get("lat"), props.get("lon")
+        props["in_frame"] = ("да" if (lat is not None and lon is not None
+                                      and in_bbox(lat, lon))
+                             else "нет координаты" if lat is None else "нет")
         props["has_date"] = "да" if props.get("year_from") else "нет"
         # Верхняя граница интересующего периода объявлена в сборщике Викиданных
         # (OPEN_END_YEAR). Всё, что началось позже, к задаче проекта отношения
@@ -88,21 +142,30 @@ def load(slug: str, src: Path) -> tuple[list[dict], dict]:
         year = props.get("year_from")
         props["in_period"] = ("нет даты" if not year
                               else "да" if year <= OPEN_END_YEAR else "нет")
-        rows.append(props)
 
     rows.sort(key=lambda r: ((r.get("title") or "").lower(), r.get("year_from") or 0))
-    return rows, {k: v for k, v in payload.items() if k != "features"}
+    header["_sources"] = used
+    return rows, header
 
 
 def split_columns(rows: list[dict]) -> tuple[list[str], dict]:
     """Делит поля на колонки таблицы и на постоянные — те уходят в описание."""
     present, constant = [], {}
     for name in COLUMNS:
-        values = {r.get(name) for r in rows if r.get(name) not in (None, "")}
+        # Значение поля не всегда скаляр: `regions` — список затронутых губерний,
+        # а список не хешируется. Для счёта различных значений берём его подпись.
+        values, sample = set(), None
+        for row in rows:
+            value = row.get(name)
+            if value is None or value == "" or value == []:
+                continue
+            sample = value
+            values.add(value if isinstance(value, (str, int, float, bool))
+                       else json.dumps(value, ensure_ascii=False, sort_keys=True))
         if not values:
             continue                       # поле пустое у всего слоя — не колонка
         if name in CONSTANT_CANDIDATES and len(values) == 1:
-            constant[COLUMNS_RU.get(name, name)] = values.pop()
+            constant[COLUMNS_RU.get(name, name)] = sample
             continue
         present.append(name)
     return present, constant
@@ -124,6 +187,13 @@ def measure(rows: list[dict], columns: list[str]) -> list[tuple[str, str]]:
                                    "такая запись не встанет, на карте — встанет")))
     if years:
         out.append(("Годы, где датировка есть", f"{min(years)}–{max(years)}"))
+
+    no_point = sum(1 for r in rows if r["in_frame"] == "нет координаты")
+    if no_point:
+        out.append(("Записей без координаты",
+                    share(no_point, "на карту такая запись не встанет. Слой может "
+                                    "быть территориальным по существу: событие "
+                                    "касается губернии целиком, а не точки")))
 
     later = sum(1 for r in rows if r["in_period"] == "нет")
     if later:
@@ -475,6 +545,11 @@ def sheet_about(ws, rows: list[dict], columns: list[str], constant: dict,
     for key, value in constant.items():
         if key not in said:
             pair(key, value)
+    if header.get("_sources"):
+        pair("Взято из файлов выгрузки", "; ".join(header["_sources"]) +
+             ". Записи сведены по `uid`: одна и та же запись лежит в нескольких "
+             "файлах, а полнота у них разная — в GeoJSON по определению нет "
+             "записей без координаты")
     classes = query_classes(spec.slug if spec else "")
     if classes:
         pair("Отобрано по классам источника",
@@ -532,29 +607,52 @@ COLUMN_NOTES = {
 }
 
 
+def available_layers(out_dir: Path) -> list[str]:
+    """Слои, у которых в выгрузке есть записи."""
+    slugs = {p.stem for p in (out_dir / "jsonl").glob("*.jsonl")}
+    slugs |= {p.stem for p in (out_dir / "geojson").glob("*.geojson")}
+    events = out_dir / "territorial_events.json"
+    if events.exists():
+        slugs |= {r.get("layer") for r in read_any(events) if r.get("layer")}
+    return sorted(s for s in slugs if s)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--layer", required=True, help="slug слоя, например repressions")
-    parser.add_argument("--src", type=Path, help="файл слоя (по умолчанию из data/out/geojson)")
+    parser.add_argument("--layer", help="slug слоя, например repressions")
+    parser.add_argument("--list", action="store_true", help="показать собранные слои и выйти")
     parser.add_argument("--out", type=Path, help="куда писать книгу")
+    parser.add_argument("--data", type=Path, default=OUT_DIR.parent,
+                        help="каталог выгрузки, откуда читаются слои")
     args = parser.parse_args(argv)
 
-    src = args.src or GEOJSON_DIR / f"{args.layer}.geojson"
-    out = args.out or OUT_DIR / f"{args.layer}.xlsx"
-    if not src.exists():
-        print(f"Нет файла {src}. Собранные слои: "
-              f"{', '.join(sorted(p.stem for p in GEOJSON_DIR.glob('*.geojson')))}",
-              file=sys.stderr)
+    known = available_layers(args.data)
+    if args.list or not args.layer:
+        if not known:
+            print(f"В {args.data} нет собранных слоёв — соберите их "
+                  f"scripts/build_core.py или scripts/harvest.py.", file=sys.stderr)
+            return 1
+        titles = {s.slug: s.title for s in ALL_LAYERS}
+        print(f"Собранные слои в {args.data}:\n")
+        for slug in known:
+            print(f"  {slug:22s} {titles.get(slug, '')}")
+        return 0 if args.list else 1
+    if args.layer not in known:
+        print(f"Слоя {args.layer} в {args.data} нет. Собранные: "
+              f"{', '.join(known)}", file=sys.stderr)
         return 1
 
     spec = next((s for s in ALL_LAYERS if s.slug == args.layer), None)
-    rows, header = load(args.layer, src)
+    rows, header = load(args.layer, args.data)
     columns, constant = split_columns(rows)
-    path = build(rows, columns, constant, spec, header, out)
+    path = build(rows, columns, constant, spec, header,
+                 args.out or OUT_DIR / f"{args.layer}.xlsx")
 
     print(f"Записано {path}")
     print(f"  записей: {len(rows)}")
+    for source in header.get("_sources") or []:
+        print(f"  взято из {source}")
     for key, value in measure(rows, columns):
         if key != "Записей в слое":
             print(f"  {key.lower()}: {value}")

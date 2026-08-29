@@ -107,6 +107,7 @@ python3 scripts/harvest_strikes.py --probe
 python3 scripts/harvest_strikes.py --build
 
 # Выгрузка любого собранного слоя в XLSX — записи, сводка, лист об источнике
+python3 scripts/export_layer_xlsx.py --list                 # что уже собрано
 python3 scripts/export_layer_xlsx.py --layer repressions
 ```
 

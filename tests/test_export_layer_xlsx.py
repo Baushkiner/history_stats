@@ -49,12 +49,14 @@ def _feature(uid, title, *, lon=37.6, lat=55.7, category="тюрьма",
             "properties": body}
 
 
-def _layer(tmp_path, features, name="Места репрессий"):
-    path = tmp_path / "repressions.geojson"
-    path.write_text(json.dumps({"type": "FeatureCollection", "name": name,
-                                "features": features}, ensure_ascii=False),
-                    encoding="utf-8")
-    return path
+def _layer(tmp_path, features, name="Места репрессий", slug="repressions"):
+    """Каталог выгрузки со слоем в GeoJSON — как его пишет сбор."""
+    out = tmp_path / "out"
+    (out / "geojson").mkdir(parents=True, exist_ok=True)
+    (out / "geojson" / f"{slug}.geojson").write_text(
+        json.dumps({"type": "FeatureCollection", "name": name,
+                    "features": features}, ensure_ascii=False), encoding="utf-8")
+    return out
 
 
 def test_записи_помечаются_рамкой_периодом_и_датировкой(tmp_path):
@@ -165,3 +167,72 @@ def test_шрифт_по_умолчанию_доходит_до_ячеек(tmp_p
     fonts = re.search(r"<fonts.*?</fonts>", styles, re.S).group(0)
     first = re.findall(r"<font>.*?</font>", fonts, re.S)[0]
     assert xl.FONT in first and "Calibri" not in first
+
+
+def test_слой_без_координат_берётся_из_событий(tmp_path):
+    """Целые слои состоят из записей без точки — GeoJSON их не удержит."""
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "territorial_events.json").write_text(json.dumps({
+        "name": "Указы и потрясения", "count": 2, "records": [
+            {"uid": "state_events:1", "layer": "state_events", "title": "Указ",
+             "year_from": 1861, "year_to": 1861, "regions": ["Тверская", "Тульская"],
+             "source": "подборка", "license": "CC0"},
+            {"uid": "state_events:2", "layer": "state_events", "title": "Реформа",
+             "year_from": 1864, "year_to": 1864, "regions": ["Казанская"],
+             "source": "подборка", "license": "CC0"},
+        ]}, ensure_ascii=False), encoding="utf-8")
+
+    rows, header = xl.load("state_events", out)
+    assert len(rows) == 2
+    assert all(r["in_frame"] == "нет координаты" for r in rows)
+    assert header["_sources"] == ["territorial_events.json — 2"]
+
+    # `regions` — список, и на нём разбор колонок когда-то падал.
+    columns, constant = xl.split_columns(rows)
+    assert "regions" in columns
+    measured = dict(xl.measure(rows, columns))
+    assert measured["Записей без координаты"].startswith("2 из 2 (100%)")
+
+
+def test_записи_сводятся_по_uid_а_не_задваиваются(tmp_path):
+    """Одна запись лежит и в jsonl, и в geojson — взять её надо один раз."""
+    out = tmp_path / "out"
+    (out / "jsonl").mkdir(parents=True)
+    (out / "geojson").mkdir(parents=True)
+    (out / "jsonl" / "repressions.jsonl").write_text(
+        json.dumps({"uid": "a", "layer": "repressions", "title": "Бутырка",
+                    "year_from": 1937, "lat": 55.7, "lon": 37.6}, ensure_ascii=False)
+        + "\n"
+        + json.dumps({"uid": "b", "layer": "repressions", "title": "Только в jsonl",
+                      "year_from": 1938}, ensure_ascii=False) + "\n",
+        encoding="utf-8")
+    (out / "geojson" / "repressions.geojson").write_text(json.dumps({
+        "type": "FeatureCollection", "features": [_feature("a", "Бутырка")]},
+        ensure_ascii=False), encoding="utf-8")
+
+    rows, header = xl.load("repressions", out)
+    assert [r["title"] for r in rows] == ["Бутырка", "Только в jsonl"]
+    # jsonl полнее и читается первым; geojson повтор не добавляет.
+    assert header["_sources"] == ["jsonl/repressions.jsonl — 2"]
+
+
+def test_чужие_слои_из_общего_файла_не_берутся(tmp_path):
+    """`context.jsonl` держит все слои разом — берём только свой."""
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "context.jsonl").write_text(
+        json.dumps({"uid": "a", "layer": "repressions", "title": "Наша",
+                    "year_from": 1937}, ensure_ascii=False) + "\n"
+        + json.dumps({"uid": "b", "layer": "churches", "title": "Чужая",
+                      "year_from": 1800}, ensure_ascii=False) + "\n",
+        encoding="utf-8")
+    rows, _ = xl.load("repressions", out)
+    assert [r["title"] for r in rows] == ["Наша"]
+
+
+def test_пустая_выгрузка_останавливает_работу(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    with pytest.raises(SystemExit):
+        xl.load("repressions", out)
