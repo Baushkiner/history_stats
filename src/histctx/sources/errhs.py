@@ -57,6 +57,7 @@ from typing import Iterable, Optional, Sequence
 
 from ..geo import extract_region, region_key
 from ..net import RETRY_CODES, USER_AGENT, wait_for_pause
+from ..normalize import to_int_loose
 from ..schema import SCOPE_REGION, ContextRecord, LayerSpec, clean_text
 
 HARVEST_PRICES = LayerSpec(
@@ -360,7 +361,7 @@ def read_figures(rows: Iterable[dict], *, topic: str, benchmark: int) -> list[Fi
         if not subject:
             continue
 
-        year = _int(row.get("YEAR"))
+        year = to_int_loose(row.get("YEAR"))
         from_benchmark = year is None
         out.append(Figure(
             territory=territory,
@@ -656,15 +657,6 @@ def _cell(row: dict, key: str) -> Optional[str]:
     """Значение ячейки или None; пропуск в ERRHS помечен точкой."""
     text = clean_text(row.get(key))
     return None if text is None or text in MISSING else text
-
-
-def _int(value) -> Optional[int]:
-    """Свой, а не `normalize.to_int`: опорный срез в таблицах ERRHS записан
-    дробным («1897.0»), и строгий разбор его не признаёт."""
-    try:
-        return int(float(str(value).strip()))
-    except (TypeError, ValueError):
-        return None
 
 
 def _number(value) -> Optional[float]:

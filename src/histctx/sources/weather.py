@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from ..geo import in_bbox, valid_coords
+from ..normalize import to_int_loose
 from ..schema import SCOPE_REGION, LayerSpec, clean_text
 
 # Ссылка на набор, из которого слои собираются по умолчанию. Написана строкой,
@@ -173,7 +174,7 @@ def read_series(path: Path, mapping: Optional[dict] = None) -> list[Observation]
 
     out = []
     for row in renamed:
-        year, month = _int(row.get("year")), _int(row.get("month"))
+        year, month = to_int_loose(row.get("year")), to_int_loose(row.get("month"))
         if year is None or month is None or not 1 <= month <= 12:
             continue
         lat, lon = _float(row.get("lat")), _float(row.get("lon"))
@@ -206,12 +207,15 @@ def find_anomalies(observations: Iterable[Observation], *,
     if len(by_year) < min_years:
         return {}
 
+    # Холодное и жаркое лето меряются по одному ряду — средней температуре
+    # лета; расходятся они только знаком отклонения, см. `direction`.
+    summer_tavg = _season_series(by_year, SUMMER, "tavg", how="mean")
     series = {
         "засуха": _season_series(by_year, GROWING, "prcp", how="sum"),
         "дождливое лето": _season_series(by_year, SUMMER, "prcp", how="sum"),
         "суровая зима": _season_series(by_year, WINTER, "tavg", how="mean"),
-        "холодное лето": _season_series(by_year, SUMMER, "tavg", how="mean"),
-        "жаркое лето": _season_series(by_year, SUMMER, "tavg", how="mean"),
+        "холодное лето": summer_tavg,
+        "жаркое лето": summer_tavg,
     }
     # Знак: у засухи, суровой зимы и холодного лета аномалия отрицательная.
     direction = {"засуха": -1, "суровая зима": -1, "холодное лето": -1,
@@ -460,15 +464,6 @@ def _rename(row: dict, mapping: dict) -> dict:
 def _mean(values) -> Optional[float]:
     clean = [v for v in values if v is not None]
     return statistics.fmean(clean) if clean else None
-
-
-def _int(value) -> Optional[int]:
-    """Свой, а не `normalize.to_int`: год и месяц в метеорядах приходят
-    дробными («1899.0»), и строгий разбор потерял бы всю таблицу."""
-    try:
-        return int(float(str(value).strip()))
-    except (TypeError, ValueError):
-        return None
 
 
 def _float(value) -> Optional[float]:

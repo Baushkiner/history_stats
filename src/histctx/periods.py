@@ -140,7 +140,6 @@ _PART_ALT = "|".join(sorted((re.escape(k) for k in _PARTS), key=len, reverse=Tru
 
 _RE_CLEAN_PAREN = re.compile(r"\([^()]*\)")
 _RE_SPACES = re.compile(r"\s+")
-_RE_CENTURY_TOKEN = re.compile(r"\b(?:вв?|веков?|века?|век)\b\.?")
 
 # Полнострочные шаблоны, проверяются до разбора по частям.
 _RE_FULL_DECADE_OF_CENTURY = re.compile(
@@ -240,12 +239,9 @@ def _parse_atom(s: str) -> Optional[tuple[int, int, str]]:
 
     m = _RE_FULL_DECADE_OF_CENTURY.match(s)
     if m:
-        cent, dec = int(m["cent"]), int(m["dec"])
-        if dec < 100:
-            base = (cent - 1) * 100 + dec
-            lo, hi = base, base + 9
-            lo, hi, _ = _apply_part(m["part"], lo, hi, _DECADE_PARTS) if m["part"] else (lo, hi, "")
-            return lo, hi, "decade"
+        base = (int(m["cent"]) - 1) * 100 + int(m["dec"])
+        lo, hi, _ = _apply_part(m["part"], base, base + 9, _DECADE_PARTS)
+        return lo, hi, "decade"
 
     m = _RE_ATOM_YEAR.match(s)
     if m:
@@ -266,9 +262,7 @@ def _parse_atom(s: str) -> Optional[tuple[int, int, str]]:
     m = _RE_ATOM_DECADE.match(s)
     if m:
         d = int(m["d"])
-        lo, hi = d, d + 9
-        if m["part"]:
-            lo, hi, _ = _apply_part(m["part"], lo, hi, _DECADE_PARTS)
+        lo, hi, _ = _apply_part(m["part"], d, d + 9, _DECADE_PARTS)
         return lo, hi, "decade"
 
     m = _RE_ATOM_CENTURY.match(s)
@@ -276,7 +270,7 @@ def _parse_atom(s: str) -> Optional[tuple[int, int, str]]:
         c = int(m["c"])
         lo, hi = _century_bounds(c)
         if m["part"]:
-            lo, hi, kind = _apply_part(m["part"], lo, hi, _PARTS)
+            lo, hi, _ = _apply_part(m["part"], lo, hi, _PARTS)
             return lo, hi, "part"
         return lo, hi, "century"
 
@@ -318,9 +312,6 @@ def parse_period(text: Optional[str]) -> Period:
     # Скобочные уточнения отбрасываем: они чаще комментируют, чем сужают.
     s = _RE_CLEAN_PAREN.sub(" ", s)
     s = _RE_SPACES.sub(" ", s).strip().strip(".,;:").strip()
-    for junk in ("гг", "г."):
-        if s.endswith(junk):
-            break
     s = re.sub(r"^(?:с|в|от)\s+", "", s)
     s = re.sub(r"\s*(?:и\s+)?(?:позже|ранее|раньше|после|до)\s*$", "", s).strip()
     if not s:

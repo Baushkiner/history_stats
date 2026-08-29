@@ -29,13 +29,11 @@
 
 from __future__ import annotations
 
-import json
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from typing import Iterable, Optional
 
-from ..net import USER_AGENT
+from ..io_formats import feature_collection
+from ..net import fetch_bytes
 from ..schema import SCOPE_REGION, ContextRecord, LayerSpec, clean_text
 from .shapefile import ShapefileError, features, read_dbf, read_shapes
 
@@ -183,15 +181,8 @@ class HeiDataError(RuntimeError):
 
 def download(file_id: int, *, timeout: int = 180) -> bytes:
     """Забирает один файл набора по его идентификатору в Dataverse."""
-    url = FILE_URL.format(file_id=file_id)
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            return response.read()
-    except urllib.error.HTTPError as exc:
-        raise HeiDataError(f"{url}: HTTP {exc.code}") from exc
-    except urllib.error.URLError as exc:
-        raise HeiDataError(f"{url}: сеть недоступна ({exc.reason})") from exc
+    return fetch_bytes(FILE_URL.format(file_id=file_id),
+                       error=HeiDataError, timeout=timeout)
 
 
 def load_census(census: Census, *, cache_dir=None) -> list[dict]:
@@ -300,21 +291,11 @@ def census_records(feats: list[dict], census: Census,
 
 def boundaries_geojson(feats: list[dict], census: Census) -> dict:
     """FeatureCollection границ: подложка карты, а не слой контекста."""
-    return {
-        "type": "FeatureCollection",
-        "name": f"boundaries_{census.year}",
-        "license": ADMIN_GIS.license,
-        "source": ADMIN_GIS.source,
-        "citation": CITATION,
-        "url": DATASET_URL,
-        "features": feats,
-    }
-
-
-def write_geojson(collection: dict, path) -> int:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(collection, ensure_ascii=False), encoding="utf-8")
-    return len(collection.get("features") or [])
+    return feature_collection(
+        f"boundaries_{census.year}", feats,
+        license=ADMIN_GIS.license, source=ADMIN_GIS.source,
+        citation=CITATION, url=DATASET_URL,
+    )
 
 
 def _num(value) -> Optional[float]:

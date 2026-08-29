@@ -235,7 +235,7 @@ def record_years(row: dict) -> tuple[Optional[int], Optional[int], str]:
     year_to = parse_int(row.get("EndYear")) or year_from
     if year_from is None:
         return None, None, "unknown"
-    if year_to is None or year_to < year_from:
+    if year_to < year_from:
         year_to = year_from
     month = parse_int(row.get("Startmonth"))
     day = parse_int(row.get("Startday2")) or parse_int(row.get("Startday"))
@@ -298,9 +298,8 @@ def row_to_record(row: dict) -> ContextRecord:
     confidence = "ok"
     if not provinces:
         confidence = "province_unparsed"
-    elif year_from is not None and not (YEAR_MIN <= year_from <= YEAR_MAX):
-        confidence = "year_out_of_range"
-    elif year_to is not None and year_to > YEAR_MAX + 1:
+    elif (year_from is not None and not YEAR_MIN <= year_from <= YEAR_MAX) \
+            or (year_to is not None and year_to > YEAR_MAX + 1):
         confidence = "year_out_of_range"
 
     extra = {

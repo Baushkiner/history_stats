@@ -174,7 +174,7 @@ def load(path: Path) -> list[dict]:
     features = payload.get("features") or []
     if not features:
         raise SystemExit(f"{path}: в слое нет записей — сначала соберите его "
-                         f"командой scripts/harvest_gulag.py --build")
+                         "командой scripts/harvest_gulag.py --build")
 
     rows = []
     for feature in features:
@@ -494,7 +494,7 @@ def main(argv=None) -> int:
 
     if not args.src.exists():
         print(f"Нет файла {args.src}: соберите слой — "
-              f"python3 scripts/harvest_gulag.py --build", file=sys.stderr)
+              "python3 scripts/harvest_gulag.py --build", file=sys.stderr)
         return 1
 
     rows = load(args.src)

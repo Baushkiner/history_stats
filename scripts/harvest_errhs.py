@@ -58,7 +58,7 @@ def check(catalog: RistatCatalog, topic: str, benchmark: int) -> int:
 
     figures = read_figures(rows, topic=topic, benchmark=benchmark)
     print(f"\n  разобрано величин: {len(figures)} из {len(rows)} строк")
-    print(f"  территорий: {len(({f.region for f in figures}))}")
+    print(f"  территорий: {len({f.region for f in figures})}")
     print(f"  единицы: {dict(Counter(f.unit for f in figures).most_common(6))}")
     print(f"  ролей «посев»: {sum(1 for f in figures if f.role == 'посев')}, "
           f"«урожай»: {sum(1 for f in figures if f.role == 'урожай')}")

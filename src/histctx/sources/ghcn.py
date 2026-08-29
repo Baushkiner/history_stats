@@ -203,6 +203,12 @@ def parse_tavg(lines: Iterable[str], *, stations: dict[str, Station],
             continue
         for month in range(1, 13):
             start = 19 + (month - 1) * 8
+            # Флаг стоит за значением, и оборваться строка может между ними.
+            # Тогда значение читается целиком, а флаг выходит пустым — то
+            # есть забракованное измерение прошло бы за чистое. Дальше по
+            # строке места тем более нет: месяцы идут подряд, `break`.
+            if len(line) < start + 7:
+                break
             value = to_int(line[start:start + 5])
             qc_flag = line[start + 6:start + 7].strip()
             if value is None or value == MISSING or qc_flag:
@@ -224,7 +230,11 @@ def parse_prcp(lines: Iterable[str], *,
     а ноль с оговоркой: осадки были, но измерить их нечем.
     """
     for line in lines:
-        if len(line) < 96:
+        # Дальше всех стоит флаг контроля качества — знак 99, значит строке
+        # нужно сто знаков. Прежний порог в 96 покрывал значение, но не флаг:
+        # строка длиной 96–99 знаков проходила проверку и получала пустой
+        # флаг, то есть обрезанная запись читалась как выдержавшая контроль.
+        if len(line) < 100:
             continue
         station = _station(line[0:11], line[53:62], line[63:73], line[12:52])
         if station is None:

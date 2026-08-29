@@ -125,8 +125,10 @@ def _r(value: float) -> float:
 def read_dbf(data: bytes, encoding: Optional[str] = None) -> list[dict]:
     """Таблица атрибутов .dbf построчно.
 
-    Кодировка берётся из файла .cpg, если он есть; иначе пробуется UTF-8,
-    а при неудаче — CP1251: русские шейпфайлы чаще всего в ней.
+    Кодировку можно назвать явно; без неё пробуется UTF-8, а при неудаче —
+    CP1251: русские шейпфайлы чаще всего в ней. Файл .cpg, в котором
+    кодировка объявлена, лежит рядом с .dbf и сюда не передаётся — тот, кто
+    его прочтёт, передаст значение параметром.
     """
     if len(data) < 32:
         raise ShapefileError("файл короче заголовка dbf")
@@ -148,15 +150,14 @@ def read_dbf(data: bytes, encoding: Optional[str] = None) -> list[dict]:
             continue
         pos, row = 1, {}
         for name, kind, size, decimals in fields:
-            row[name] = _value(record[pos:pos + size], kind, decimals, data, encoding)
+            row[name] = _value(record[pos:pos + size], kind, decimals, encoding)
             pos += size
         rows.append(row)
     return rows
 
 
-def _value(raw: bytes, kind: str, decimals: int, data: bytes,
-           encoding: Optional[str]) -> Any:
-    text = _decode(raw, data, encoding).strip()
+def _value(raw: bytes, kind: str, decimals: int, encoding: Optional[str]) -> Any:
+    text = _decode(raw, encoding).strip()
     if not text:
         return None
     if kind in ("N", "F"):
@@ -169,7 +170,7 @@ def _value(raw: bytes, kind: str, decimals: int, data: bytes,
     return text
 
 
-def _decode(raw: bytes, data: bytes, encoding: Optional[str]) -> str:
+def _decode(raw: bytes, encoding: Optional[str]) -> str:
     if encoding:
         return raw.decode(encoding, "replace")
     try:

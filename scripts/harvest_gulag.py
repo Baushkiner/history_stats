@@ -51,10 +51,10 @@ def check(camps: list, refs: dict) -> int:
 
     drafts = sum(1 for r in records if r.confidence == "unpublished_source")
     with_region = sum(1 for r in records if r.region)
-    years = [r.year_from for r in records]
     print(f"  из них неопубликованных в проекте: {drafts}")
     print(f"  с распознанной губернией или областью: {with_region}")
-    print(f"  годы: {min(years)}–{max(max(r.year_to for r in records), max(years))}")
+    print(f"  годы: {min(r.year_from for r in records)}–"
+          f"{max(r.year_to for r in records)}")
 
     kinds = collections.Counter(r.category for r in records)
     print("  по типам:")

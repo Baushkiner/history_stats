@@ -63,7 +63,7 @@ def probe(rows: list) -> int:
     if unparsed:
         raw = collections.Counter(r.extra.get("province_raw") for r in unparsed)
         print(f"\n  губерния не разобрана у {len(unparsed)} записей — они остаются "
-              f"в данных с пометкой province_unparsed:")
+              "в данных с пометкой province_unparsed:")
         for value, count in raw.most_common(8):
             print(f"    {count:>5}  {value}")
 

@@ -359,9 +359,10 @@ src/histctx/
   normalize.py    приведение жанров, названий войн, чисел, отсев не-событий
   io_formats.py   выгрузка в GeoJSON, XLSX, JSONL и чтение её обратно
   xlsx_style.py   оформление книг, которые читают глазами: обе выгрузки
-  net.py          подпись сборщика, коды повтора, пауза между запросами
+  net.py          подпись сборщика, коды повтора, пауза, скачивание файла
   registry.py     каталог слоёв: собранные, запросы, внешние проекты
-  adapters/       исходные файлы проекта -> единая схема
+  adapters/       исходные файлы проекта -> единая схема; _common.py —
+                  общее чтение колонок координат
   sources/        внешние источники: wikidata.py, renamed.py, pastvu.py,
                   weather.py, ghcn.py, drought.py, geonames.py, gulag.py,
                   admin_gis.py, ristat.py, cshapes.py, errhs.py, strikes.py;

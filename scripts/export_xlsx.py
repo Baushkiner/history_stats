@@ -100,7 +100,7 @@ def main() -> int:
     if args.list or not (args.layer or args.all):
         if not known:
             print(f"В {args.out} нет собранных слоёв. Соберите их "
-                  f"scripts/build_core.py или scripts/harvest.py.", file=sys.stderr)
+                  "scripts/build_core.py или scripts/harvest.py.", file=sys.stderr)
             return 1
         print(f"Собранные слои в {args.out}:\n")
         for slug in known:

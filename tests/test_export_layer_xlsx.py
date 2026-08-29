@@ -57,7 +57,7 @@ def _layer(tmp_path, features, name="Места репрессий"):
 
 
 def test_записи_помечаются_рамкой_периодом_и_датировкой(tmp_path):
-    rows, header = xl.load("repressions", _layer(tmp_path, [
+    rows, header = xl.load(_layer(tmp_path, [
         _feature("a", "Бутырка"),
         _feature("b", "Современная колония", year_from=2015, year_to=2015),
         _feature("c", "Без даты", year_from=None, year_to=None),
@@ -74,7 +74,7 @@ def test_записи_помечаются_рамкой_периодом_и_да
 
 
 def test_постоянные_поля_уходят_из_таблицы_в_описание(tmp_path):
-    rows, _ = xl.load("repressions", _layer(tmp_path, [
+    rows, _ = xl.load(_layer(tmp_path, [
         _feature("a", "Первая"), _feature("b", "Вторая"),
     ]))
     columns, constant = xl.split_columns(rows)
@@ -88,7 +88,7 @@ def test_постоянные_поля_уходят_из_таблицы_в_оп�
 
 
 def test_оговорки_считаются_по_данным(tmp_path):
-    rows, _ = xl.load("repressions", _layer(tmp_path, [
+    rows, _ = xl.load(_layer(tmp_path, [
         _feature("a", "С датой"),
         _feature("b", "Без даты", year_from=None, year_to=None),
         _feature("c", "Без губернии", region=None),
@@ -111,13 +111,13 @@ def test_классы_отбора_читаются_из_запроса():
 
 
 def test_книга_собирается_с_тремя_листами(tmp_path):
-    rows, header = xl.load("repressions", _layer(tmp_path, [
+    rows, header = xl.load(_layer(tmp_path, [
         _feature("a", "Бутырка"),
         _feature("b", "Париж", lon=2.35, lat=48.85, category="братская могила"),
         _feature("c", "Без даты", year_from=None, year_to=None),
     ]))
     columns, constant = xl.split_columns(rows)
-    spec = next(s for s in xl.ALL_LAYERS if s.slug == "repressions")
+    spec = xl.BY_SLUG["repressions"]
     out = xl.build(rows, columns, constant, spec, header, tmp_path / "book.xlsx")
 
     wb = openpyxl.load_workbook(out)
@@ -150,7 +150,7 @@ def test_шрифт_по_умолчанию_доходит_до_ячеек(tmp_p
     указывает `fontId="0"`. Правки одного лишь именованного стиля «Normal»
     ячейкам не видны: в файле оставался Calibri, хотя openpyxl показывал Arial.
     """
-    rows, header = xl.load("repressions", _layer(tmp_path, [_feature("a", "Бутырка")]))
+    rows, header = xl.load(_layer(tmp_path, [_feature("a", "Бутырка")]))
     columns, constant = xl.split_columns(rows)
     out = xl.build(rows, columns, constant, None, header, tmp_path / "book.xlsx")
 

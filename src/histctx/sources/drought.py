@@ -54,15 +54,13 @@ XVII–XVIII веков объяснять чем-то надо: «в этом �
 from __future__ import annotations
 
 import math
-import urllib.error
-import urllib.request
 from array import array
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional, Sequence
 
 from ..geo import in_bbox, valid_coords
-from ..net import USER_AGENT
+from ..net import fetch_bytes
 from ..normalize import to_float, to_int
 from ..schema import ContextRecord, LayerSpec
 
@@ -233,14 +231,8 @@ class Episode:
 
 def fetch(url: str, *, timeout: int = 300) -> str:
     """Забирает текстовый файл набора."""
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            return response.read().decode("utf-8-sig", errors="replace")
-    except urllib.error.HTTPError as exc:
-        raise DroughtError(f"{url}: HTTP {exc.code}") from exc
-    except urllib.error.URLError as exc:
-        raise DroughtError(f"{url}: сеть недоступна ({exc.reason})") from exc
+    raw = fetch_bytes(url, error=DroughtError, timeout=timeout)
+    return raw.decode("utf-8-sig", errors="replace")
 
 
 def load(dataset: Dataset, *, cache_dir: Optional[Path] = None,

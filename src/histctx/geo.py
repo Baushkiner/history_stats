@@ -45,8 +45,7 @@ def valid_coords(lat, lon) -> bool:
 def in_bbox(lat: float, lon: float, bbox: Optional[tuple] = None) -> bool:
     """Попадает ли точка в охват РИ/СССР (или в переданную рамку)."""
     if bbox is not None:
-        la_min, lo_min, la_max, lo_max = bbox
-        return la_min <= lat <= la_max and lo_min <= lon <= lo_max
+        return _within(lat, lon, bbox)
     return _within(lat, lon, BBOX_RU) or _within(lat, lon, BBOX_RU_EAST)
 
 

@@ -42,7 +42,6 @@
 
 from __future__ import annotations
 
-import json
 import time
 import urllib.error
 import urllib.request
@@ -52,6 +51,7 @@ from io import BytesIO
 from typing import Iterable, Optional
 
 from ..geo import in_bbox
+from ..io_formats import feature_collection, write_feature_collection
 from ..net import USER_AGENT
 from ..schema import LayerSpec
 from .shapefile import ShapefileError, features, read_dbf, read_shapes
@@ -362,21 +362,14 @@ def states(feats: Iterable[dict]) -> list[str]:
 
 def collection(feats: list[dict], *, year_min: int = YEAR_MIN,
                year_max: int = YEAR_MAX) -> dict:
-    return {
-        "type": "FeatureCollection",
-        "name": STATE_BORDERS.slug,
-        "period": f"{year_min}–{year_max}",
-        "license": STATE_BORDERS.license,
-        "source": STATE_BORDERS.source,
-        "citation": CITATION,
-        "url": DATASET_URL,
-        "features": feats,
-    }
+    return feature_collection(
+        STATE_BORDERS.slug, feats,
+        license=STATE_BORDERS.license, source=STATE_BORDERS.source,
+        citation=CITATION, url=DATASET_URL,
+        extra={"period": f"{year_min}–{year_max}"},
+    )
 
 
 def write(collection_dict: dict, path) -> int:
     """Пишет коллекцию сжатым JSON: у 557 тысяч вершин пробелы — это мегабайт."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as fh:
-        json.dump(collection_dict, fh, ensure_ascii=False, separators=(",", ":"))
-    return len(collection_dict.get("features") or [])
+    return write_feature_collection(collection_dict, path, compact=True)
