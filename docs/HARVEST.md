@@ -105,6 +105,9 @@ python3 scripts/harvest_weather.py --build data/raw/meteo/ghcn.csv \
 # 10. Стачки и рабочие волнения 1895–1904 годов: свод IISH (CC0)
 python3 scripts/harvest_strikes.py --probe
 python3 scripts/harvest_strikes.py --build
+
+# Выгрузка любого собранного слоя в XLSX — записи, сводка, лист об источнике
+python3 scripts/export_layer_xlsx.py --layer repressions
 ```
 
 Населённые места — единственный слой, который собирается в закрытом

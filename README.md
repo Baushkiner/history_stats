@@ -333,6 +333,7 @@ python3 -m pytest tests/ -q
 | `data/out/weather_regions.json`, `data/out/harvest_prices.json` | То же для погоды и цен: губерния вместо точки |
 | `data/out/all_layers.xlsx` | Все слои, по вкладке на слой, русские заголовки |
 | `data/out/xlsx/gulag_camps.xlsx` | Лагеря ГУЛАГа отдельной книгой: численность по годам и сводка, которых нет в общей выгрузке (`scripts/export_gulag_xlsx.py`) |
+| `data/out/xlsx/<слой>.xlsx` | Любой слой книгой для чтения глазами: записи, сводка и лист об источнике с посчитанными по данным оговорками (`scripts/export_layer_xlsx.py --layer <слой>`) |
 | `data/out/context.jsonl` | Все слои одним файлом, для загрузки в базу |
 | `data/out/name_variants.json` | Указатель написаний названий для поиска |
 | `data/out/report.md` | Отчёт о качестве по всей выгрузке |
