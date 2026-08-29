@@ -19,6 +19,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 openpyxl = pytest.importorskip("openpyxl")
 
+from histctx.xlsx_style import FONT  # noqa: E402
+
 
 def _module():
     path = ROOT / "scripts" / "export_layer_xlsx.py"
@@ -156,7 +158,7 @@ def test_шрифт_по_умолчанию_доходит_до_ячеек(tmp_p
     out = xl.build(rows, columns, constant, None, header, tmp_path / "book.xlsx")
 
     ws = openpyxl.load_workbook(out)["Записи"]
-    assert ws["B2"].font.name == xl.FONT
+    assert ws["B2"].font.name == FONT
     assert ws["B2"].font.size == 10
 
     # Читаем сам файл, а не обёртку: нулевой шрифт списка должен быть наш.
@@ -164,4 +166,4 @@ def test_шрифт_по_умолчанию_доходит_до_ячеек(tmp_p
     styles = zipfile.ZipFile(out).read("xl/styles.xml").decode("utf-8")
     fonts = re.search(r"<fonts.*?</fonts>", styles, re.S).group(0)
     first = re.findall(r"<font>.*?</font>", fonts, re.S)[0]
-    assert xl.FONT in first and "Calibri" not in first
+    assert FONT in first and "Calibri" not in first
