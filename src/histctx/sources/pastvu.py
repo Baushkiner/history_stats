@@ -290,8 +290,8 @@ def grid(bbox: tuple, step_deg: float = 0.5) -> Iterator[tuple]:
 
 
 def in_requested_bbox(lat: float, lon: float, bbox: tuple) -> bool:
-    lat_min, lon_min, lat_max, lon_max = bbox
-    return lat_min <= lat <= lat_max and lon_min <= lon <= lon_max
+    """Попал ли снимок в тот прямоугольник, который у сервиса и просили."""
+    return in_bbox(lat, lon, bbox)
 
 
 def check_photo_fields(photos: list[dict], sample: int = 50) -> None:

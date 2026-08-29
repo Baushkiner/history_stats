@@ -14,12 +14,12 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import unquote
 
-from ..geo import in_bbox, valid_coords
 from ..normalize import (
     looks_like_military_unit, looks_like_person, normalize_war, years_from_title,
 )
 from ..periods import parse_period, parse_year
 from ..schema import LayerSpec, clean_text
+from ._common import coords
 
 BATTLES = LayerSpec(
     slug="battles",
@@ -43,11 +43,7 @@ def load_battles(path: Path) -> list:
     for _, row in df.iterrows():
         title = clean_text(row.get("Название")) or "Событие"
 
-        lat = lon = None
-        conf = "no_coords"
-        if valid_coords(row.get("Широта (lat)"), row.get("Долгота (lon)")):
-            lat, lon = float(row["Широта (lat)"]), float(row["Долгота (lon)"])
-            conf = "ok" if in_bbox(lat, lon) else "outside_bbox"
+        lat, lon, conf = coords(row)
 
         # «да (место)» означает, что координата указывает на населённый пункт,
         # а не на поле боя — точность ниже, но запись остаётся полезной.

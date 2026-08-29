@@ -68,6 +68,7 @@ from ..schema import ContextRecord, LayerSpec, clean_text
 # Второй такой же разбор — второе место, где его чинить.
 from .wikidata import (
     COUNTRIES, LABEL_LANGS, SparqlClient, SparqlError, _point, _qid, _val, _year,
+    dedupe,
 )
 
 # Класс отбора. Транзитивное замыкание `wdt:P31/wdt:P279*` покрывает город,
@@ -679,22 +680,9 @@ def collect(client: SparqlClient, spec: LayerSpec, *,
         records.extend(rows_to_records(rows, spec, require_bbox=require_bbox))
         say(f"    названия {start + len(chunk)}/{len(qids)}: записей {len(records)}")
 
+    # Отсев повторов — общий с основным сбором: ключ там и здесь `source_id`,
+    # а не `uid`. `uid` считается в том числе от координаты, и место с двумя
+    # значениями P625 осталось бы на карте дважды. Здесь `source_id` — это
+    # «Q-номер, год смены и прежнее название» (см. `_rename_record`): год
+    # переименования одним ключом не обходится.
     return dedupe(records)
-
-
-def dedupe(records: list[ContextRecord]) -> list[ContextRecord]:
-    """Одно переименование — одна запись.
-
-    Ключ — `source_id` (`<Q-номер>:<год смены>`), а не `uid`: `uid` считается
-    в том числе от координаты, и место с двумя значениями P625 осталось бы на
-    карте дважды.
-    """
-    seen: set[str] = set()
-    out: list[ContextRecord] = []
-    for rec in records:
-        key = rec.source_id or rec.uid
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(rec)
-    return out

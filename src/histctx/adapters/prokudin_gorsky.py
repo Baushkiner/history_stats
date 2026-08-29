@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..geo import in_bbox, valid_coords
 from ..normalize import tidy_url
 from ..schema import LayerSpec, clean_text
+from ._common import coords
 
 PROKUDIN = LayerSpec(
     slug="prokudin_gorsky",
@@ -32,11 +32,7 @@ def load_prokudin_gorsky(path: Path) -> list:
     df = pd.read_excel(path)
     out = []
     for _, row in df.iterrows():
-        lat = lon = None
-        conf = "no_coords"
-        if valid_coords(row.get("Широта (lat)"), row.get("Долгота (lon)")):
-            lat, lon = float(row["Широта (lat)"]), float(row["Долгота (lon)"])
-            conf = "ok" if in_bbox(lat, lon) else "outside_bbox"
+        lat, lon, conf = coords(row)
 
         place = clean_text(row.get("Название")) or "Место съёмки"
         out.append(PROKUDIN.new_record(
