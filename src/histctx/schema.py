@@ -203,6 +203,10 @@ class LayerSpec:
     url: Optional[str] = None
     status: str = "planned"          # planned | harvested | curated
     expected_rows: Optional[int] = None
+    # Полигоны подложки — границы губерний и государств — записями контекста
+    # не становятся: показывать рядом с фактом там нечего. Флаг нужен отчёту о
+    # качестве, чтобы не считать такой слой несобранным.
+    gives_records: bool = True
 
     def new_record(self, **kwargs) -> ContextRecord:
         kwargs.setdefault("layer", self.slug)

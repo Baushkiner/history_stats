@@ -8,11 +8,27 @@ venv/
 # Кэш ответов SPARQL — восстанавливается повторным запросом
 data/cache/
 
+# Архивы, скачанные из файлового каталога ristat.org: в них рядом с таблицей
+# лежит документация в PDF, и весят они больше самого слоя. Пересобираются
+# командой harvest_errhs.py.
+data/raw/ristat/
+
+# Архивы GHCN и приведённый из них ряд: сотни мегабайт, забираются с NOAA
+# одной командой (scripts/harvest_weather.py --fetch)
+data/raw/meteo/
+
 # Крупные выгрузки пересобираются скриптами; в репозиторий идут
 # только отчёт и небольшие GeoJSON-слои.
 data/out/*.xlsx
 data/out/context.jsonl
 data/out/jsonl/
 data/out/xlsx/
+
+# Рабочие копии параллельных агентов: временные worktree самого репозитория,
+# живут только на время задачи и убираются сами.
+.claude/worktrees/
+# Мировая выборка границ (harvest_cshapes.py --world) — вспомогательная,
+# вчетверо больше слоя и в репозиторий не идёт
+data/out/boundaries/state_borders_world.geojson
 
 .DS_Store

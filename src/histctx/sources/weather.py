@@ -9,8 +9,9 @@
 Что здесь есть и чего нет. Модуль не ходит в сеть и ничего не скачивает:
 он принимает **приведённый к общему виду ряд наблюдений** и превращает его
 в записи единой схемы. Скачивание и разбор конкретного формата — дело
-`scripts/harvest_weather.py`, и оно намеренно отделено: форматов у метеоданных
-много, а логика «что считать засухой» одна.
+`histctx.sources.ghcn` (месячные ряды NOAA) и `scripts/harvest_weather.py`,
+и оно намеренно отделено: форматов у метеоданных много, а логика «что считать
+засухой» одна.
 
 Два слоя на выходе:
 
@@ -36,6 +37,12 @@ from typing import Iterable, Optional
 from ..geo import in_bbox, valid_coords
 from ..schema import SCOPE_REGION, LayerSpec, clean_text
 
+# Ссылка на набор, из которого слои собираются по умолчанию. Написана строкой,
+# а не взята из `histctx.sources.ghcn`: тот импортирует этот модуль ради общего
+# формата ряда, и обратный импорт замкнул бы круг.
+GHCN_URL = ("https://www.ncei.noaa.gov/products/land-based-station/"
+            "global-historical-climatology-network-monthly")
+
 WEATHER_STATIONS = LayerSpec(
     slug="weather_stations",
     title="Погодные аномалии по станциям",
@@ -46,7 +53,9 @@ WEATHER_STATIONS = LayerSpec(
         "Годы, когда на станции было заметно суше, холоднее или дождливее нормы. "
         "Объясняет неурожай, падёж скота и всплеск смертности в метрических книгах."
     ),
-    status="planned",
+    url=GHCN_URL,
+    status="harvested",
+    expected_rows=9678,
 )
 
 WEATHER_REGIONS = LayerSpec(
@@ -59,7 +68,9 @@ WEATHER_REGIONS = LayerSpec(
         "То же, что и по станциям, но осреднённое по губернии: до 1880-х годов "
         "станций единицы, а губерния у факта из метрики известна почти всегда."
     ),
-    status="planned",
+    url=GHCN_URL,
+    status="harvested",
+    expected_rows=1856,
 )
 
 # Колонки приведённого ряда. Это и есть «общий формат» для погоды: любой
@@ -283,8 +294,14 @@ def region_records(observations: Iterable[Observation], *, source: str, url: Opt
         stations = {o.station_id for o in rows}
         if len(stations) < min_stations:
             continue
+        reporting = _stations_by_year(rows)
         for year, anomalies in sorted(find_anomalies(_average_by_month(rows),
                                                      threshold=threshold).items()):
+            # Сколько станций мерило именно в этот год, а не за всю историю
+            # губернии: в 1844 году в Томской губернии станция была одна,
+            # а к 1960-му их стало восемьдесят девять.
+            measured = reporting.get(year, 0)
+            thin = measured < min_stations
             out.append(WEATHER_REGIONS.new_record(
                 title=f"{anomalies[0].kind.capitalize()} {year} года: {region}",
                 category=anomalies[0].kind,
@@ -294,10 +311,15 @@ def region_records(observations: Iterable[Observation], *, source: str, url: Opt
                 year_from=year, year_to=year,
                 date_precision="year",
                 period_raw=str(year),
-                summary=_summary(region, year, anomalies, stations=len(stations)),
+                summary=_summary(region, year, anomalies, stations=measured),
                 source=source, license=license or WEATHER_REGIONS.license, url=url,
                 source_id=f"{region}:{year}",
-                extra={"anomalies": [a.__dict__ for a in anomalies], "stations": len(stations)},
+                # Год, за который говорит одна станция, из слоя не выбрасывается:
+                # до 1880-х годов другой такой записи по губернии не будет вовсе.
+                # Но и за проверенную она не выдаётся — помечается.
+                confidence="thin_coverage" if thin else "ok",
+                extra={"anomalies": [a.__dict__ for a in anomalies],
+                       "stations": measured, "stations_total": len(stations)},
             ))
     return out
 
@@ -313,20 +335,85 @@ def _is_big_enough(kind: str, value: float, norm: float) -> bool:
 
 
 def _average_by_month(rows: list[Observation]) -> list[Observation]:
-    """Сводит несколько станций губернии в один ряд помесячных средних."""
+    """Сводит несколько станций губернии в один ряд помесячных средних.
+
+    Просто усреднить то, что померили в этом месяце, нельзя: состав станций
+    меняется десятилетиями, и год с одной станцией сравнивался бы с годом,
+    где их восемьдесят. Разница между станциями при этом больше, чем разница
+    между годами: в Томской губернии годы с одной-двумя станциями давали
+    в среднем 188 мм за апрель–август, а годы с двадцатью — 272 мм, и весь
+    XIX век уходил в «засуху» просто потому, что мерила другая станция.
+
+    Поэтому значение каждой станции сначала приводится к общей базе — своя
+    норма меняется на общегубернскую. Отклонение станции от собственной нормы
+    сохраняется полностью, разница в уровне между станциями исчезает.
+    Температура приводится разностью, осадки — отношением: засуха меряется
+    долей от нормы, и отношение сохраняет именно её.
+    """
+    norms = _station_month_norms(rows)
+    region = _region_month_norms(norms)
+
     buckets: dict[tuple[int, int], list[Observation]] = {}
     for obs in rows:
         buckets.setdefault((obs.year, obs.month), []).append(obs)
+
     out = []
-    for (year, month), group in buckets.items():
+    for (year, month), group in sorted(buckets.items()):
+        tavg, prcp = [], []
+        for obs in group:
+            norm = norms.get((obs.station_id, month), {})
+            if obs.tavg is not None and norm.get("tavg") is not None \
+                    and region.get(month, {}).get("tavg") is not None:
+                tavg.append(obs.tavg - norm["tavg"] + region[month]["tavg"])
+            if obs.prcp is not None and norm.get("prcp") and \
+                    region.get(month, {}).get("prcp") is not None:
+                prcp.append(obs.prcp / norm["prcp"] * region[month]["prcp"])
         out.append(Observation(
             station_id=group[0].region or "регион",
             region=group[0].region,
             year=year, month=month,
-            tavg=_mean([o.tavg for o in group]),
-            prcp=_mean([o.prcp for o in group]),
+            tavg=_mean(tavg), prcp=_mean(prcp),
         ))
     return out
+
+
+def _station_month_norms(rows: list[Observation]) -> dict[tuple[str, int], dict]:
+    """Норма каждой станции по каждому месяцу — по всему её ряду."""
+    values: dict[tuple[str, int], dict[str, list]] = {}
+    for obs in rows:
+        bucket = values.setdefault((obs.station_id, obs.month), {"tavg": [], "prcp": []})
+        if obs.tavg is not None:
+            bucket["tavg"].append(obs.tavg)
+        if obs.prcp is not None:
+            bucket["prcp"].append(obs.prcp)
+    return {key: {field: _mean(items) for field, items in bucket.items()}
+            for key, bucket in values.items()}
+
+
+def _region_month_norms(norms: dict[tuple[str, int], dict]) -> dict[int, dict]:
+    """Норма губернии по месяцу: среднее норм станций, у каждой равный вес.
+
+    Равный вес важен: иначе станция, мерившая сто лет, задавала бы уровень
+    губернии, а мерившая пять — почти нет, и общая база опять зависела бы
+    от того, кто когда работал.
+    """
+    by_month: dict[int, dict[str, list]] = {}
+    for (_, month), bucket in norms.items():
+        target = by_month.setdefault(month, {"tavg": [], "prcp": []})
+        for field, value in bucket.items():
+            if value is not None:
+                target[field].append(value)
+    return {month: {field: _mean(items) for field, items in bucket.items()}
+            for month, bucket in by_month.items()}
+
+
+def _stations_by_year(rows: list[Observation]) -> dict[int, int]:
+    """Сколько станций губернии мерило в каждом году."""
+    by_year: dict[int, set] = {}
+    for obs in rows:
+        if obs.tavg is not None or obs.prcp is not None:
+            by_year.setdefault(obs.year, set()).add(obs.station_id)
+    return {year: len(stations) for year, stations in by_year.items()}
 
 
 def _season_series(by_year: dict, months: tuple, field: str, *, how: str) -> dict[int, float]:
@@ -354,7 +441,11 @@ def _summary(place: str, year: int, anomalies: list[Anomaly], stations: int | No
     extra = []
     if len(anomalies) > 1:
         extra.append("в том же году " + ", ".join(a.kind for a in anomalies[1:]))
-    if stations:
+    if stations == 1:
+        # Одна станция за губернию — это оценка, и запись должна это говорить
+        # сама, а не только полем confidence.
+        extra.append("в этот год мерила одна станция губернии — оценка приблизительная")
+    elif stations:
         extra.append(f"осреднено по {stations} станциям губернии")
     tail = ("Для родословной это объяснение неурожая, падежа скота и всплеска "
             "смертности в метрической книге за этот и следующий год.")

@@ -57,6 +57,7 @@ RISTAT_BOUNDARIES = LayerSpec(
     url=DATASET_URL,
     status="harvested",
     expected_rows=927,
+    gives_records=False,
 )
 
 
