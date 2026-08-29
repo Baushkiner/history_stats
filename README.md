@@ -223,6 +223,7 @@ python3 -m pytest tests/ -q
 | `data/out/jsonl/<слой>.jsonl` | Слой построчно; сюда попадают и записи без точки |
 | `data/out/territorial_events.json` | События без точки: лента времени рядом с фактом |
 | `data/out/all_layers.xlsx` | Все слои, по вкладке на слой, русские заголовки |
+| `data/out/xlsx/gulag_camps.xlsx` | Лагеря ГУЛАГа отдельной книгой: численность по годам и сводка, которых нет в общей выгрузке (`scripts/export_gulag_xlsx.py`) |
 | `data/out/context.jsonl` | Для загрузки в базу |
 | `data/out/name_variants.json` | Указатель написаний названий для поиска |
 | `data/out/report.md` | Отчёт о качестве |

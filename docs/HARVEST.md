@@ -67,6 +67,7 @@ python3 scripts/harvest_weather.py --build data/raw/meteo/*.csv --map "..." \
 # 5. Лагерные управления: сначала проверка ответа API
 python3 scripts/harvest_gulag.py --check
 python3 scripts/harvest_gulag.py --build
+python3 scripts/export_gulag_xlsx.py                        # книга для чтения глазами
 
 # 6. Границы и итоги переписей: heiDATA (CC BY 4.0) и RISTAT (CC0)
 python3 scripts/harvest_admin_gis.py --check
