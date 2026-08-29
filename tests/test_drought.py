@@ -9,19 +9,17 @@
 Иначе карта заполнится записями «в 1734 году была погода».
 """
 
-import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.schema import SCOPE_POINT  # noqa: E402
-from histctx.sources.drought import (  # noqa: E402
+from histctx.schema import SCOPE_POINT
+from histctx.sources.drought import (
     DROUGHT_ATLAS, ERDA, OWDA, Atlas, DroughtError, check_atlas, drought_class,
     edge_points, find_episodes, read_grid, read_matrix, to_records,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 # Сетка по шаблону NOAA: комментарии, описание колонок, шапка. Девять узлов
 # стоят квадратом 3×3 (середина — узел 5, у него есть все восемь соседей),

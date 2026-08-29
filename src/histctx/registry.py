@@ -48,20 +48,20 @@ from .schema import LayerSpec
 
 # --- уже собранные слои ---------------------------------------------------
 
-from .adapters.battles import BATTLES                     # noqa: E402
-from .adapters.bookplaces import LITERARY, TENISHEV        # noqa: E402
-from .adapters.prokudin_gorsky import PROKUDIN             # noqa: E402
-from .adapters.state_events import STATE_EVENTS            # noqa: E402
-from .sources.errhs import HARVEST_PRICES                 # noqa: E402
-from .sources.geonames import SETTLEMENTS                  # noqa: E402
-from .sources.admin_gis import ADMIN_GIS                    # noqa: E402
-from .sources.cshapes import STATE_BORDERS                  # noqa: E402
-from .sources.drought import DROUGHT_ATLAS                  # noqa: E402
-from .sources.gulag import GULAG_CAMPS                      # noqa: E402
-from .sources.ristat import RISTAT_BOUNDARIES               # noqa: E402
-from .sources.strikes import STRIKES                        # noqa: E402
-from .sources.pastvu import PASTVU_PHOTOS                  # noqa: E402
-from .sources.weather import WEATHER_REGIONS, WEATHER_STATIONS  # noqa: E402
+from .adapters.battles import BATTLES
+from .adapters.bookplaces import LITERARY, TENISHEV
+from .adapters.prokudin_gorsky import PROKUDIN
+from .adapters.state_events import STATE_EVENTS
+from .sources.admin_gis import ADMIN_GIS
+from .sources.cshapes import STATE_BORDERS
+from .sources.drought import DROUGHT_ATLAS
+from .sources.errhs import HARVEST_PRICES
+from .sources.geonames import SETTLEMENTS
+from .sources.gulag import GULAG_CAMPS
+from .sources.pastvu import PASTVU_PHOTOS
+from .sources.ristat import RISTAT_BOUNDARIES
+from .sources.strikes import STRIKES
+from .sources.weather import WEATHER_REGIONS, WEATHER_STATIONS
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 

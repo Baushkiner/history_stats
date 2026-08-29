@@ -26,24 +26,23 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.adapters import (  # noqa: E402
+from histctx.adapters import (
     load_battles, load_literary_places, load_prokudin_gorsky, load_state_events, load_tenishev,
 )
-from histctx.adapters.battles import BATTLES  # noqa: E402
-from histctx.adapters.bookplaces import LITERARY, TENISHEV  # noqa: E402
-from histctx.adapters.prokudin_gorsky import PROKUDIN  # noqa: E402
-from histctx.adapters.state_events import STATE_EVENTS  # noqa: E402
-from histctx.geo import extract_region  # noqa: E402
-from histctx.io_formats import (  # noqa: E402
+from histctx.adapters.battles import BATTLES
+from histctx.adapters.bookplaces import LITERARY, TENISHEV
+from histctx.adapters.prokudin_gorsky import PROKUDIN
+from histctx.adapters.state_events import STATE_EVENTS
+from histctx.geo import extract_region
+from histctx.io_formats import (
     read_layers, write_geojson, write_jsonl, write_records_json, write_xlsx_multi,
 )
-from histctx.periods import PRECISION_OPEN  # noqa: E402
-from histctx.registry import ALL_LAYERS, BY_SLUG  # noqa: E402
-from histctx.schema import GROUPS, ContextRecord, LayerSpec  # noqa: E402
-from histctx.sources.wikidata import OPEN_END_YEAR  # noqa: E402
+from histctx.periods import PRECISION_OPEN
+from histctx.registry import ALL_LAYERS, BY_SLUG
+from histctx.schema import GROUPS, ContextRecord, LayerSpec
+from histctx.sources.wikidata import OPEN_END_YEAR
 
 # Какой файл каким адаптером читать. Имена ищутся подстрокой, чтобы работали
 # и «bookplaces_data.xlsx», и выгрузка с префиксом.

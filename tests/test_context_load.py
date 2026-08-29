@@ -6,14 +6,11 @@
 """
 
 import json
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT / "scripts"))
+from context import load_records
 
-from context import load_records  # noqa: E402
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def write(path: Path, payload) -> None:

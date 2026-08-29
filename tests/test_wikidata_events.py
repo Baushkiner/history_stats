@@ -10,17 +10,15 @@
 """
 
 import importlib.util
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.schema import LayerSpec  # noqa: E402
-from histctx.sources.wikidata import (  # noqa: E402
+from histctx.schema import LayerSpec
+from histctx.sources.wikidata import (
     COUNTRIES, HISTORICAL_COUNTRIES, SETTLEMENT, collect_layer, details_query,
     ids_query, rows_to_records,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 SPEC = LayerSpec(slug="uprisings", title="Восстания", group="hardship",
                  source="Викиданные", license="CC0")

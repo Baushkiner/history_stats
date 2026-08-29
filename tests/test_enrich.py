@@ -1,18 +1,13 @@
 """Тесты подбора контекста и вспомогательной географии."""
 
-import sys
-from pathlib import Path
-
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from histctx.enrich import ContextEngine, Fact, _year_gap  # noqa: E402
-from histctx.geo import extract_district, extract_region, haversine_km, in_bbox, valid_coords  # noqa: E402
-from histctx.normalize import (  # noqa: E402
+from histctx.enrich import ContextEngine, Fact, _year_gap
+from histctx.geo import extract_district, extract_region, haversine_km, in_bbox, valid_coords
+from histctx.normalize import (
     looks_like_military_unit, looks_like_person, normalize_genre, normalize_war, years_from_title,
 )
-from histctx.schema import ContextRecord  # noqa: E402
+from histctx.schema import ContextRecord
 
 
 def rec(**kw) -> ContextRecord:

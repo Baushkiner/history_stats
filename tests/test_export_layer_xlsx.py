@@ -9,17 +9,14 @@
 
 import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
+from histctx.xlsx_style import FONT
+
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
 openpyxl = pytest.importorskip("openpyxl")
-
-from histctx.xlsx_style import FONT  # noqa: E402
 
 
 def _module():

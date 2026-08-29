@@ -5,18 +5,16 @@
 берёт факты и не тащит за собой авторскую справку музея.
 """
 
-import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.sources.gulag import (  # noqa: E402
+from histctx.sources.gulag import (
     GULAG_CAMPS, GulagError, camp_title, camps_to_records, check_camp_fields,
     peak_prisoners, reference_titles, split_years, statistics_years,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 REFS = {
     "types": {1: "Исправительно-трудовые лагеря", 8: "Лагеря ГУПВИ"},

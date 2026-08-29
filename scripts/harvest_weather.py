@@ -34,12 +34,11 @@ import argparse
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.io_formats import write_geojson, write_records_json  # noqa: E402
-from histctx.sources import ghcn  # noqa: E402
-from histctx.sources.weather import (  # noqa: E402
+from histctx.io_formats import write_geojson, write_records_json
+from histctx.sources import ghcn
+from histctx.sources.weather import (
     MIN_YEARS_FOR_BASELINE, WEATHER_REGIONS, WEATHER_STATIONS, Z_THRESHOLD,
     WeatherError, find_anomalies, read_series, region_records, station_records,
 )

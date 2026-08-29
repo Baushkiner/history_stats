@@ -16,12 +16,11 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.enrich import ContextEngine, Fact  # noqa: E402
-from histctx.io_formats import read_context  # noqa: E402
-from histctx.schema import ContextRecord  # noqa: E402
+from histctx.enrich import ContextEngine, Fact
+from histctx.io_formats import read_context
+from histctx.schema import ContextRecord
 
 
 def load_records(out_dir: Path) -> list[ContextRecord]:

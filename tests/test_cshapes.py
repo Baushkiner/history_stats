@@ -9,7 +9,6 @@
 последнего сбор с `icr.ethz.ch` не доходит до конца.
 """
 
-import sys
 import urllib.error
 import zipfile
 from io import BytesIO
@@ -17,17 +16,16 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.sources import cshapes  # noqa: E402
-from histctx.sources.cshapes import (  # noqa: E402
+from histctx.sources import cshapes
+from histctx.sources.cshapes import (
     ARCHIVE_MEMBERS, STATE_BORDERS, CShapesError, boundary, check_fields,
     collection, download, overlaps, read_archive, rings, select, states,
     touches_region,
 )
 
-from test_shapefile import build_dbf, build_shp  # noqa: E402
+from test_shapefile import build_dbf, build_shp
+
+ROOT = Path(__file__).resolve().parents[1]
 
 # Квадраты по часовой стрелке — внешние границы. Первый лежит в охвате
 # РИ/СССР (`geo.BBOX_RU`), второй — в Южной Америке, заведомо вне его.

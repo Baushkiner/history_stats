@@ -20,13 +20,12 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-import json  # noqa: E402
+import json
 
-from histctx.io_formats import write_geojson, write_jsonl  # noqa: E402
-from histctx.sources.geonames import (  # noqa: E402
+from histctx.io_formats import write_geojson, write_jsonl
+from histctx.sources.geonames import (
     COUNTRIES, SETTLEMENTS, GeoNamesError, load_cities, name_variants, pick_russian_name,
     select, to_records,
 )

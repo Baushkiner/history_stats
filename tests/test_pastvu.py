@@ -10,18 +10,16 @@
 сообщением, а не тихо выдаёт пусто.
 """
 
-import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.sources.pastvu import (  # noqa: E402
+from histctx.sources.pastvu import (
     PASTVU_PHOTOS, YEAR_MAX, PastVuClient, PastVuError, bounds_param,
     check_photo_fields, grid, in_requested_bbox, photos_to_records,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 # Образец ответа photo.getByBounds — снят с живого сервиса, не с документации.
 PHOTOS = [

@@ -27,15 +27,14 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.io_formats import write_geojson, write_jsonl, write_xlsx  # noqa: E402
-from histctx.registry import BY_SLUG  # noqa: E402
-from histctx.sources.renamed import (  # noqa: E402
+from histctx.io_formats import write_geojson, write_jsonl, write_xlsx
+from histctx.registry import BY_SLUG
+from histctx.sources.renamed import (
     PROBE_OBJECTS, collect, dedupe, ids_query, names_query, rows_to_records,
 )
-from histctx.sources.wikidata import COUNTRIES, SparqlClient, SparqlError  # noqa: E402
+from histctx.sources.wikidata import COUNTRIES, SparqlClient, SparqlError
 
 SLUG = "renamed_places"
 

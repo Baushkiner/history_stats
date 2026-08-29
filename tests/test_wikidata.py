@@ -5,21 +5,19 @@
 
 import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.periods import PRECISION_OPEN  # noqa: E402
-from histctx.schema import LayerSpec  # noqa: E402
-from histctx.sources.wikidata import (  # noqa: E402
+from histctx.periods import PRECISION_OPEN
+from histctx.schema import LayerSpec
+from histctx.sources.wikidata import (
     COUNTRIES, LABEL_LANGS, USER_AGENT, WORLD, SparqlClient, SparqlError,
     _point, _qid, _year, collect_layer, dedupe, details_query, ids_query,
     rows_to_records, stage1_plan,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 SPEC = LayerSpec(slug="churches", title="Храмы", group="faith", source="Викиданные", license="CC0")
 

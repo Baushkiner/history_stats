@@ -33,10 +33,9 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.xlsx_style import (  # noqa: E402
+from histctx.xlsx_style import (
     FONT, SIZE, Cursor, head_row, link_font, new_workbook, warn_font,
 )
 

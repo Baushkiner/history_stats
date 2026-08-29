@@ -5,19 +5,17 @@
 попадает: иначе карта заполнится записями «в 1873 году была погода».
 """
 
-import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.schema import SCOPE_REGION  # noqa: E402
-from histctx.sources.weather import (  # noqa: E402
+from histctx.schema import SCOPE_REGION
+from histctx.sources.weather import (
     WEATHER_REGIONS, WEATHER_STATIONS, Observation, WeatherError, find_anomalies,
     read_series, region_records, station_records,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 NORMAL_T = {1: -10.0, 2: -9.0, 3: -3.0, 4: 5.0, 5: 12.0, 6: 17.0,
             7: 19.0, 8: 17.0, 9: 11.0, 10: 4.0, 11: -3.0, 12: -8.0}

@@ -22,4 +22,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+# Пакет и скрипты видны тестам отсюда, а не из `sys.path.insert` в каждом
+# файле: скрипты тесты грузят по пути (`spec_from_file_location`), и путь до
+# `histctx` им нужен такой же, как самим тестам.
+pythonpath = ["src", "scripts"]

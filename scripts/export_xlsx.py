@@ -24,14 +24,13 @@ import argparse
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.io_formats import (  # noqa: E402
+from histctx.io_formats import (
     read_geojson, read_jsonl, read_records_json, write_xlsx, write_xlsx_multi,
 )
-from histctx.registry import BY_SLUG  # noqa: E402
-from histctx.schema import ContextRecord  # noqa: E402
+from histctx.registry import BY_SLUG
+from histctx.schema import ContextRecord
 
 
 def available_layers(out_dir: Path) -> list[str]:

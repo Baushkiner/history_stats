@@ -21,13 +21,12 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.io_formats import write_geojson, write_jsonl, write_xlsx  # noqa: E402
-from histctx.registry import BY_SLUG  # noqa: E402
-from histctx.schema import LayerSpec  # noqa: E402
-from histctx.sources.wikidata import (  # noqa: E402
+from histctx.io_formats import write_geojson, write_jsonl, write_xlsx
+from histctx.registry import BY_SLUG
+from histctx.schema import LayerSpec
+from histctx.sources.wikidata import (
     COUNTRIES, HISTORICAL_COUNTRIES, WORLD, SparqlClient, SparqlError,
     collect_layer, rows_to_records, verify_qids,
 )

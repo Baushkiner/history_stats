@@ -5,16 +5,14 @@
 """
 
 import json
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.io_formats import write_geojson  # noqa: E402
-from histctx.sources.geonames import (  # noqa: E402
+from histctx.io_formats import write_geojson
+from histctx.sources.geonames import (
     SETTLEMENTS, pick_russian_name, select, size_of, to_records,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def city(**kw) -> dict:

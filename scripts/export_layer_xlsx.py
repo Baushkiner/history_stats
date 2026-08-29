@@ -27,14 +27,13 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.geo import in_bbox  # noqa: E402
-from histctx.registry import ALL_LAYERS  # noqa: E402
-from histctx.schema import COLUMNS, COLUMNS_RU  # noqa: E402
-from histctx.sources.wikidata import OPEN_END_YEAR  # noqa: E402
-from histctx.xlsx_style import (  # noqa: E402
+from histctx.geo import in_bbox
+from histctx.registry import ALL_LAYERS
+from histctx.schema import COLUMNS, COLUMNS_RU
+from histctx.sources.wikidata import OPEN_END_YEAR
+from histctx.xlsx_style import (
     Cursor, cell_value, head_row, link_font, new_workbook, warn_font,
 )
 

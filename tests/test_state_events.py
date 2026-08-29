@@ -4,21 +4,19 @@
 событии, — это ошибка сборки, а не мелкая неточность в таблице.
 """
 
-import sys
 from collections import Counter
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.adapters.state_events import (  # noqa: E402
+from histctx.adapters.state_events import (
     CATEGORIES, DEFAULT_PATH, STATE_EVENTS, YEAR_MAX, YEAR_MIN, DatasetError, load_state_events,
 )
-from histctx.enrich import ContextEngine, Fact  # noqa: E402
-from histctx.geo import region_key, same_region  # noqa: E402
-from histctx.schema import SCOPE_REGION, SCOPE_STATE, ContextRecord  # noqa: E402
+from histctx.enrich import ContextEngine, Fact
+from histctx.geo import region_key, same_region
+from histctx.schema import SCOPE_REGION, SCOPE_STATE, ContextRecord
+
+ROOT = Path(__file__).resolve().parents[1]
 
 EVENTS = load_state_events()
 

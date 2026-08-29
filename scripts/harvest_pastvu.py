@@ -29,13 +29,12 @@ import sys
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.geo import BBOX_RU, BBOX_RU_EAST  # noqa: E402
-from histctx.io_formats import HOISTABLE, write_jsonl  # noqa: E402
-from histctx.schema import COLUMNS, ContextRecord  # noqa: E402
-from histctx.sources.pastvu import (  # noqa: E402
+from histctx.geo import BBOX_RU, BBOX_RU_EAST
+from histctx.io_formats import HOISTABLE, write_jsonl
+from histctx.schema import COLUMNS, ContextRecord
+from histctx.sources.pastvu import (
     PASTVU_PHOTOS, YEAR_MAX, YEAR_MIN, PastVuClient, PastVuError,
     check_photo_fields, grid, in_requested_bbox, photos_to_records,
 )

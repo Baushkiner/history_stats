@@ -11,23 +11,21 @@
 """
 
 import io
-import sys
 import zipfile
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.geo import region_key  # noqa: E402
-from histctx.schema import SCOPE_REGION  # noqa: E402
-from histctx.sources.errhs import (  # noqa: E402
+from histctx.geo import region_key
+from histctx.schema import SCOPE_REGION
+from histctx.sources.errhs import (
     CONFIDENCE_UNMATCHED, HARVEST_PRICES, REQUIRED_COLUMNS, TOPICS, ErrhsError,
     category_of, check_columns, is_matchable, normalize_region, read_figures,
     read_sheet, read_table, region_records, split_role, subject_and_role,
     unit_text, yield_ratio,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 # Колонки выгрузки — как их отдаёт файловый каталог ristat.org.
 COLUMNS = [

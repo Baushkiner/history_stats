@@ -23,11 +23,10 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.io_formats import write_geojson, write_jsonl  # noqa: E402
-from histctx.sources.gulag import (  # noqa: E402
+from histctx.io_formats import write_geojson, write_jsonl
+from histctx.sources.gulag import (
     GULAG_CAMPS, GulagError, camps_to_records, check_camp_fields, fetch_all,
 )
 

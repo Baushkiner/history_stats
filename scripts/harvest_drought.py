@@ -37,11 +37,10 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.io_formats import write_geojson, write_jsonl  # noqa: E402
-from histctx.sources.drought import (  # noqa: E402
+from histctx.io_formats import write_geojson, write_jsonl
+from histctx.sources.drought import (
     DATASETS, DEFAULT_DATASET, DROUGHT_ATLAS, THRESHOLD, YEAR_FROM, YEAR_TO,
     Atlas, DroughtError, check_atlas, edge_points, episodes_to_records,
     find_episodes, load, read_grid, read_matrix, usable_points,
