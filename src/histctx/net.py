@@ -7,11 +7,18 @@
 которых повтор осмыслен, и пауза между обращениями у всех одни и те же — и
 жить им положено в одном месте: подпись, разъехавшаяся по версиям, врёт
 источнику о том, кто к нему пришёл.
+
+Сюда же переехало простое скачивание одним запросом (`fetch_bytes`): у
+наборов, которые лежат файлом по постоянному адресу — heiDATA, RISTAT,
+атласы засух NOAA, — оно было написано трижды слово в слово. Клиенты со
+своей логикой повторов это не касается: у них она и есть суть.
 """
 
 from __future__ import annotations
 
 import time
+import urllib.error
+import urllib.request
 
 from . import __version__
 
@@ -39,3 +46,21 @@ def wait_for_pause(last_call: float, pause_sec: float) -> float:
     if left > 0:
         time.sleep(left)
     return time.monotonic()
+
+
+def fetch_bytes(url: str, *, error: type[Exception], timeout: int = 300) -> bytes:
+    """Скачивает файл одним запросом. Сбой пересказывается ошибкой источника.
+
+    Повторов здесь нет намеренно: наборы лежат на репозиториях данных, которые
+    отдают файл с первого раза. Там, где соединение рвётся (CShapes) или ответ
+    собирается под запрос (ristat.org), у сборщика свой заход — и он там же,
+    в самом сборщике.
+    """
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return response.read()
+    except urllib.error.HTTPError as exc:
+        raise error(f"{url}: HTTP {exc.code}") from exc
+    except urllib.error.URLError as exc:
+        raise error(f"{url}: сеть недоступна ({exc.reason})") from exc

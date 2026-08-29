@@ -36,13 +36,13 @@ from pathlib import Path
 
 from _paths import ROOT
 
-from histctx.io_formats import write_jsonl
+from histctx.io_formats import write_feature_collection, write_jsonl
 from histctx.sources.admin_gis import (
     ADMIN_GIS, CENSUSES, HeiDataError, boundaries_geojson, build_summary,
-    census_records, load_census, unit_name, write_geojson,
+    census_records, load_census, unit_name,
 )
 from histctx.sources.ristat import (
-    FILES, RISTAT_BOUNDARIES, RistatError, collection, load, named, write,
+    FILES, RISTAT_BOUNDARIES, RistatError, collection, load, named,
 )
 
 CACHE = ROOT / "data" / "cache" / "boundaries"
@@ -86,14 +86,14 @@ def build(out_dir: Path, cache_dir: Path) -> int:
     for year, census in CENSUSES.items():
         feats = load_census(census, cache_dir=cache_dir)
         path = out_dir / "boundaries" / f"boundaries_{year}.geojson"
-        n = write_geojson(boundaries_geojson(feats, census), path)
+        n = write_feature_collection(boundaries_geojson(feats, census), path)
         print(f"Перепись {year}: {n} полигонов → {path.relative_to(ROOT)}")
         records.extend(census_records(feats, census))
 
     for boundaries in FILES:
         feats = load(boundaries, cache_dir)
         path = out_dir / "boundaries" / f"{boundaries.key}.geojson"
-        n = write(collection(feats, boundaries), path)
+        n = write_feature_collection(collection(feats, boundaries), path)
         print(f"RISTAT, {boundaries.title}: {n} полигонов → {path.relative_to(ROOT)}")
 
     if not records:

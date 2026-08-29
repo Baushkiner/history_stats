@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Optional, Sequence
 
 from .schema import COLUMNS, COLUMNS_RU, ContextRecord
 from .xlsx_style import cell_value
@@ -64,6 +64,46 @@ def _shared_properties(feats: Sequence[dict]) -> dict:
 
 
 _MISSING = object()
+
+
+# --- подложка карты: границы ----------------------------------------------
+# Границы губерний и государств к схеме контекста не приводятся (`docs/HARVEST.md`,
+# раздел «Границы»), поэтому пишутся не записями, а полигонами как есть. Общего
+# у трёх таких наборов — heiDATA, RISTAT, CShapes — ровно конверт коллекции и
+# сама запись файла; чем он наполнен, каждый сборщик решает сам.
+
+def feature_collection(name: str, feats: list[dict], *, license: str, source: str,
+                       citation: str, url: str,
+                       extra: Optional[dict] = None) -> dict:
+    """FeatureCollection слоя-подложки: полигоны плюс права и ссылка на набор.
+
+    `extra` — поля, которые нужны одному набору: у границ государств это
+    `period`, рамка лет, за которую взяты периоды. Встают они сразу за
+    названием, чтобы читатель файла видел их раньше служебного хвоста.
+    """
+    return {
+        "type": "FeatureCollection",
+        "name": name,
+        **(extra or {}),
+        "license": license,
+        "source": source,
+        "citation": citation,
+        "url": url,
+        "features": feats,
+    }
+
+
+def write_feature_collection(collection: dict, path: Path, *, compact: bool = False) -> int:
+    """Пишет готовую коллекцию и возвращает число полигонов.
+
+    `compact` убирает пробелы после разделителей: у границ государств
+    557 тысяч вершин, и одни только пробелы — это мегабайт файла.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    separators = (",", ":") if compact else None
+    path.write_text(json.dumps(collection, ensure_ascii=False, separators=separators),
+                    encoding="utf-8")
+    return len(collection.get("features") or [])
 
 
 def write_records_json(records: Iterable[ContextRecord], path: Path, *, title: str = "") -> int:

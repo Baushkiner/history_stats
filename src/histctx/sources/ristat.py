@@ -19,12 +19,10 @@ Historical Statistics», и это просьба, а не условие лиц
 
 from __future__ import annotations
 
-import json
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 
-from ..net import USER_AGENT
+from ..io_formats import feature_collection
+from ..net import fetch_bytes
 from ..schema import LayerSpec
 from .geopackage import GeoPackageError, read_features
 
@@ -80,15 +78,9 @@ class RistatError(RuntimeError):
 
 
 def download(file_id: int, *, timeout: int = 300) -> bytes:
-    url = FILE_URL.format(file_id=file_id)
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            return response.read()
-    except urllib.error.HTTPError as exc:
-        raise RistatError(f"{url}: HTTP {exc.code}") from exc
-    except urllib.error.URLError as exc:
-        raise RistatError(f"{url}: сеть недоступна ({exc.reason})") from exc
+    """Забирает один файл набора по его идентификатору в Dataverse IISH."""
+    return fetch_bytes(FILE_URL.format(file_id=file_id),
+                       error=RistatError, timeout=timeout)
 
 
 def load(boundaries: Boundaries, cache_dir) -> list[dict]:
@@ -109,18 +101,8 @@ def named(feats: list[dict], boundaries: Boundaries) -> int:
 
 
 def collection(feats: list[dict], boundaries: Boundaries) -> dict:
-    return {
-        "type": "FeatureCollection",
-        "name": boundaries.key,
-        "license": RISTAT_BOUNDARIES.license,
-        "source": RISTAT_BOUNDARIES.source,
-        "citation": CITATION,
-        "url": DATASET_URL,
-        "features": feats,
-    }
-
-
-def write(collection_dict: dict, path) -> int:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(collection_dict, ensure_ascii=False), encoding="utf-8")
-    return len(collection_dict.get("features") or [])
+    return feature_collection(
+        boundaries.key, feats,
+        license=RISTAT_BOUNDARIES.license, source=RISTAT_BOUNDARIES.source,
+        citation=CITATION, url=DATASET_URL,
+    )
