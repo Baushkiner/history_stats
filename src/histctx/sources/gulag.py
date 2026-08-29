@@ -307,7 +307,10 @@ def _location_record(camp_id, title: str, location: dict, spec: LayerSpec, *,
         district=extract_district(place),
         year_from=year_from,
         year_to=year_to,
-        date_precision="year" if span == 0 else "part",
+        # Оба конца измерены и названы источником: лагерь работал с года по
+        # год. Точность даты — год; то, что запись покрывает несколько лет,
+        # сказано самими границами, а не полем точности.
+        date_precision="year",
         date_approx=approx or span > 0,
         period_raw=str(year_from) if span == 0 else f"{year_from}–{year_to}",
         summary=build_summary(kind, activity, peak, peak_year, moved),

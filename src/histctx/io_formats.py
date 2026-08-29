@@ -188,3 +188,116 @@ def _safe_sheet(name: str, wb) -> str:
         title = base[: 31 - len(suffix)] + suffix
         i += 1
     return title
+
+
+# --- чтение выгрузки обратно ----------------------------------------------
+# Обратная сторона write_*. Отчёт о качестве и подбор контекста работают с
+# тем, что уже лежит в data/out: пересобирать три десятка слоёв из сети ради
+# отчёта нельзя — половина источников за раз не отвечает, а отчёт нужен на
+# каждую пересборку.
+
+
+def record_from_row(row: dict) -> ContextRecord:
+    """Строка выгрузки обратно в запись: JSONL, GeoJSON или `write_records_json`.
+
+    Поле `extra` сохраняется: в нём лежат величины, ради которых слой и
+    собирался, — индекс засушливости, отклонения по станции, численность.
+    """
+    row = dict(row)
+    row["date_approx"] = row.get("date_approx") in (True, "да")
+    # В таблице и в GeoJSON перечень губерний — строка «А; Б», в записи — список.
+    regions = row.get("regions")
+    if isinstance(regions, str):
+        row["regions"] = [part.strip() for part in regions.split(";") if part.strip()]
+    elif regions is None:
+        row["regions"] = []
+    allowed = set(ContextRecord.__dataclass_fields__)
+    return ContextRecord(**{k: v for k, v in row.items() if k in allowed})
+
+
+def read_jsonl(path: Path) -> list[ContextRecord]:
+    """Построчный JSON обратно в записи."""
+    return [record_from_row(json.loads(line))
+            for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def read_records_json(path: Path) -> list[ContextRecord]:
+    """Файл, записанный `write_records_json`. Чужой JSON молча пропускается.
+
+    Рядом в каталоге лежит указатель написаний `name_variants.json` — он не
+    слой, и записью притвориться не должен.
+    """
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or not isinstance(payload.get("records"), list):
+        return []
+    return [record_from_row(row) for row in payload["records"]
+            if isinstance(row, dict) and "layer" in row]
+
+
+def read_geojson(path: Path) -> list[ContextRecord]:
+    """Слой карты обратно в записи.
+
+    `write_geojson(hoist_shared=True)` выносит одинаковые у всех записей
+    свойства на уровень коллекции — в поле `layer`. Без обратной склейки такой
+    слой не читается вовсе: у его точек нет даже имени слоя.
+
+    Полигон границ или чужой GeoJSON, оказавшийся в каталоге слоёв,
+    пропускается: уронить сборку он не должен, а притвориться записью не может.
+    """
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    shared = payload.get("layer") or {}
+    out: list[ContextRecord] = []
+    for feat in payload.get("features", []):
+        geometry = feat.get("geometry") or {}
+        props = {**shared, **dict(feat.get("properties", {}))}
+        if geometry.get("type") != "Point" or "layer" not in props:
+            continue
+        lon, lat = geometry["coordinates"][:2]
+        props["lat"], props["lon"] = lat, lon
+        out.append(record_from_row(props))
+    return out
+
+
+def read_layers(out_dir: Path, *, dedupe: bool = True) -> list[ContextRecord]:
+    """Все собранные слои из out_dir.
+
+    Форматов три, и одним проходом их не собрать. Точечные слои лежат в
+    `geojson/`; события без точки — губернские итоги, цены, ревизии — в
+    GeoJSON не попадают по определению и лежат в `*.json` рядом; полный слой
+    вместе с записями без координат — в `jsonl/`. Один и тот же слой обычно
+    лежит сразу в двух видах, поэтому повторы отсеиваются по `uid`.
+
+    `dedupe=False` отдаёт всё как прочитано. Так читает отчёт о качестве: ему
+    нужно видеть и совпадения `uid` у разных записей — молча схлопнутая пара
+    выглядит в отчёте как одна запись, и о потере никто не узнает.
+    """
+    records: list[ContextRecord] = []
+    seen: set[str] = set()
+
+    def take(batch: Iterable[ContextRecord]) -> None:
+        for rec in batch:
+            if dedupe:
+                if rec.uid in seen:
+                    continue
+                seen.add(rec.uid)
+            records.append(rec)
+
+    for path in sorted((out_dir / "geojson").glob("*.geojson")):
+        take(read_geojson(path))
+    for path in sorted(out_dir.glob("*.json")):
+        take(read_records_json(path))
+    for path in sorted((out_dir / "jsonl").glob("*.jsonl")):
+        take(read_jsonl(path))
+    return records
+
+
+def read_context(out_dir: Path) -> list[ContextRecord]:
+    """`context.jsonl` целиком, а при его отсутствии — собранные слои.
+
+    Общий файл пишется последним шагом сборки и содержит всё, поэтому его
+    достаточно; но он не обязателен и в репозиторий не идёт.
+    """
+    jsonl = out_dir / "context.jsonl"
+    if jsonl.exists():
+        return read_jsonl(jsonl)
+    return read_layers(out_dir)

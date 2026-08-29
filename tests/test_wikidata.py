@@ -12,6 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from histctx.periods import PRECISION_OPEN  # noqa: E402
 from histctx.schema import LayerSpec  # noqa: E402
 from histctx.sources.wikidata import (  # noqa: E402
     COUNTRIES, USER_AGENT, WORLD, SparqlClient, SparqlError, _point, _qid, _year,
@@ -102,6 +103,33 @@ def test_open_ended_dating_gets_upper_bound():
     assert r.year_from == 1800
     assert r.year_to == 1960
     assert r.date_approx is True
+
+
+def test_open_ended_dating_is_not_called_a_part_of_a_century():
+    """Растянутый до горизонта срок помечается открытым, а не «частью века».
+
+    Год основания измерен, конец взят из рамки проекта. Пока здесь стоял
+    `part`, отчёт о качестве пересказывал это словами «часть века», и
+    тридцать три тысячи записей выглядели датированными половиной столетия.
+    """
+    rows = [_row(item="http://www.wikidata.org/entity/Q2", itemLabel="Храм",
+                 coord="Point(37.6 55.7)", start="1802-01-01T00:00:00Z")]
+    assert rows_to_records(rows, SPEC)[0].date_precision == PRECISION_OPEN
+
+    # Тот же случай с другого конца: известен только год упразднения.
+    rows = [_row(item="http://www.wikidata.org/entity/Q3", itemLabel="Часовня",
+                 coord="Point(37.6 55.7)", end="1930-01-01T00:00:00Z")]
+    r = rows_to_records(rows, SPEC)[0]
+    assert (r.year_from, r.year_to) == (1800, 1930)
+    assert r.date_precision == PRECISION_OPEN
+
+    # А когда названы оба конца, точность — год, и растягивать нечего.
+    rows = [_row(item="http://www.wikidata.org/entity/Q4", itemLabel="Собор",
+                 coord="Point(37.6 55.7)", start="1802-01-01T00:00:00Z",
+                 end="1930-01-01T00:00:00Z")]
+    r = rows_to_records(rows, SPEC)[0]
+    assert (r.year_from, r.year_to) == (1802, 1930)
+    assert r.date_precision == "year"
 
 
 def test_event_with_open_end_stays_in_its_year():

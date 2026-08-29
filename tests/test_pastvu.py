@@ -62,9 +62,12 @@ def test_image_is_not_linked_directly():
 
 
 def test_range_of_years_is_marked_approximate():
+    """Интервал у снимка назван автором: точность — год, приблизительность —
+    в `date_approx`. «Часть века» здесь была неправдой: 1893–1896 не половина
+    столетия, а четыре названных года."""
     rec = photos_to_records(PHOTOS)[0]
     assert (rec.year_from, rec.year_to) == (1893, 1896)
-    assert rec.date_approx and rec.date_precision == "part"
+    assert rec.date_approx and rec.date_precision == "year"
     assert rec.period_raw == "1893–1896"
 
 
