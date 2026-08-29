@@ -545,6 +545,39 @@ def test_collect_layer_survives_a_failing_country():
     assert len(lost) == 1 and "первая ступень" in lost[0] and "504" in lost[0]
 
 
+def test_a_failing_multiclass_country_is_asked_class_by_class():
+    """504 на нескольких классах — повод дробить запрос, а не терять страну.
+
+    Живой случай 29.08.2026: у слоёв с четырьмя-шестью классами Россия и
+    Польша отвечали 504, у слоя с одним классом — ни разу. Сервис сам
+    советует дробить, и после дробления страна отдаёт свои объекты.
+    """
+    said, lost = [], []
+    client = _FakeClient([SparqlError("504")]                    # три класса разом
+                         + [[_id_row("Q1")], [], [_id_row("Q2")]]  # они же по одному
+                         + [[]] * (len(COUNTRIES) - 1)             # прочие страны пусты
+                         + [[_row(item="http://www.wikidata.org/entity/Q1",
+                                  itemLabel="Мечеть", coord="Point(37.6 55.7)"),
+                             _row(item="http://www.wikidata.org/entity/Q2",
+                                  itemLabel="Синагога", coord="Point(39.9 57.6)")]])
+    recs = collect_layer(client, ["Q1", "Q2", "Q3"], SPEC, progress=said.append,
+                         failures=lost)
+
+    assert {r.title for r in recs} == {"Мечеть", "Синагога"}
+    assert not lost, "страна отдала свои объекты — потери нет"
+    assert any("по одному классу" in line for line in said)
+
+
+def test_a_class_that_fails_even_alone_is_counted_as_a_loss():
+    lost = []
+    client = _FakeClient([SparqlError("504"), SparqlError("504"), [_id_row("Q1")]]
+                         + [[]] * (len(COUNTRIES) - 1)
+                         + [[_row(item="http://www.wikidata.org/entity/Q1",
+                                  itemLabel="Мечеть", coord="Point(37.6 55.7)")]])
+    collect_layer(client, ["Q1", "Q2"], SPEC, failures=lost)
+    assert len(lost) == 1 and "класс Q1" in lost[0]
+
+
 def test_collect_layer_reports_a_failing_chunk_too():
     """Потерянный чанк усекает слой так же, как потерянная страна."""
     lost = []

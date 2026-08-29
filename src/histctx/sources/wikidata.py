@@ -522,6 +522,42 @@ def dedupe(records: list[ContextRecord]) -> list[ContextRecord]:
     return out
 
 
+def _stage1_rows(client: SparqlClient, step_classes: list[str], country: Optional[str],
+                 extra: Optional[list[str]], kind: str, name: str,
+                 say: Callable[[str], None], lost: list[str]) -> list[dict]:
+    """Строки первой ступени. Упавший запрос дробится по одному классу.
+
+    Несколько классов в одном `VALUES` — то, что кладёт запрос в лимит
+    времени: у слоёв, где классов четыре и больше, Россия и Польша отвечают
+    504, а у слоя с одним классом не отвечали ни разу. То же самое уже
+    измерено для обхода без P17 (см. `stage1_plan`): девять классов сразу —
+    504 через 65 секунд, по одному классу — 0,6 секунды на класс.
+
+    Поэтому дробление здесь не «ещё одна попытка», а другой запрос: сервис
+    сам советует его в тексте ошибки. Потерей считается только класс,
+    упавший и по отдельности.
+    """
+    try:
+        return client.query(ids_query(step_classes, country, extra, kind))
+    except SparqlError as exc:
+        say(f"    {name}: ОШИБКА — {exc}")
+        if len(step_classes) == 1:
+            lost.append(f"первая ступень, {name}: {exc}")
+            return []
+        say(f"    {name}: повторяю по одному классу, запросов {len(step_classes)}")
+        rows: list[dict] = []
+        for cls in step_classes:
+            try:
+                part = client.query(ids_query([cls], country, extra, kind))
+            except SparqlError as exc2:
+                say(f"    {name}, класс {cls}: ОШИБКА — {exc2}")
+                lost.append(f"первая ступень, {name}, класс {cls}: {exc2}")
+                continue
+            say(f"    {name}, класс {cls}: {len(part)}")
+            rows += part
+        return rows
+
+
 def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
                   kind: str = "object",
                   countries: tuple[tuple[Optional[str], str], ...] = COUNTRIES,
@@ -559,12 +595,7 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
     seen: set[str] = set()
     for step_classes, country, name in stage1_plan(
             classes, tuple(countries) + tuple(history)):
-        try:
-            rows = client.query(ids_query(step_classes, country, extra, kind))
-        except SparqlError as exc:
-            say(f"    {name}: ОШИБКА — {exc}")
-            lost.append(f"первая ступень, {name}: {exc}")
-            continue
+        rows = _stage1_rows(client, step_classes, country, extra, kind, name, say, lost)
         fresh = 0
         for row in rows:
             qid = _qid(_val(row, "item"))
