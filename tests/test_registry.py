@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from histctx.registry import (  # noqa: E402
-    ALL_LAYERS, BY_SLUG, CURATED, EXTERNAL, HARVESTED, PLANNED,
+    ALL_LAYERS, BY_SLUG, CURATED, EXTERNAL, HARVESTED, HARVESTED_WIKIDATA, PLANNED,
 )
 from histctx.schema import GROUPS  # noqa: E402
 
@@ -72,6 +72,10 @@ def test_statuses_are_from_a_closed_list():
         assert spec.status in {"planned", "harvested", "curated"}, spec.slug
     assert all(s.status == "curated" for s in CURATED)
     assert all(s.status == "harvested" for s in HARVESTED)
+    # Обратная сторона того же: слой лежит в PLANNED, пока его нечем собрать.
+    # Собрали — он переезжает в HARVESTED вместе со статусом, а не остаётся
+    # «запланированным» при готовой выгрузке.
+    assert all(s.status == "planned" for s in PLANNED)
 
 
 def test_catalog_is_not_only_wikidata():
@@ -102,13 +106,26 @@ AWAITING_COLLECTOR = {
 }
 
 
+def test_harvested_wikidata_layers_keep_the_query_they_were_collected_by():
+    """Собранный слой Викиданных нельзя оставить без способа пересобрать.
+
+    Выгрузка в репозиторий не идёт, и слой существует ровно до тех пор, пока
+    его можно собрать заново: удалить запрос — значит потерять слой при
+    первой же пересборке.
+    """
+    queries = {p.stem for p in (ROOT / "queries").glob("*.rq")}
+    # Переименования собираются не запросом: годы переименования лежат
+    # в квалификаторах, а вторая ступень движка умеет только `wdt:`.
+    known = queries | {"renamed_places"}
+    for spec in HARVESTED_WIKIDATA:
+        assert spec.slug in known, f"{spec.slug}: нечем пересобрать"
+        assert spec.expected_rows, f"{spec.slug}: собран, а числа записей нет"
+
+
 def test_planned_layers_are_covered_by_queries_or_a_collector():
     """У запланированного слоя есть либо запрос, либо сборщик, либо отметка."""
     queries = {p.stem for p in (ROOT / "queries").glob("*.rq")}
-    collectors = {"photos_pastvu", "weather_stations", "weather_regions",
-                  # Викиданные, но не через queries/: годы переименований
-                  # лежат в квалификаторах, а движок умеет только `wdt:`.
-                  "renamed_places"}
+    collectors = {"photos_pastvu"}
     known = queries | collectors | AWAITING_COLLECTOR
     for spec in PLANNED + EXTERNAL:
         assert spec.slug in known, (
@@ -120,3 +137,5 @@ def test_awaiting_list_does_not_outlive_its_layers():
     """Слой собрали — строку из списка ожидания надо убрать."""
     stale = AWAITING_COLLECTOR - {s.slug for s in ALL_LAYERS}
     assert not stale, f"в списке ожидания слои, которых нет в каталоге: {stale}"
+    collected = AWAITING_COLLECTOR & {s.slug for s in HARVESTED}
+    assert not collected, f"в списке ожидания уже собранные слои: {collected}"
