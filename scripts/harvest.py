@@ -126,12 +126,14 @@ def check_queries(client: SparqlClient, metas: list[dict]) -> bool:
                 print(f"  [НЕТ]      {qid:10s} не найден  ({meta['layer']})")
                 ok = False
             elif declared in {"?", ""}:
-                print(f"  [УТОЧНИТЬ] {qid:10s} = «{actual}»  ({meta['layer']}) — впишите название в .rq")
+                print(f"  [УТОЧНИТЬ] {qid:10s} = «{actual}»  ({meta['layer']}) "
+                      "— впишите название в .rq")
                 ok = False
             elif _same(declared, actual):
                 print(f"  [ок]       {qid:10s} = «{actual}»  ({meta['layer']})")
             else:
-                print(f"  [НЕ ТОТ]   {qid:10s} объявлен «{declared}», на деле «{actual}»  ({meta['layer']})")
+                print(f"  [НЕ ТОТ]   {qid:10s} объявлен «{declared}», "
+                      f"на деле «{actual}»  ({meta['layer']})")
                 ok = False
         # Директивы сверяются здесь же, а не при сборе: `--check` — это тот
         # самый проверочный первый запуск из docs/HARVEST.md, и он обязан
@@ -344,7 +346,8 @@ def harvest(client: SparqlClient, meta: dict, spec: LayerSpec, out_dir: Path,
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--layer", action="append", help="слой для сбора (можно повторять)")
     ap.add_argument("--all", action="store_true", help="собрать все слои из queries/")
     ap.add_argument("--check", action="store_true", help="только сверить Q-номера и выйти")
@@ -388,7 +391,8 @@ def main() -> int:
     if args.check:
         return 0 if ok else 1
     if not ok:
-        print("Сверка не пройдена — сбор отменён. Исправьте Q-номера в queries/*.rq.", file=sys.stderr)
+        print("Сверка не пройдена — сбор отменён. Исправьте Q-номера в queries/*.rq.",
+              file=sys.stderr)
         return 1
 
     if args.probe:

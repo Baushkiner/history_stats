@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 from urllib.parse import unquote
 
 from ..geo import in_bbox, valid_coords
@@ -63,7 +64,8 @@ def load_battles(path: Path) -> list:
 
         year_from = year if year is not None else period.year_from
         year_to = year if year is not None else period.year_to
-        precision = "day" if clean_text(row.get("Дата")) else ("year" if year is not None else "unknown")
+        precision = ("day" if clean_text(row.get("Дата"))
+                     else "year" if year is not None else "unknown")
 
         # Год часто вынесен в название: «Осада Смоленска (1613—1617)».
         if year_from is None:
@@ -90,12 +92,13 @@ def load_battles(path: Path) -> list:
             url=_readable_url(row.get("Ссылка")),
             source_id=qid,
             confidence=conf,
-            extra={"era": clean_text(row.get("Эпоха")), "war_raw": clean_text(row.get("Война/Конфликт"))},
+            extra={"era": clean_text(row.get("Эпоха")),
+                   "war_raw": clean_text(row.get("Война/Конфликт"))},
         ))
     return out
 
 
-def _readable_url(value) -> str | None:
+def _readable_url(value) -> Optional[str]:
     """Ссылки в файле процентно-закодированы; раскодируем для читаемости."""
     s = clean_text(value)
     if not s:

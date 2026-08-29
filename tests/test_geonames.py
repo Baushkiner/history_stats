@@ -151,7 +151,8 @@ def test_name_variants_collect_other_spellings():
 def test_name_variants_drop_scripts_useless_for_russian_documents():
     from histctx.sources.geonames import name_variants
 
-    out = name_variants([city(alternatenames=["Бугуруслан", "Buguruslan", "ブグルスラン", "布古鲁斯兰"])])
+    out = name_variants([city(alternatenames=["Бугуруслан", "Buguruslan",
+                                              "ブグルスラン", "布古鲁斯兰"])])
     assert out["1"]["names"] == ["Buguruslan"]
 
 

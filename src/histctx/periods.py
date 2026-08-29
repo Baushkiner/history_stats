@@ -219,7 +219,8 @@ def _apply_part(part: Optional[str], lo: int, hi: int, table: dict) -> tuple[int
     if off is None:
         return lo, hi, "full"
     base = lo - 1 if table is _PARTS else lo
-    return base + off[0] + (1 if table is _PARTS else 0), base + off[1] + (1 if table is _PARTS else 0), "part"
+    shift = 1 if table is _PARTS else 0
+    return base + off[0] + shift, base + off[1] + shift, "part"
 
 
 def _parse_atom(s: str) -> Optional[tuple[int, int, str]]:
@@ -336,7 +337,8 @@ def parse_period(text: Optional[str]) -> Period:
 
     m = _RE_FULL_CENTURY_SPAN.match(s)
     if m:
-        return Period(_century_bounds(int(m["a"]))[0], _century_bounds(int(m["b"]))[1], "century", approx, raw)
+        return Period(_century_bounds(int(m["a"]))[0], _century_bounds(int(m["b"]))[1],
+                      "century", approx, raw)
 
     m = _RE_FULL_DECADE_SPAN.match(s)
     if m:
@@ -377,7 +379,8 @@ def parse_period(text: Optional[str]) -> Period:
         return Period(min(years), max(years), "year", True, raw)
     cents = [int(c) for c in re.findall(r"\b(1[5-9]|20|21)\s*(?:вв?|века?|век)\b", s)]
     if cents:
-        return Period(_century_bounds(min(cents))[0], _century_bounds(max(cents))[1], "century", True, raw)
+        return Period(_century_bounds(min(cents))[0], _century_bounds(max(cents))[1],
+                      "century", True, raw)
 
     return Period(None, None, "unknown", approx, raw)
 

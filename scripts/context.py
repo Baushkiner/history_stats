@@ -33,7 +33,8 @@ def load_records(out_dir: Path) -> list[ContextRecord]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--lat", type=float, required=True)
     ap.add_argument("--lon", type=float, required=True)
     ap.add_argument("--year", type=int, help="год факта; без него подбор идёт только по месту")
@@ -52,7 +53,8 @@ def main() -> int:
 
     records = load_records(args.out)
     if not records:
-        print(f"Нет собранных данных в {args.out}. Запустите scripts/build_core.py.", file=sys.stderr)
+        print(f"Нет собранных данных в {args.out}. Запустите scripts/build_core.py.",
+              file=sys.stderr)
         return 1
 
     engine = ContextEngine(records)
@@ -93,7 +95,8 @@ def main() -> int:
     for m in matches:
         r = m.record
         years = f"{r.year_from}–{r.year_to}" if r.has_time else "без даты"
-        print(f"  [{m.score:.2f}] {(r.layer_title or r.layer)[:28]:30s} {years:>12s}  {(r.title or '')[:52]}")
+        print(f"  [{m.score:.2f}] {(r.layer_title or r.layer)[:28]:30s} "
+              f"{years:>12s}  {(r.title or '')[:52]}")
         print(f"         {m.explain()}")
         if r.url:
             print(f"         {r.url}")

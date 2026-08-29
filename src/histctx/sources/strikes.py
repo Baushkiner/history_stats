@@ -159,7 +159,7 @@ def read_rows(path: Path) -> list[dict]:
     with open(path, encoding="utf-8", errors="replace", newline="") as fh:
         reader = csv.DictReader(fh, delimiter="\t")
         check_columns(reader.fieldnames or [])
-        return [row for row in reader]
+        return list(reader)
 
 
 def parse_int(value) -> Optional[int]:

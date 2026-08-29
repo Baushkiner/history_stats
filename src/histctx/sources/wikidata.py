@@ -136,7 +136,8 @@ class SparqlClient:
                 last = exc
                 # 429 — превышен лимит, 503 — сервис занят: обе ошибки временные.
                 if exc.code not in RETRY_CODES:
-                    raise SparqlError(f"HTTP {exc.code}: {exc.read()[:400].decode('utf-8', 'replace')}") from exc
+                    body = exc.read()[:400].decode("utf-8", "replace")
+                    raise SparqlError(f"HTTP {exc.code}: {body}") from exc
                 if exc.code == 429:
                     # Обычный отступ здесь не помогает: сервис переводит адрес
                     # на один запрос в минуту и держит это состояние.
@@ -187,7 +188,7 @@ def verify_qids(client: SparqlClient, qids: list[str]) -> dict[str, Optional[str
         """,
         use_cache=False,
     )
-    out: dict[str, Optional[str]] = {q: None for q in qids}
+    out: dict[str, Optional[str]] = dict.fromkeys(qids)
     for row in rows:
         qid = _qid(row.get("item", {}).get("value"))
         if qid:
@@ -699,7 +700,8 @@ def rows_to_records(rows: list[dict], spec: LayerSpec, *,
             # автора литературного места и у Прокудина-Горского на снимке.
             actor=clean_text(_val(row, "owners")),
             summary=clean_text(_val(row, "description")),
-            url=clean_text(_val(row, "article")) or (f"https://www.wikidata.org/wiki/{qid}" if qid else None),
+            url=(clean_text(_val(row, "article"))
+                 or (f"https://www.wikidata.org/wiki/{qid}" if qid else None)),
             image_url=clean_text(_val(row, "image")),
             source_id=qid,
         ))

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Optional
 
 from ..schema import SCOPE_REGION, SCOPE_STATE, LayerSpec, clean_text
 
@@ -62,7 +63,7 @@ class DatasetError(ValueError):
     """Файл событий не проходит проверку."""
 
 
-def load_state_events(path: Path | None = None) -> list:
+def load_state_events(path: Optional[Path] = None) -> list:
     """Читает подборку событий и приводит её к единой схеме.
 
     Проверки строгие и падают с ошибкой: молча пропустить событие с битой

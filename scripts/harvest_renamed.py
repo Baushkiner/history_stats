@@ -26,6 +26,7 @@ import collections
 import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 from _paths import ROOT
 
@@ -77,7 +78,7 @@ def replay(spec, path: Path) -> int:
     return 0 if records else 1
 
 
-def probe(client: SparqlClient, spec, limit: int, dump: Path | None) -> int:
+def probe(client: SparqlClient, spec, limit: int, dump: Optional[Path]) -> int:
     """Живая проба: одно государство, один чанк, файлы не пишутся."""
     country, name = COUNTRIES[0]
     print(f"Проба слоя «{spec.title}» ({spec.slug}), государство: {name}")

@@ -98,7 +98,8 @@ HARVESTED_WIKIDATA = [
     LayerSpec(
         slug="monasteries", title="Монастыри и пустыни", group="faith",
         source="Викиданные", license=WD_CC0, status="harvested", expected_rows=1916,
-        description="Монастыри, лавры, скиты и пустыни — центры паломничества, землевладения и призрения.",
+        description="Монастыри, лавры, скиты и пустыни — центры паломничества, "
+                    "землевладения и призрения.",
     ),
     LayerSpec(
         slug="other_faiths", title="Мечети, синагоги, кирхи, костёлы", group="faith",
@@ -159,7 +160,8 @@ HARVESTED_WIKIDATA = [
     # Группа: бедствия и потрясения
     LayerSpec(
         slug="epidemics", title="Эпидемии", group="hardship",
-        source="Викиданные + справочная литература", license=WD_CC0, status="harvested", expected_rows=1,
+        source="Викиданные + справочная литература", license=WD_CC0,
+        status="harvested", expected_rows=1,
         description=(
             "Холера, тиф, оспа, испанка. В метрических книгах видны как всплеск "
             "смертей за короткий срок — слой объясняет причину. Из Викиданных "

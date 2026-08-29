@@ -267,5 +267,6 @@ def test_real_dataset_answers_a_real_fact():
 
 
 def test_regions_survive_export_round_trip():
-    rec = event(title="Голод", scope=SCOPE_REGION, regions=["Самарская губерния", "Вятская губерния"])
+    rec = event(title="Голод", scope=SCOPE_REGION,
+                regions=["Самарская губерния", "Вятская губерния"])
     assert rec.to_row()["regions"] == "Самарская губерния; Вятская губерния"

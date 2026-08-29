@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Optional
 
 from _paths import ROOT
 
@@ -49,7 +50,7 @@ METEO_DIR = ROOT / "data" / "raw" / "meteo"
 SERIES_PATH = METEO_DIR / "ghcn.csv"
 
 
-def parse_map(text: str | None) -> dict:
+def parse_map(text: Optional[str]) -> dict:
     """«ГОД=year,МЕСЯЦ=month» -> {'ГОД': 'year', 'МЕСЯЦ': 'month'}."""
     if not text:
         return {}
@@ -68,14 +69,15 @@ def parse_years(text: str) -> tuple[int, int]:
     try:
         years = (int(first), int(last))
     except ValueError:
-        raise SystemExit(f"--years: ожидалось «1800-1960», получено {text!r}")
+        # `from None`: читателю нужен разбор ключа, а не питоновский ValueError.
+        raise SystemExit(f"--years: ожидалось «1800-1960», получено {text!r}") from None
     if years[0] > years[1]:
         raise SystemExit(f"--years: {years[0]} позже {years[1]}")
     return years
 
 
 def fetch(series_path: Path, *, cache_dir: Path, years: tuple[int, int],
-          provinces_path: Path | None, flavour: str, refresh: bool) -> int:
+          provinces_path: Optional[Path], flavour: str, refresh: bool) -> int:
     """Забирает месячные ряды GHCN и пишет их в приведённом виде."""
     provinces = None
     if provinces_path is not None:
@@ -145,8 +147,8 @@ def probe(paths: list[Path], mapping: dict, threshold: float) -> int:
     return 0
 
 
-def build(paths: list[Path], mapping: dict, *, source: str, url: str | None,
-          license: str | None, out_dir: Path, threshold: float) -> int:
+def build(paths: list[Path], mapping: dict, *, source: str, url: Optional[str],
+          license: Optional[str], out_dir: Path, threshold: float) -> int:
     observations = []
     for path in paths:
         observations += read_series(path, mapping)

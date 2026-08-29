@@ -26,6 +26,7 @@ import argparse
 import sys
 from collections import Counter
 from pathlib import Path
+from typing import Optional
 
 from _paths import ROOT
 
@@ -73,8 +74,8 @@ def check(catalog: RistatCatalog, topic: str, benchmark: int) -> int:
     return 0
 
 
-def build(catalog: RistatCatalog, out_dir: Path, *, only: list[str] | None,
-          benchmarks: list[int] | None) -> int:
+def build(catalog: RistatCatalog, out_dir: Path, *, only: Optional[list[str]],
+          benchmarks: Optional[list[int]]) -> int:
     figures, rows_read, tables = [], 0, 0
     for topic, (title, years) in TOPICS.items():
         if only and topic not in only:

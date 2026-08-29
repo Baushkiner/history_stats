@@ -159,7 +159,8 @@ class ContextEngine:
 
     def __init__(self, records: Iterable[ContextRecord],
                  exclude_confidence: Optional[Iterable[str]] = None) -> None:
-        skip = frozenset(exclude_confidence) if exclude_confidence is not None else self.EXCLUDED_CONFIDENCE
+        skip = (frozenset(exclude_confidence) if exclude_confidence is not None
+                else self.EXCLUDED_CONFIDENCE)
         kept = [r for r in records if r.confidence not in skip]
         self.records: list[ContextRecord] = [r for r in kept if r.has_point]
         # События без точки — голод, ревизия, воинская повинность — подбираются
@@ -280,7 +281,8 @@ class ContextEngine:
         by_layer: dict[str, int] = {}
         by_group: dict[str, int] = {}
         for m in matches:
-            by_layer[m.record.layer_title or m.record.layer] = by_layer.get(m.record.layer_title or m.record.layer, 0) + 1
+            layer = m.record.layer_title or m.record.layer
+            by_layer[layer] = by_layer.get(layer, 0) + 1
             if m.record.group:
                 by_group[m.record.group] = by_group.get(m.record.group, 0) + 1
         return {

@@ -428,7 +428,8 @@ def _season_series(by_year: dict, months: tuple, field: str, *, how: str) -> dic
     return out
 
 
-def _summary(place: str, year: int, anomalies: list[Anomaly], stations: int | None = None) -> str:
+def _summary(place: str, year: int, anomalies: list[Anomaly],
+             stations: Optional[int] = None) -> str:
     lead = anomalies[0]
     words = {
         "засуха": f"осадков за апрель–август {lead.value} мм при норме {lead.norm} мм",

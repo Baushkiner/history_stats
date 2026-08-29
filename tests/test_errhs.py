@@ -38,7 +38,7 @@ COLUMNS = [
 
 def row(**kwargs) -> dict:
     """Строка выгрузки: пропуск в ERRHS помечен точкой, а не пустой ячейкой."""
-    out = {name: "." for name in COLUMNS}
+    out = dict.fromkeys(COLUMNS, ".")
     out.update({k: str(v) for k, v in kwargs.items()})
     return out
 
