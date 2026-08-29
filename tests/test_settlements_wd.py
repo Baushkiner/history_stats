@@ -12,14 +12,12 @@
 """
 
 import importlib.util
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from histctx.registry import BY_SLUG
+from histctx.sources.wikidata import ids_query, rows_to_records
 
-from histctx.registry import BY_SLUG  # noqa: E402
-from histctx.sources.wikidata import ids_query, rows_to_records  # noqa: E402
+ROOT = Path(__file__).resolve().parents[1]
 
 QUERY = ROOT / "queries" / "settlements_wd.rq"
 

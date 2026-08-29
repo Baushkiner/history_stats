@@ -21,13 +21,12 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.io_formats import write_geojson, write_jsonl, write_xlsx  # noqa: E402
-from histctx.registry import BY_SLUG  # noqa: E402
-from histctx.schema import LayerSpec  # noqa: E402
-from histctx.sources.wikidata import (  # noqa: E402
+from histctx.io_formats import write_geojson, write_jsonl, write_xlsx
+from histctx.registry import BY_SLUG
+from histctx.schema import LayerSpec
+from histctx.sources.wikidata import (
     COUNTRIES, HISTORICAL_COUNTRIES, WORLD, SparqlClient, SparqlError,
     collect_layer, rows_to_records, verify_qids,
 )
@@ -127,12 +126,14 @@ def check_queries(client: SparqlClient, metas: list[dict]) -> bool:
                 print(f"  [НЕТ]      {qid:10s} не найден  ({meta['layer']})")
                 ok = False
             elif declared in {"?", ""}:
-                print(f"  [УТОЧНИТЬ] {qid:10s} = «{actual}»  ({meta['layer']}) — впишите название в .rq")
+                print(f"  [УТОЧНИТЬ] {qid:10s} = «{actual}»  ({meta['layer']}) "
+                      "— впишите название в .rq")
                 ok = False
             elif _same(declared, actual):
                 print(f"  [ок]       {qid:10s} = «{actual}»  ({meta['layer']})")
             else:
-                print(f"  [НЕ ТОТ]   {qid:10s} объявлен «{declared}», на деле «{actual}»  ({meta['layer']})")
+                print(f"  [НЕ ТОТ]   {qid:10s} объявлен «{declared}», "
+                      f"на деле «{actual}»  ({meta['layer']})")
                 ok = False
         # Директивы сверяются здесь же, а не при сборе: `--check` — это тот
         # самый проверочный первый запуск из docs/HARVEST.md, и он обязан
@@ -153,6 +154,8 @@ def layer_countries(meta: dict, countries: tuple = COUNTRIES) -> tuple:
     СССР, а то и вовсе не указан.
     """
     return WORLD if meta["scope"] == "class" else countries
+
+
 def check_directives(meta: dict) -> list[str]:
     """Проверяет директивы заголовка, кроме `@qid`. Возвращает жалобы."""
     bad = []
@@ -176,8 +179,8 @@ def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
             paged: bool, page_size: int,
             countries: tuple = COUNTRIES,
             history: tuple = (),
-            max_objects: int = None,
-            failures: list = None) -> list:
+            max_objects: Optional[int] = None,
+            failures: Optional[list] = None) -> list:
     """Собирает записи слоя — тем способом, который объявлен в `@scope`."""
     classes = [qid for qid, _ in meta["qids"]]
     # Заголовок уже проверен `check_queries`, и сбор сюда не дошёл бы, если
@@ -343,7 +346,8 @@ def harvest(client: SparqlClient, meta: dict, spec: LayerSpec, out_dir: Path,
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--layer", action="append", help="слой для сбора (можно повторять)")
     ap.add_argument("--all", action="store_true", help="собрать все слои из queries/")
     ap.add_argument("--check", action="store_true", help="только сверить Q-номера и выйти")
@@ -387,7 +391,8 @@ def main() -> int:
     if args.check:
         return 0 if ok else 1
     if not ok:
-        print("Сверка не пройдена — сбор отменён. Исправьте Q-номера в queries/*.rq.", file=sys.stderr)
+        print("Сверка не пройдена — сбор отменён. Исправьте Q-номера в queries/*.rq.",
+              file=sys.stderr)
         return 1
 
     if args.probe:

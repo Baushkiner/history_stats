@@ -56,6 +56,8 @@ from pathlib import Path
 from typing import Iterable, Iterator, Optional
 
 from ..geo import in_bbox
+from ..net import USER_AGENT
+from ..normalize import to_float, to_int
 from ..schema import clean_text
 from .weather import COLUMNS, GHCN_URL
 
@@ -94,11 +96,6 @@ CITATION = (
     "GHCN Monthly Precipitation, Version 4, doi:10.25921/67zp-5m03"
 )
 
-# Заголовки HTTP кодируются latin-1 — в User-Agent только ASCII.
-USER_AGENT = (
-    "histctx/0.2 (https://xn----ctbkalderxbemeylx6aq.xn--p1ai/; "
-    "historical context harvesting for genealogy)"
-)
 
 # Коды стран в идентификаторе GHCN (первые два знака, FIPS). Список — это
 # территория Российской империи и СССР, а не сегодняшняя Россия: предок из
@@ -201,12 +198,12 @@ def parse_tavg(lines: Iterable[str], *, stations: dict[str, Station],
             continue
         if line[15:19] != "TAVG":
             continue
-        year = _int(line[11:15])
+        year = to_int(line[11:15])
         if year is None or not years[0] <= year <= years[1]:
             continue
         for month in range(1, 13):
             start = 19 + (month - 1) * 8
-            value = _int(line[start:start + 5])
+            value = to_int(line[start:start + 5])
             qc_flag = line[start + 6:start + 7].strip()
             if value is None or value == MISSING or qc_flag:
                 continue
@@ -232,12 +229,12 @@ def parse_prcp(lines: Iterable[str], *,
         station = _station(line[0:11], line[53:62], line[63:73], line[12:52])
         if station is None:
             continue
-        year, month = _int(line[83:87]), _int(line[87:89])
+        year, month = to_int(line[83:87]), to_int(line[87:89])
         if year is None or month is None or not 1 <= month <= 12:
             continue
         if not years[0] <= year <= years[1]:
             continue
-        value = _int(line[90:96])
+        value = to_int(line[90:96])
         qc_flag = line[99:100].strip()
         if value is None or value == MISSING or qc_flag:
             continue
@@ -522,7 +519,7 @@ def collect(cache_dir: Path, *, years: tuple[int, int] = YEARS,
 
 def _station(station_id, lat, lon, name) -> Optional[Station]:
     sid = (station_id or "").strip()
-    latitude, longitude = _float(lat), _float(lon)
+    latitude, longitude = to_float(lat), to_float(lon)
     if len(sid) != 11 or latitude is None or longitude is None:
         return None
     return Station(station_id=sid, lat=latitude, lon=longitude,
@@ -581,20 +578,6 @@ def _in_ring(lon: float, lat: float, ring: list) -> bool:
                 inside = not inside
         previous = current
     return inside
-
-
-def _int(value) -> Optional[int]:
-    try:
-        return int(str(value).strip())
-    except (TypeError, ValueError):
-        return None
-
-
-def _float(value) -> Optional[float]:
-    try:
-        return float(str(value).strip())
-    except (TypeError, ValueError):
-        return None
 
 
 def _round(value: Optional[float], digits: int):

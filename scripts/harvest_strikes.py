@@ -21,11 +21,10 @@ import collections
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.io_formats import write_jsonl  # noqa: E402
-from histctx.sources.strikes import (  # noqa: E402
+from histctx.io_formats import write_jsonl
+from histctx.sources.strikes import (
     STRIKES, StrikesError, fetch, read_rows, rows_to_records,
 )
 

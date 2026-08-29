@@ -35,6 +35,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Iterable, Optional
 
+from ..net import USER_AGENT
 from ..schema import SCOPE_REGION, ContextRecord, LayerSpec, clean_text
 from .shapefile import ShapefileError, features, read_dbf, read_shapes
 
@@ -42,10 +43,6 @@ DOI = "doi:10.11588/DATA/10064"
 DATASET_URL = f"https://heidata.uni-heidelberg.de/dataset.xhtml?persistentId={DOI}"
 FILE_URL = "https://heidata.uni-heidelberg.de/api/access/datafile/{file_id}"
 
-USER_AGENT = (
-    "histctx/0.2 (https://xn----ctbkalderxbemeylx6aq.xn--p1ai/; "
-    "historical context harvesting for genealogy)"
-)
 
 CITATION = (
     "Sablin, Ivan; Kuchinskiy, Aleksandr; Korobeinikov, Aleksandr et al. "

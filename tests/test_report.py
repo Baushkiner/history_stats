@@ -7,18 +7,15 @@
 """
 
 import json
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT / "scripts"))
-
-from build_core import add_harvested, build_report, _registry_gaps  # noqa: E402
-from histctx.io_formats import (  # noqa: E402
+from build_core import add_harvested, build_report, _registry_gaps
+from histctx.io_formats import (
     read_layers, read_records_json, write_geojson, write_jsonl, write_records_json,
 )
-from histctx.schema import ContextRecord  # noqa: E402
+from histctx.schema import ContextRecord
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def record(**kwargs) -> ContextRecord:

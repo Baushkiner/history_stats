@@ -7,16 +7,14 @@
 """
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from histctx.sources import ghcn
+from histctx.sources.weather import COLUMNS, read_series
 
-from histctx.sources import ghcn  # noqa: E402
-from histctx.sources.weather import COLUMNS, read_series  # noqa: E402
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def inv_line(station_id, lat, lon, name, elev=100.0):

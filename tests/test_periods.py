@@ -1,13 +1,10 @@
 """Тесты разбора датировок. Все примеры взяты из реальных файлов проекта."""
 
-import sys
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from histctx.periods import parse_period, parse_year  # noqa: E402
+from histctx.periods import parse_period, parse_year
 
 
 @pytest.mark.parametrize("text,year_from,year_to", [

@@ -32,10 +32,9 @@ import collections
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.sources.cshapes import (  # noqa: E402
+from histctx.sources.cshapes import (
     RUSSIA_GWCODE, STATE_BORDERS, YEAR_MAX, YEAR_MIN, CShapesError, collection,
     load, select, states, write,
 )

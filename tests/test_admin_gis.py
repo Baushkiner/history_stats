@@ -6,17 +6,15 @@
 столбцы остаются кодом, а не превращаются в выдуманный народ.
 """
 
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.schema import SCOPE_REGION  # noqa: E402
-from histctx.sources.admin_gis import (  # noqa: E402
+from histctx.schema import SCOPE_REGION
+from histctx.sources.admin_gis import (
     ADMIN_GIS, CENSUS_1897, CENSUS_1926, boundaries_geojson, build_summary,
     census_records, group_columns, top_groups,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 TIFLIS = {
     "NAMERUS": "Тифлисская губерния", "NAMEENG": "Tiflis guberniya",

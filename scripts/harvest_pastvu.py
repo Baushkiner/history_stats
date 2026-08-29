@@ -28,14 +28,14 @@ import json
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.geo import BBOX_RU, BBOX_RU_EAST  # noqa: E402
-from histctx.io_formats import HOISTABLE, write_jsonl  # noqa: E402
-from histctx.schema import COLUMNS, ContextRecord  # noqa: E402
-from histctx.sources.pastvu import (  # noqa: E402
+from histctx.geo import BBOX_RU, BBOX_RU_EAST
+from histctx.io_formats import HOISTABLE, write_jsonl
+from histctx.schema import COLUMNS, ContextRecord
+from histctx.sources.pastvu import (
     PASTVU_PHOTOS, YEAR_MAX, YEAR_MIN, PastVuClient, PastVuError,
     check_photo_fields, grid, in_requested_bbox, photos_to_records,
 )
@@ -116,7 +116,7 @@ def estimate(client: PastVuClient, bboxes: list, *, step: float, year_to: int) -
 
 
 def harvest(client: PastVuClient, bboxes: list, *, step: float, year_to: int,
-            out_dir: Path, state_dir: Path, max_cells: int | None,
+            out_dir: Path, state_dir: Path, max_cells: Optional[int],
             resume: bool, restart: bool) -> int:
     cells = [cell for bbox in bboxes for cell in grid(bbox, step)]
     if max_cells:
@@ -449,7 +449,7 @@ def _write_geojson_stream(records_fn, path: Path, *, layer_title: str) -> int:
 
 def _shared_layer_props(records) -> dict:
     """Значения из HOISTABLE, одинаковые у всех записей — как в io_formats."""
-    shared: dict | None = None
+    shared: Optional[dict] = None
     for rec in records:
         row = {k: v for k, v in rec.to_row().items() if v is not None and v != ""}
         current = {k: row[k] for k in HOISTABLE if k in row}
@@ -493,7 +493,8 @@ def main() -> int:
     ap.add_argument("--probe", action="store_true", help="один запрос и разбор ответа, без сбора")
     ap.add_argument("--estimate", action="store_true",
                     help="сосчитать объём по кластерам, ничего не выкачивая")
-    ap.add_argument("--bbox", nargs=4, type=float, metavar=("LAT_MIN", "LON_MIN", "LAT_MAX", "LON_MAX"))
+    ap.add_argument("--bbox", nargs=4, type=float,
+                    metavar=("LAT_MIN", "LON_MIN", "LAT_MAX", "LON_MAX"))
     ap.add_argument("--all", action="store_true", help="вся территория РИ/СССР — это надолго")
     # Градус, а не полградуса: ограничения на число снимков в ответе у сервиса
     # нет (самая плотная клетка, Москва, — около 121 000 снимков и 25 МБ),

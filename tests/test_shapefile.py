@@ -7,17 +7,15 @@
 """
 
 import struct
-import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.sources.shapefile import (  # noqa: E402
+from histctx.sources.shapefile import (
     ShapefileError, features, is_clockwise, read_dbf, read_shapes,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 # Квадрат по часовой стрелке — внешняя граница; вложенный против часовой — дырка.
 SQUARE_CW = [[0.0, 0.0], [0.0, 10.0], [10.0, 10.0], [10.0, 0.0], [0.0, 0.0]]

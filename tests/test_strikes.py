@@ -7,18 +7,16 @@
 данных с пометкой, а не выбрасываются.
 """
 
-import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.sources.strikes import (  # noqa: E402
+from histctx.sources.strikes import (
     STRIKES, StrikesError, check_columns, conflict_kind, normalize_province,
     parse_int, parse_provinces, record_years, row_to_record, rows_to_records,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 # Строки набора как есть: числа приходят строками с дробной частью, причины и
 # требования — кодовым текстом по-английски.

@@ -22,7 +22,10 @@ _RE_REGION = re.compile(
     r"(губерн\w*|област\w*|кра\w*|окру\w*|намес\w*|войск\w*)",
     re.UNICODE,
 )
-_RE_DISTRICT = re.compile(r"\b([А-ЯЁ][а-яё\-]+(?:ий|ой|ый))\s+(уезд\w*|район\w*|стан\w*|волост\w*)", re.UNICODE)
+_RE_DISTRICT = re.compile(
+    r"\b([А-ЯЁ][а-яё\-]+(?:ий|ой|ый))\s+(уезд\w*|район\w*|стан\w*|волост\w*)",
+    re.UNICODE,
+)
 
 
 def valid_coords(lat, lon) -> bool:

@@ -34,15 +34,14 @@ import argparse
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.io_formats import write_jsonl  # noqa: E402
-from histctx.sources.admin_gis import (  # noqa: E402
+from histctx.io_formats import write_jsonl
+from histctx.sources.admin_gis import (
     ADMIN_GIS, CENSUSES, HeiDataError, boundaries_geojson, build_summary,
     census_records, load_census, unit_name, write_geojson,
 )
-from histctx.sources.ristat import (  # noqa: E402
+from histctx.sources.ristat import (
     FILES, RISTAT_BOUNDARIES, RistatError, collection, load, named, write,
 )
 

@@ -65,7 +65,8 @@ _RE_UNIT = re.compile(
     r"(?:дивизи\w*|полк\b|полка\b|бригад\w*|арми\w*|корпус\w*|батальон\w*|флотили\w*|эскадр\w*)",
     re.IGNORECASE,
 )
-_RE_SHIP = re.compile(r"\((?:канонерская лодка|крейсер|линкор|броненосец|миноносец|подводная лодка)\)", re.I)
+_RE_SHIP = re.compile(
+    r"\((?:канонерская лодка|крейсер|линкор|броненосец|миноносец|подводная лодка)\)", re.I)
 _RE_EVENT = re.compile(
     r"(бой|бои|битв|сражени|осад|штурм|оборон|операци|десант|рейд|поход|прорыв|наступлени|"
     r"контрудар|восстани|мятеж|блокад|взяти|разгром|засад|налёт|налет|бомбардиров|экспедици|"
@@ -154,6 +155,28 @@ def strip_quotes(value: Optional[str]) -> Optional[str]:
         return None
     s = s.strip().strip('"«»').strip()
     return s or None
+
+
+def to_int(value) -> Optional[int]:
+    """Целое из ячейки или None, если это не целое.
+
+    Строго: «1937.0» — не год, а признак того, что колонку читают не так.
+    Там, где источник и правда шлёт дробные целые (метеоряды, таблицы ERRHS),
+    разбор свой — см. `sources/weather.py` и `sources/errhs.py`.
+    """
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def to_float(value) -> Optional[float]:
+    """Число из ячейки или None. Пропуски, помеченные в источнике особым
+    значением, отсеивает сам источник: что считать пропуском, знает только он."""
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
 
 
 def tidy_url(value: Optional[str]) -> Optional[str]:

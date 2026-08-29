@@ -14,16 +14,14 @@ XVII века, торговое здание без даты и объект, у
 """
 
 import importlib.util
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.registry import BY_SLUG  # noqa: E402
-from histctx.sources.wikidata import (  # noqa: E402
+from histctx.registry import BY_SLUG
+from histctx.sources.wikidata import (
     OPEN_END_YEAR, dedupe, ids_query, rows_to_records,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 QUERY = ROOT / "queries" / "fairs.rq"
 

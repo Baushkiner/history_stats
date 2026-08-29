@@ -428,7 +428,8 @@ def _season_series(by_year: dict, months: tuple, field: str, *, how: str) -> dic
     return out
 
 
-def _summary(place: str, year: int, anomalies: list[Anomaly], stations: int | None = None) -> str:
+def _summary(place: str, year: int, anomalies: list[Anomaly],
+             stations: Optional[int] = None) -> str:
     lead = anomalies[0]
     words = {
         "засуха": f"осадков за апрель–август {lead.value} мм при норме {lead.norm} мм",
@@ -462,6 +463,8 @@ def _mean(values) -> Optional[float]:
 
 
 def _int(value) -> Optional[int]:
+    """Свой, а не `normalize.to_int`: год и месяц в метеорядах приходят
+    дробными («1899.0»), и строгий разбор потерял бы всю таблицу."""
     try:
         return int(float(str(value).strip()))
     except (TypeError, ValueError):

@@ -5,18 +5,15 @@
 """
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT / "scripts"))
+from export_xlsx import available_layers, read_layer
+from histctx.io_formats import write_xlsx
+from histctx.schema import COLUMNS_RU
 
-from export_xlsx import available_layers, read_layer  # noqa: E402
-from histctx.io_formats import write_xlsx  # noqa: E402
-from histctx.schema import COLUMNS_RU  # noqa: E402
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def build_out(tmp_path: Path) -> Path:

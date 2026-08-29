@@ -25,25 +25,25 @@ import argparse
 import sys
 from collections import Counter
 from pathlib import Path
+from typing import Optional
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.adapters import (  # noqa: E402
+from histctx.adapters import (
     load_battles, load_literary_places, load_prokudin_gorsky, load_state_events, load_tenishev,
 )
-from histctx.adapters.battles import BATTLES  # noqa: E402
-from histctx.adapters.bookplaces import LITERARY, TENISHEV  # noqa: E402
-from histctx.adapters.prokudin_gorsky import PROKUDIN  # noqa: E402
-from histctx.adapters.state_events import STATE_EVENTS  # noqa: E402
-from histctx.geo import extract_region  # noqa: E402
-from histctx.io_formats import (  # noqa: E402
+from histctx.adapters.battles import BATTLES
+from histctx.adapters.bookplaces import LITERARY, TENISHEV
+from histctx.adapters.prokudin_gorsky import PROKUDIN
+from histctx.adapters.state_events import STATE_EVENTS
+from histctx.geo import extract_region
+from histctx.io_formats import (
     read_layers, write_geojson, write_jsonl, write_records_json, write_xlsx_multi,
 )
-from histctx.periods import PRECISION_OPEN  # noqa: E402
-from histctx.registry import ALL_LAYERS, BY_SLUG  # noqa: E402
-from histctx.schema import GROUPS, ContextRecord, LayerSpec  # noqa: E402
-from histctx.sources.wikidata import OPEN_END_YEAR  # noqa: E402
+from histctx.periods import PRECISION_OPEN
+from histctx.registry import ALL_LAYERS, BY_SLUG
+from histctx.schema import GROUPS, ContextRecord, LayerSpec
+from histctx.sources.wikidata import OPEN_END_YEAR
 
 # Какой файл каким адаптером читать. Имена ищутся подстрокой, чтобы работали
 # и «bookplaces_data.xlsx», и выгрузка с префиксом.
@@ -55,13 +55,14 @@ SOURCES = [
 ]
 
 
-def find_file(raw_dir: Path, needle: str) -> Path | None:
+def find_file(raw_dir: Path, needle: str) -> Optional[Path]:
     hits = sorted(p for p in raw_dir.glob("*.xlsx") if needle in p.name.lower())
     return hits[0] if hits else None
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--raw", type=Path, default=ROOT / "data" / "raw")
     ap.add_argument("--out", type=Path, default=ROOT / "data" / "out")
     ap.add_argument("--curated", type=Path, default=ROOT / "data" / "curated",
@@ -145,7 +146,8 @@ def main() -> int:
 
     all_records = [r for recs in layers.values() for r in recs]
     write_jsonl(all_records, args.out / "context.jsonl")
-    counts = write_xlsx_multi({specs[s].title: r for s, r in layers.items()}, args.out / "all_layers.xlsx")
+    counts = write_xlsx_multi({specs[s].title: r for s, r in layers.items()},
+                              args.out / "all_layers.xlsx")
 
     write_report(layers, specs, args.out)
 
@@ -238,8 +240,10 @@ MARKS = {
     "place_level": "координата указывает на населённый пункт, а не на само место события",
     "grid_edge": "узел реконструкции засух на краю сетки — с одной стороны от него данных нет",
     "thin_coverage": "погодный год, за который говорит одна станция губернии",
-    "unpublished_source": "карточка «Карты ГУЛАГа» не опубликована — по составу полей не хуже, но не проверена",
-    "region_unmatched": "составное название губернии не сводится к ключу: величина верна, привязка по названию ненадёжна",
+    "unpublished_source": "карточка «Карты ГУЛАГа» не опубликована — по составу "
+                          "полей не хуже, но не проверена",
+    "region_unmatched": "составное название губернии не сводится к ключу: величина "
+                        "верна, привязка по названию ненадёжна",
     "dates_disputed": "источник даёт два разных года одного переименования; обе записи оставлены",
 }
 
@@ -291,7 +295,8 @@ def build_report(layers: dict, specs: dict) -> str:
     if territorial:
         lines.append("## События без точки")
         lines.append("")
-        lines.append(f"Всего {len(territorial)}: подбираются по губернии и годам, а не по расстоянию.")
+        lines.append(f"Всего {len(territorial)}: подбираются по губернии и годам, "
+                     "а не по расстоянию.")
         lines.append("")
         by_scope = Counter(r.scope for r in territorial)
         lines.append(f"- на всё государство: {by_scope.get('state', 0)}")
@@ -406,7 +411,8 @@ def build_report(layers: dict, specs: dict) -> str:
         lines.append("")
         for spec in empty:
             lines.append(f"- {spec.title} (`{spec.slug}`)"
-                         + (f" — ожидалось около {spec.expected_rows}" if spec.expected_rows else ""))
+                         + (f" — ожидалось около {spec.expected_rows}"
+                            if spec.expected_rows else ""))
         lines.append("")
 
     return "\n".join(lines)

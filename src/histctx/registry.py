@@ -48,20 +48,20 @@ from .schema import LayerSpec
 
 # --- уже собранные слои ---------------------------------------------------
 
-from .adapters.battles import BATTLES                     # noqa: E402
-from .adapters.bookplaces import LITERARY, TENISHEV        # noqa: E402
-from .adapters.prokudin_gorsky import PROKUDIN             # noqa: E402
-from .adapters.state_events import STATE_EVENTS            # noqa: E402
-from .sources.errhs import HARVEST_PRICES                 # noqa: E402
-from .sources.geonames import SETTLEMENTS                  # noqa: E402
-from .sources.admin_gis import ADMIN_GIS                    # noqa: E402
-from .sources.cshapes import STATE_BORDERS                  # noqa: E402
-from .sources.drought import DROUGHT_ATLAS                  # noqa: E402
-from .sources.gulag import GULAG_CAMPS                      # noqa: E402
-from .sources.ristat import RISTAT_BOUNDARIES               # noqa: E402
-from .sources.strikes import STRIKES                        # noqa: E402
-from .sources.pastvu import PASTVU_PHOTOS                  # noqa: E402
-from .sources.weather import WEATHER_REGIONS, WEATHER_STATIONS  # noqa: E402
+from .adapters.battles import BATTLES
+from .adapters.bookplaces import LITERARY, TENISHEV
+from .adapters.prokudin_gorsky import PROKUDIN
+from .adapters.state_events import STATE_EVENTS
+from .sources.admin_gis import ADMIN_GIS
+from .sources.cshapes import STATE_BORDERS
+from .sources.drought import DROUGHT_ATLAS
+from .sources.errhs import HARVEST_PRICES
+from .sources.geonames import SETTLEMENTS
+from .sources.gulag import GULAG_CAMPS
+from .sources.pastvu import PASTVU_PHOTOS
+from .sources.ristat import RISTAT_BOUNDARIES
+from .sources.strikes import STRIKES
+from .sources.weather import WEATHER_REGIONS, WEATHER_STATIONS
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -98,7 +98,8 @@ HARVESTED_WIKIDATA = [
     LayerSpec(
         slug="monasteries", title="Монастыри и пустыни", group="faith",
         source="Викиданные", license=WD_CC0, status="harvested", expected_rows=1916,
-        description="Монастыри, лавры, скиты и пустыни — центры паломничества, землевладения и призрения.",
+        description="Монастыри, лавры, скиты и пустыни — центры паломничества, "
+                    "землевладения и призрения.",
     ),
     LayerSpec(
         slug="other_faiths", title="Мечети, синагоги, кирхи, костёлы", group="faith",
@@ -159,7 +160,8 @@ HARVESTED_WIKIDATA = [
     # Группа: бедствия и потрясения
     LayerSpec(
         slug="epidemics", title="Эпидемии", group="hardship",
-        source="Викиданные + справочная литература", license=WD_CC0, status="harvested", expected_rows=1,
+        source="Викиданные + справочная литература", license=WD_CC0,
+        status="harvested", expected_rows=1,
         description=(
             "Холера, тиф, оспа, испанка. В метрических книгах видны как всплеск "
             "смертей за короткий срок — слой объясняет причину. Из Викиданных "
@@ -360,15 +362,3 @@ HARVESTED = HARVESTED_SOURCES + HARVESTED_WIKIDATA
 
 ALL_LAYERS = CURATED + HARVESTED + PLANNED + EXTERNAL
 BY_SLUG = {spec.slug: spec for spec in ALL_LAYERS}
-
-
-def layers_in_group(group: str) -> list[LayerSpec]:
-    return [s for s in ALL_LAYERS if s.group == group]
-
-
-def planned_slugs() -> list[str]:
-    return [s.slug for s in PLANNED]
-
-
-def external_slugs() -> list[str]:
-    return [s.slug for s in EXTERNAL]

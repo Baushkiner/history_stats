@@ -11,16 +11,14 @@ Q-номера условные — разбору важен только их 
 """
 
 import importlib.util
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.schema import LayerSpec  # noqa: E402
-from histctx.sources.wikidata import (  # noqa: E402
+from histctx.schema import LayerSpec
+from histctx.sources.wikidata import (
     dedupe, details_query, ids_query, rows_to_records,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 FACTORIES = LayerSpec(slug="factories", title="Заводы и фабрики", group="economy",
                       source="Викиданные", license="CC0")

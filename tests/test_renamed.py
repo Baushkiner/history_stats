@@ -19,18 +19,16 @@
   Краснознаменском в 1977 году и что он же стал им в 1994-м.
 """
 
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.periods import PRECISION_OPEN  # noqa: E402
-from histctx.registry import BY_SLUG  # noqa: E402
-from histctx.sources.renamed import (  # noqa: E402
+from histctx.periods import PRECISION_OPEN
+from histctx.registry import BY_SLUG
+from histctx.sources.renamed import (
     NAMES_CHUNK_SIZE, chain_language, collect, dedupe, group_rows, ids_query,
     name_chain, names_query, rows_to_records,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 SPEC = BY_SLUG["renamed_places"]
 

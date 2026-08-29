@@ -35,12 +35,12 @@ import collections
 import math
 import sys
 from pathlib import Path
+from typing import Optional
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.io_formats import write_geojson, write_jsonl  # noqa: E402
-from histctx.sources.drought import (  # noqa: E402
+from histctx.io_formats import write_geojson, write_jsonl
+from histctx.sources.drought import (
     DATASETS, DEFAULT_DATASET, DROUGHT_ATLAS, THRESHOLD, YEAR_FROM, YEAR_TO,
     Atlas, DroughtError, check_atlas, edge_points, episodes_to_records,
     find_episodes, load, read_grid, read_matrix, usable_points,
@@ -80,7 +80,7 @@ def open_atlas(args) -> Atlas:
                 year_from=args.year_from, year_to=args.year_to)
 
 
-def probe(atlas: Atlas, threshold: float, exclude_bbox: tuple = None,
+def probe(atlas: Atlas, threshold: float, exclude_bbox: Optional[tuple] = None,
           clip_note: str = "") -> int:
     dataset = atlas.dataset
     print(f"Набор: {dataset.title}")
@@ -152,7 +152,8 @@ def probe(atlas: Atlas, threshold: float, exclude_bbox: tuple = None,
     return 0
 
 
-def build(atlas: Atlas, args, exclude_bbox: tuple = None, clip_note: str = "") -> int:
+def build(atlas: Atlas, args, exclude_bbox: Optional[tuple] = None,
+          clip_note: str = "") -> int:
     episodes = find_episodes(atlas, threshold=args.threshold, exclude_bbox=exclude_bbox,
                              year_from=args.year_from, year_to=args.year_to)
     edge = edge_points(atlas.points, atlas.dataset.step)

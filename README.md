@@ -214,6 +214,10 @@ python3 scripts/context.py --lat 53.20 --lon 50.15 --year 1891 \
 
 # тесты
 python3 -m pytest tests/ -q
+
+# вид кода: длина строки, неиспользованные имена, порядок оговорён
+# в pyproject.toml. Ставить ruff необязательно — в зависимости он не входит
+ruff check .
 ```
 
 ## Текущее состояние данных
@@ -352,8 +356,10 @@ src/histctx/
   schema.py       единая запись контекста
   geo.py          координаты, расстояния, губернии и их сопоставление
   enrich.py       подбор контекста вокруг факта
-  normalize.py    приведение жанров, названий войн, отсев не-событий
+  normalize.py    приведение жанров, названий войн, чисел, отсев не-событий
   io_formats.py   выгрузка в GeoJSON, XLSX, JSONL и чтение её обратно
+  xlsx_style.py   оформление книг, которые читают глазами: обе выгрузки
+  net.py          подпись сборщика, коды повтора, пауза между запросами
   registry.py     каталог слоёв: собранные, запросы, внешние проекты
   adapters/       исходные файлы проекта -> единая схема
   sources/        внешние источники: wikidata.py, renamed.py, pastvu.py,
@@ -363,7 +369,9 @@ src/histctx/
 data/curated/     подборки, которые ведутся вручную (state_events.json)
 queries/          SPARQL-запросы к Викиданным
 scripts/          build_core.py — свои файлы, сводка и отчёт;
-                  harvest*.py — по сборщику на источник; context.py — подбор
+                  harvest*.py — по сборщику на источник; context.py — подбор;
+                  export*.py — выгрузка слоя в таблицу;
+                  _paths.py — путь до пакета для запуска без установки
 docs/             CATALOG.md, DISCOVERY.md, HARVEST.md, SCHEMA.md,
                   ENRICHMENT.md, ROUTINE.md
 ```

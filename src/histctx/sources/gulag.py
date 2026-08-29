@@ -34,16 +34,12 @@ import urllib.request
 from typing import Iterable, Optional
 
 from ..geo import extract_district, extract_region, in_bbox, valid_coords
+from ..net import USER_AGENT
 from ..schema import ContextRecord, LayerSpec, clean_text
 
 BASE_URL = "https://gulagmap.ru/api"
 CARD_URL = "https://gulagmap.ru/camp{id}"
 
-# Заголовки HTTP кодируются latin-1 — в User-Agent только ASCII.
-USER_AGENT = (
-    "histctx/0.2 (https://xn----ctbkalderxbemeylx6aq.xn--p1ai/; "
-    "historical context harvesting for genealogy)"
-)
 
 # Первые лагеря принудительных работ — 1918 год, справочник «Мемориала»
 # доведён до 1960-го. Всё, что вылезает за рамку, — ошибка разбора.

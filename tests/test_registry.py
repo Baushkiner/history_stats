@@ -9,16 +9,14 @@
 """
 
 import re
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.registry import (  # noqa: E402
+from histctx.registry import (
     ALL_LAYERS, BY_SLUG, CURATED, EXTERNAL, HARVESTED, HARVESTED_WIKIDATA, PLANNED,
 )
-from histctx.schema import GROUPS  # noqa: E402
+from histctx.schema import GROUPS
+
+ROOT = Path(__file__).resolve().parents[1]
 
 RE_SLUG = re.compile(r"^[a-z][a-z0-9_]*$")
 

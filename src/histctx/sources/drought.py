@@ -62,13 +62,9 @@ from pathlib import Path
 from typing import Iterable, Optional, Sequence
 
 from ..geo import in_bbox, valid_coords
+from ..net import USER_AGENT
+from ..normalize import to_float, to_int
 from ..schema import ContextRecord, LayerSpec
-
-# Заголовки HTTP кодируются latin-1 — в User-Agent только ASCII.
-USER_AGENT = (
-    "histctx/0.2 (https://xn----ctbkalderxbemeylx6aq.xn--p1ai/; "
-    "historical context harvesting for genealogy)"
-)
 
 
 @dataclass(frozen=True)
@@ -297,7 +293,7 @@ def read_grid(lines: Iterable[str]) -> dict[int, GridPoint]:
         raise DroughtError("таблица узлов сетки пуста")
 
     order = {"number": None, "lon": 0, "lat": 1}
-    if _float(rows[0][0]) is None:
+    if to_float(rows[0][0]) is None:
         header = [cell.strip().lower() for cell in rows.pop(0)]
         order = {
             "number": _index_of(header, ("gridpt", "point", "id", "номер")),
@@ -321,8 +317,8 @@ def read_grid(lines: Iterable[str]) -> dict[int, GridPoint]:
                 f"в строке {position} таблицы узлов {len(row)} столбцов, нужно {width}: "
                 f"{' '.join(row)[:80]!r}. Файл оборван или формат изменился."
             )
-        number = _int(row[order["number"]]) if order["number"] is not None else position
-        lat, lon = _float(row[order["lat"]]), _float(row[order["lon"]])
+        number = to_int(row[order["number"]]) if order["number"] is not None else position
+        lat, lon = to_float(row[order["lat"]]), to_float(row[order["lon"]])
         if number is None or lat is None or lon is None or not valid_coords(lat, lon):
             raise DroughtError(f"узел сетки не разобран: {' '.join(row)[:80]!r}")
         points[number] = GridPoint(number=number, lat=lat, lon=lon)
@@ -348,7 +344,7 @@ def read_matrix(lines: Iterable[str], *, year_from: Optional[int] = None,
             continue
         parts = line.split()
         if header is None:
-            if _int(parts[0]) is not None:
+            if to_int(parts[0]) is not None:
                 raise DroughtError(
                     "первая строка матрицы начинается с числа — шапки с номерами "
                     "узлов нет. Формат набора изменился, разбор остановлен."
@@ -358,7 +354,7 @@ def read_matrix(lines: Iterable[str], *, year_from: Optional[int] = None,
             columns = [array("f") for _ in header]
             continue
 
-        year = _int(parts[0])
+        year = to_int(parts[0])
         if year is None:
             continue
         if year_from is not None and year < year_from:
@@ -614,7 +610,7 @@ def _index_of(header: Sequence[str], names: Sequence[str]) -> Optional[int]:
 def _column_number(cell: str, position: int) -> int:
     """«GP17» и «17» — это узел 17. Всё остальное — смена формата."""
     digits = cell.strip().lstrip("GPgp#").strip()
-    number = _int(digits)
+    number = to_int(digits)
     if number is None:
         raise DroughtError(
             f"колонка {position} названа {cell!r} — номер узла из неё не читается. "
@@ -623,23 +619,9 @@ def _column_number(cell: str, position: int) -> int:
     return number
 
 
-def _int(value) -> Optional[int]:
-    try:
-        return int(str(value).strip())
-    except (TypeError, ValueError):
-        return None
-
-
-def _float(value) -> Optional[float]:
-    try:
-        return float(str(value).strip())
-    except (TypeError, ValueError):
-        return None
-
-
 def _value(cell: str) -> float:
     """Значение PDSI или NaN, если это пропуск."""
-    number = _float(cell)
+    number = to_float(cell)
     if number is None or math.isnan(number) or abs(number) >= MISSING_ABOVE:
         return float("nan")
     return number

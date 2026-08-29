@@ -27,19 +27,19 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.geo import in_bbox  # noqa: E402
-from histctx.registry import ALL_LAYERS  # noqa: E402
-from histctx.schema import COLUMNS, COLUMNS_RU  # noqa: E402
-from histctx.sources.wikidata import OPEN_END_YEAR  # noqa: E402
+from histctx.geo import in_bbox
+from histctx.registry import ALL_LAYERS
+from histctx.schema import COLUMNS, COLUMNS_RU
+from histctx.sources.wikidata import OPEN_END_YEAR
+from histctx.xlsx_style import (
+    Cursor, cell_value, head_row, link_font, new_workbook, warn_font,
+)
 
 GEOJSON_DIR = ROOT / "data" / "out" / "geojson"
 QUERY_DIR = ROOT / "queries"
 OUT_DIR = ROOT / "data" / "out" / "xlsx"
-
-FONT = "Arial"
 
 # Колонки, у которых на весь слой обычно одно значение: повторять их в каждой
 # строке незачем, они уезжают на лист «Об источнике».
@@ -153,28 +153,7 @@ def measure(rows: list[dict], columns: list[str]) -> list[tuple[str, str]]:
 
 def build(rows: list[dict], columns: list[str], constant: dict,
           spec, header: dict, out: Path) -> Path:
-    from openpyxl import Workbook
-
-    from openpyxl.styles import Font
-
-    wb = Workbook()
-    # openpyxl кладёт формулы строками без значений: без этой пометки сводка
-    # откроется пустой, пока читатель не нажмёт пересчёт руками.
-    wb.calculation.fullCalcOnLoad = True
-    # Шрифт задаётся книге целиком, а не каждой ячейке отдельно: на слое
-    # храмов (31 896 записей) поячеечная простановка — это две трети миллиона
-    # обращений к стилям, и выгрузка не укладывалась в две минуты.
-    #
-    # Менять нужно именно нулевой шрифт списка: ячейка без своего оформления
-    # ссылается на `cellXfs[0]`, а тот жёстко указывает `fontId="0"`. Правки
-    # одного лишь именованного стиля «Normal» ячейкам не видно — проверено по
-    # `xl/styles.xml`, там оставался Calibri.
-    # Выравнивание так задать нельзя — `cellXfs[0]` пишется без `applyAlignment`,
-    # и ячейка остаётся с умолчанием. Строки таблицы однострочные, разницы не
-    # видно; там, где она важна (шапки, сводка), выравнивание ставится явно.
-    wb._fonts[0] = Font(name=FONT, size=10)
-    wb._named_styles["Normal"].font = Font(name=FONT, size=10)
-    wb.remove(wb.active)
+    wb = new_workbook()
 
     keys = columns + [k for k, _, _ in COMPUTED]
     titles = ([COLUMNS_RU.get(c, c) for c in columns]
@@ -190,28 +169,15 @@ def build(rows: list[dict], columns: list[str], constant: dict,
     return out
 
 
-def _head(ws, titles: list[str]) -> None:
-    from openpyxl.styles import Alignment, Font, PatternFill
-
-    ws.append(["№"] + titles)
-    for cell in ws[1]:
-        cell.font = Font(name=FONT, bold=True, color="FFFFFF", size=10)
-        cell.fill = PatternFill("solid", fgColor="44546A")
-        cell.alignment = Alignment(vertical="center", horizontal="center", wrap_text=True)
-    ws.row_dimensions[1].height = 32
-
-
 def sheet_rows(ws, rows, keys, titles, widths) -> None:
-    from openpyxl.styles import Alignment, Font
     from openpyxl.utils import get_column_letter
 
-    _head(ws, titles)
+    head_row(ws, ["№"] + titles)
     ws.column_dimensions["A"].width = 6
     for i, width in enumerate(widths, start=2):
         ws.column_dimensions[get_column_letter(i)].width = width
 
-    link = Font(name=FONT, size=10, color="0563C1", underline="single")
-    warn = Font(name=FONT, size=10, color="C00000")
+    link, warn = link_font(), warn_font()
     url_cols = [i for i, k in enumerate(keys, start=2) if k in ("url", "image_url")]
     number_cols = [(keys.index(k) + 2, f) for k, f in
                    (("lat", "0.0000"), ("lon", "0.0000"),
@@ -220,7 +186,7 @@ def sheet_rows(ws, rows, keys, titles, widths) -> None:
 
     for n, row in enumerate(rows, start=1):
         line = n + 1
-        ws.append([n] + [_cell(row.get(k)) for k in keys])
+        ws.append([n] + [cell_value(row.get(k)) for k in keys])
         for i in url_cols:
             cell = ws.cell(row=line, column=i)
             if cell.value:
@@ -236,71 +202,12 @@ def sheet_rows(ws, rows, keys, titles, widths) -> None:
     ws.auto_filter.ref = f"A1:{get_column_letter(len(keys) + 1)}{ws.max_row}"
 
 
-def _cell(value):
-    if isinstance(value, bool):
-        return "да" if value else "нет"
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, ensure_ascii=False)
-    return value
-
-
-class Cursor:
-    """Пишет лист сверху вниз и помнит, на какой строке стоит.
-
-    Номер строки нужен самим формулам («сколько записей со значением из A12»),
-    а вычислять его из `ws.max_row` нельзя: пустая строка-отбивка счётчик
-    openpyxl не двигает, и ссылки разъезжаются с данными.
-    """
-
-    def __init__(self, ws):
-        from openpyxl.styles import Font
-        self.ws = ws
-        self.line = 0
-        self.body = Font(name=FONT, size=10)
-        self.bold = Font(name=FONT, bold=True, size=10)
-        self.title = Font(name=FONT, bold=True, size=13)
-        self.note = Font(name=FONT, italic=True, size=9, color="595959")
-        self.head = Font(name=FONT, bold=True, size=10, color="FFFFFF")
-
-    def row(self, values, *, font=None, formats=None, height=None):
-        from openpyxl.styles import Alignment
-        self.line += 1
-        for i, value in enumerate(values, start=1):
-            cell = self.ws.cell(row=self.line, column=i, value=value)
-            cell.font = font or self.body
-            cell.alignment = Alignment(vertical="center",
-                                       horizontal="left" if i == 1 else "right")
-            if formats and i - 1 < len(formats) and formats[i - 1]:
-                cell.number_format = formats[i - 1]
-        if height:
-            self.ws.row_dimensions[self.line].height = height
-        return self.line
-
-    def blank(self):
-        self.line += 1
-
-    def section(self, text, comment=None):
-        self.row([text], font=self.title, height=26)
-        if comment:
-            self.row([comment], font=self.note, height=14)
-
-    def header(self, cells):
-        from openpyxl.styles import Alignment, PatternFill
-        line = self.row(cells, font=self.head)
-        for i in range(1, len(cells) + 1):
-            cell = self.ws.cell(row=line, column=i)
-            cell.fill = PatternFill("solid", fgColor="44546A")
-            cell.alignment = Alignment(vertical="center", horizontal="center",
-                                       wrap_text=True)
-        self.ws.row_dimensions[line].height = 28
-        return line
-
-
 def sheet_total(ws, rows: list[dict], keys: list[str], count: int) -> None:
     """Сводка. Числа — формулы: книга остаётся живой после правок и сортировок."""
     from openpyxl.utils import get_column_letter
 
     last = count + 1
+
     def rng(key):
         letter = get_column_letter(keys.index(key) + 2)
         return f"Записи!${letter}$2:${letter}${last}"
@@ -442,20 +349,12 @@ def query_classes(slug: str) -> list[str]:
 def sheet_about(ws, rows: list[dict], columns: list[str], constant: dict,
                 spec, header: dict) -> None:
     """Откуда слой, что в нём одинаково у всех записей и чего в нём ждать."""
-    from openpyxl.styles import Alignment, Font
-
     ws.column_dimensions["A"].width = 38
     ws.column_dimensions["B"].width = 100
     cur = Cursor(ws)
 
     def pair(key, value):
-        line = cur.line + 1
-        cur.row([key, str(value)], font=cur.bold)
-        val = ws.cell(row=line, column=2)
-        val.font = Font(name=FONT, size=10)
-        val.alignment = Alignment(wrap_text=True, vertical="top")
-        ws.cell(row=line, column=1).alignment = Alignment(vertical="top")
-        ws.row_dimensions[line].height = 14 * (1 + len(str(value)) // 95)
+        cur.pair(key, value, per_line=95)
 
     cur.section(header.get("name") or (spec.title if spec else "Слой"))
     cur.row(["Выгрузка слоя из репозитория исторического контекста. "

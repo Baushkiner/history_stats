@@ -32,8 +32,14 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Optional
 
-ROOT = Path(__file__).resolve().parents[1]
+from _paths import ROOT
+
+from histctx.xlsx_style import (
+    FONT, SIZE, Cursor, head_row, link_font, new_workbook, warn_font,
+)
+
 DEFAULT_SRC = ROOT / "data" / "out" / "geojson" / "gulag_camps.geojson"
 DEFAULT_OUT = ROOT / "data" / "out" / "xlsx" / "gulag_camps.xlsx"
 
@@ -42,8 +48,6 @@ YEAR_MIN, YEAR_MAX = 1918, 1960
 
 # «Исправительно-трудовые лагеря; вид работ — лесозаготовки; наибольшая…»
 _RE_ACTIVITY = re.compile(r"^вид работ — (.+)$")
-
-FONT = "Arial"
 
 # Колонка → (заголовок, ширина). Порядок здесь — порядок в листе «Лагеря».
 CAMP_COLUMNS = [
@@ -138,7 +142,8 @@ COLUMN_NOTES = {
     "Тип лагеря": "Справочник проекта: ИТЛ, лагеря ГУПВИ, концлагеря Гражданской войны, "
                   "проверочно-фильтрационные, особые лагеря, лагпункты, спецпоселения",
     "Вид работ": "Справочник проекта: производственный профиль лагеря",
-    "Место (как в источнике)": "Текст описания места из карточки, с исторической и нынешней привязкой",
+    "Место (как в источнике)": "Текст описания места из карточки, "
+                               "с исторической и нынешней привязкой",
     "Губерния/область": "Разобрано из текста места, где разбор удался",
     "Уезд/район": "Разобрано из текста места, где разбор удался",
     "Регион (группировка проекта)": "Шестнадцать крупных регионов, которыми проект делит карту",
@@ -155,7 +160,8 @@ COLUMN_NOTES = {
     "Карточка опубликована": "«нет» — карточка есть в API, но проект её у себя не показывает",
     "Описание из слоя": "Фраза, собранная из справочников и чисел (не текст музея)",
     "ID управления": "Идентификатор управления в API проекта; у переезжавшего лагеря повторяется",
-    "Первая запись управления": "1 у первой строки управления — чтобы считать управления, а не места",
+    "Первая запись управления": "1 у первой строки управления — чтобы считать "
+                                "управления, а не места",
     "UID записи": "Идентификатор строки в слое репозитория",
     "ID в источнике": "«управление:место» в API проекта",
 }
@@ -212,7 +218,7 @@ def load(path: Path) -> list[dict]:
     return rows
 
 
-def _activity(summary: str | None) -> str | None:
+def _activity(summary: Optional[str]) -> Optional[str]:
     """Вид работ отдельным полем слой не хранит — вынимаем из описания."""
     for part in (summary or "").split("; "):
         found = _RE_ACTIVITY.match(part.strip().rstrip("."))
@@ -221,7 +227,7 @@ def _activity(summary: str | None) -> str | None:
     return None
 
 
-def _peak(prisoners: dict) -> tuple[int | None, int | None]:
+def _peak(prisoners: dict) -> tuple[Optional[int], Optional[int]]:
     """Наибольшая учтённая численность и её год; нули за численность не считаются."""
     best, best_year = None, None
     for year, count in prisoners.items():
@@ -232,7 +238,7 @@ def _peak(prisoners: dict) -> tuple[int | None, int | None]:
     return best, best_year
 
 
-def _camp_id(source_id: str | None):
+def _camp_id(source_id: Optional[str]):
     """`source_id` — «управление:место»; управление нужно отдельной колонкой."""
     head = str(source_id or "").split(":")[0]
     return int(head) if head.isdigit() else None
@@ -241,13 +247,7 @@ def _camp_id(source_id: str | None):
 # --- запись книги -----------------------------------------------------------
 
 def build(rows: list[dict], out: Path) -> Path:
-    from openpyxl import Workbook
-
-    wb = Workbook()
-    # Значения формул openpyxl не считает: без этой пометки сводка открывается
-    # пустой, пока читатель не нажмёт пересчёт руками.
-    wb.calculation.fullCalcOnLoad = True
-    wb.remove(wb.active)
+    wb = new_workbook()
     camps = wb.create_sheet("Лагеря")
     stats = wb.create_sheet("Численность по годам")
     total = wb.create_sheet("Сводка")
@@ -261,19 +261,6 @@ def build(rows: list[dict], out: Path) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out)
     return out
-
-
-def _head(ws, headers: list[str], *, height: int = 32) -> None:
-    """Шапка листа: белым по тёмному, с переносом, закреплена."""
-    from openpyxl.styles import Alignment, Font, PatternFill
-
-    fill = PatternFill("solid", fgColor="44546A")
-    ws.append(headers)
-    for cell in ws[1]:
-        cell.font = Font(name=FONT, bold=True, color="FFFFFF", size=10)
-        cell.fill = fill
-        cell.alignment = Alignment(vertical="center", horizontal="center", wrap_text=True)
-    ws.row_dimensions[1].height = height
 
 
 def _published_peak(rows: list[dict]) -> int:
@@ -300,13 +287,13 @@ def sheet_camps(ws, rows: list[dict]) -> None:
     from openpyxl.utils import get_column_letter
 
     keys = [k for k, _, _ in CAMP_COLUMNS]
-    _head(ws, [title for _, title, _ in CAMP_COLUMNS])
+    head_row(ws, [title for _, title, _ in CAMP_COLUMNS])
     for i, (_, _, width) in enumerate(CAMP_COLUMNS, start=1):
         ws.column_dimensions[get_column_letter(i)].width = width
 
     col = {k: get_column_letter(i) for i, (k, _, _) in enumerate(CAMP_COLUMNS, start=1)}
-    body = Font(name=FONT, size=10)
-    link = Font(name=FONT, size=10, color="0563C1", underline="single")
+    body = Font(name=FONT, size=SIZE)
+    link = link_font()
     ceiling = _published_peak(rows)
 
     for n, row in enumerate(rows, start=1):
@@ -334,7 +321,7 @@ def sheet_camps(ws, rows: list[dict]) -> None:
             # Правило репозитория: спорное помечается и остаётся в данных.
             cell = ws[f"{col['peak']}{line}"]
             cell.comment = Comment(SUSPICIOUS_NOTE, "выгрузка gulag_camps", height=120, width=340)
-            cell.font = Font(name=FONT, size=10, color="C00000")
+            cell.font = warn_font()
 
     ws.freeze_panes = "C2"
     ws.auto_filter.ref = f"A1:{col['source_id']}{ws.max_row}"
@@ -345,8 +332,8 @@ def sheet_stats(ws, rows: list[dict]) -> None:
     from openpyxl.utils import get_column_letter
 
     years = list(range(YEAR_MIN, YEAR_MAX + 1))
-    _head(ws, ["№", "Название", "Место (как в источнике)"]
-              + [str(y) for y in years] + ["Лет с числами", "Наибольшее"])
+    head_row(ws, ["№", "Название", "Место (как в источнике)"]
+                 + [str(y) for y in years] + ["Лет с числами", "Наибольшее"])
     for letter, width in (("A", 6), ("B", 44), ("C", 52)):
         ws.column_dimensions[letter].width = width
     first_year_col, last_year_col = "D", get_column_letter(3 + len(years))
@@ -357,7 +344,7 @@ def sheet_stats(ws, rows: list[dict]) -> None:
     ws.column_dimensions[known_col].width = 12
     ws.column_dimensions[max_col].width = 12
 
-    body = Font(name=FONT, size=10)
+    body = Font(name=FONT, size=SIZE)
     for n, row in enumerate(rows, start=1):
         line = n + 1
         span = f"{first_year_col}{line}:{last_year_col}{line}"
@@ -379,11 +366,9 @@ def sheet_stats(ws, rows: list[dict]) -> None:
 
 def sheet_total(ws, rows: list[dict]) -> None:
     """Сводка. Все числа — формулы: книга остаётся живой после правок листов."""
-    from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
 
     last = len(rows) + 1
-    src = f"Лагеря!$C$2:$C${last}"           # тип лагеря
     ref = {
         "category": f"Лагеря!$C$2:$C${last}",
         "activity": f"Лагеря!$D$2:$D${last}",
@@ -391,48 +376,14 @@ def sheet_total(ws, rows: list[dict]) -> None:
     }
     camps_col = f"Лагеря!$V$2:$V${last}"     # 1 у первой записи управления
     peak_col = f"Лагеря!$M$2:$M${last}"      # наибольшая численность
-
-    title_font = Font(name=FONT, bold=True, size=13)
-    head_font = Font(name=FONT, bold=True, size=10, color="FFFFFF")
-    head_fill = PatternFill("solid", fgColor="44546A")
-    body = Font(name=FONT, size=10)
-    bold = Font(name=FONT, bold=True, size=10)
-    note = Font(name=FONT, italic=True, size=9, color="595959")
     dash = '#,##0;-#,##0;"—"'
 
     for letter, width in (("A", 46), ("B", 13), ("C", 13), ("D", 13), ("E", 16)):
         ws.column_dimensions[letter].width = width
 
-    line = 1
+    cur = Cursor(ws)
 
-    def put(values, *, fonts=None, formats=None, height=None):
-        nonlocal line
-        ws.append(values)
-        for i, cell in enumerate(ws[line]):
-            cell.font = (fonts or body) if not isinstance(fonts, list) else fonts[i]
-            cell.alignment = Alignment(vertical="center",
-                                       horizontal="left" if i == 0 else "right")
-            if formats and i < len(formats) and formats[i]:
-                cell.number_format = formats[i]
-        if height:
-            ws.row_dimensions[line].height = height
-        line += 1
-        return line - 1
-
-    def section(text, comment=None):
-        put([text], fonts=title_font, height=26)
-        if comment:
-            put([comment], fonts=note, height=14)
-
-    def header(cells):
-        row = put(cells, fonts=[head_font] * len(cells))
-        for cell in ws[row]:
-            cell.fill = head_fill
-            cell.alignment = Alignment(vertical="center", horizontal="center",
-                                       wrap_text=True)
-        ws.row_dimensions[row].height = 30
-
-    section("Слой в целом")
+    cur.section("Слой в целом")
     for label, formula, fmt in [
         ("Записей — мест размещения управлений", f"=COUNTA(Лагеря!$B$2:$B${last})", "#,##0"),
         ("Лагерных управлений", f"=SUM({camps_col})", "#,##0"),
@@ -443,35 +394,36 @@ def sheet_total(ws, rows: list[dict]) -> None:
         ("Самый ранний год работы", f"=MIN(Лагеря!$J$2:$J${last})", "0"),
         ("Самый поздний год работы", f"=MAX(Лагеря!$K$2:$K${last})", "0"),
     ]:
-        put([label, formula], formats=[None, fmt])
-    put([])
+        cur.row([label, formula], formats=[None, fmt])
+    cur.blank()
 
     def group(caption, comment, field, values):
-        section(caption, comment)
-        header(["Значение", "Мест", "Управлений", "С числами", "Наибольшая численность"])
-        first = line
+        cur.section(caption, comment)
+        cur.header(["Значение", "Мест", "Управлений", "С числами",
+                    "Наибольшая численность"], height=30)
+        first = cur.line + 1
         rng = ref[field]
         for value in values:
             if value is None:
-                put(["(не указано)",
-                     f'=SUMPRODUCT(({rng}="")*1)',
-                     f'=SUMPRODUCT(({rng}="")*{camps_col})',
-                     f'=SUMPRODUCT(({rng}="")*({peak_col}>0))',
-                     f'=SUMPRODUCT(MAX(({rng}="")*{peak_col}))'],
-                    formats=[None, "#,##0", "#,##0", "#,##0", dash])
+                cur.row(["(не указано)",
+                         f'=SUMPRODUCT(({rng}="")*1)',
+                         f'=SUMPRODUCT(({rng}="")*{camps_col})',
+                         f'=SUMPRODUCT(({rng}="")*({peak_col}>0))',
+                         f'=SUMPRODUCT(MAX(({rng}="")*{peak_col}))'],
+                        formats=[None, "#,##0", "#,##0", "#,##0", dash])
             else:
-                r = line
-                put([value,
-                     f"=COUNTIF({rng},$A{r})",
-                     f"=SUMIFS({camps_col},{rng},$A{r})",
-                     f'=COUNTIFS({rng},$A{r},{peak_col},">0")',
-                     f"=SUMPRODUCT(MAX(({rng}=$A{r})*{peak_col}))"],
-                    formats=[None, "#,##0", "#,##0", "#,##0", dash])
-        totals = put(["Итого"] + [f"=SUM({get_column_letter(c)}{first}:{get_column_letter(c)}{line - 1})"
-                                  for c in range(2, 5)] + [""],
-                     fonts=bold, formats=[None, "#,##0", "#,##0", "#,##0", None])
-        ws[f"A{totals}"].font = bold
-        put([])
+                r = cur.line + 1
+                cur.row([value,
+                         f"=COUNTIF({rng},$A{r})",
+                         f"=SUMIFS({camps_col},{rng},$A{r})",
+                         f'=COUNTIFS({rng},$A{r},{peak_col},">0")',
+                         f"=SUMPRODUCT(MAX(({rng}=$A{r})*{peak_col}))"],
+                        formats=[None, "#,##0", "#,##0", "#,##0", dash])
+        cur.row(["Итого"]
+                + [f"=SUM({get_column_letter(c)}{first}:{get_column_letter(c)}{cur.line})"
+                   for c in range(2, 5)] + [""],
+                font=cur.bold, formats=[None, "#,##0", "#,##0", "#,##0", None])
+        cur.blank()
 
     group("По типу лагеря",
           "Справочник проекта. «Итого» сходится с числом записей слоя.",
@@ -483,17 +435,17 @@ def sheet_total(ws, rows: list[dict]) -> None:
           "Производственный профиль из справочника проекта; написание — как в источнике.",
           "activity", _values(rows, "activity"))
 
-    section("Учтённая численность по годам",
-            "Сумма того, что учтено в этих карточках, а не численность системы "
-            "лагерей в этом году: у большинства мест числа есть лишь за часть лет.")
-    header(["Год", "Записей с числом", "Из них больше нуля",
-            "Сумма учтённого", "Наибольшее в одной записи"])
+    cur.section("Учтённая численность по годам",
+                "Сумма того, что учтено в этих карточках, а не численность системы "
+                "лагерей в этом году: у большинства мест числа есть лишь за часть лет.")
+    cur.header(["Год", "Записей с числом", "Из них больше нуля",
+                "Сумма учтённого", "Наибольшее в одной записи"], height=30)
     for i, year in enumerate(range(YEAR_MIN, YEAR_MAX + 1)):
         column = get_column_letter(4 + i)
         span = f"'Численность по годам'!{column}$2:{column}${last}"
-        put([year, f"=COUNT({span})", f'=COUNTIF({span},">0")',
-             f"=SUM({span})", f"=MAX({span})"],
-            formats=["0", "#,##0", "#,##0", "#,##0", dash])
+        cur.row([year, f"=COUNT({span})", f'=COUNTIF({span},">0")',
+                 f"=SUM({span})", f"=MAX({span})"],
+                formats=["0", "#,##0", "#,##0", "#,##0", dash])
 
     ws.freeze_panes = "A2"
 
@@ -513,41 +465,22 @@ def _values(rows: list[dict], field: str) -> list:
 
 
 def sheet_about(ws) -> None:
-    from openpyxl.styles import Alignment, Font
-
+    """Откуда данные, что с ними можно, чего в них нет, и словарь колонок."""
     ws.column_dimensions["A"].width = 34
     ws.column_dimensions["B"].width = 104
-    line = 1
+    cur = Cursor(ws)
+
     for block in ABOUT:
         kind, rest = block[0], block[1:]
         if kind == "h":
-            ws.cell(row=line, column=1, value=rest[0]).font = Font(name=FONT, bold=True, size=13)
-            ws.row_dimensions[line].height = 26
+            cur.section(rest[0])
         elif kind == "p":
-            cell = ws.cell(row=line, column=1, value=rest[0])
-            cell.font = Font(name=FONT, size=10)
-            cell.alignment = Alignment(wrap_text=True, vertical="top")
-            ws.merge_cells(start_row=line, start_column=1, end_row=line, end_column=2)
-            ws.row_dimensions[line].height = 14 * (1 + len(rest[0]) // 130)
+            cur.paragraph(rest[0])
         else:
-            key = ws.cell(row=line, column=1, value=rest[0])
-            key.font = Font(name=FONT, bold=True, size=10)
-            key.alignment = Alignment(vertical="top")
-            val = ws.cell(row=line, column=2, value=rest[1])
-            val.font = Font(name=FONT, size=10)
-            val.alignment = Alignment(wrap_text=True, vertical="top")
-            ws.row_dimensions[line].height = 14 * (1 + len(rest[1]) // 100)
-        line += 1
+            cur.pair(rest[0], rest[1])
 
     for title, text in COLUMN_NOTES.items():
-        key = ws.cell(row=line, column=1, value=title)
-        key.font = Font(name=FONT, bold=True, size=10)
-        key.alignment = Alignment(vertical="top")
-        val = ws.cell(row=line, column=2, value=text)
-        val.font = Font(name=FONT, size=10)
-        val.alignment = Alignment(wrap_text=True, vertical="top")
-        ws.row_dimensions[line].height = 14 * (1 + len(text) // 100)
-        line += 1
+        cur.pair(title, text)
 
 
 def main(argv=None) -> int:

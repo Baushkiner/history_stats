@@ -8,17 +8,15 @@
 
 import sqlite3
 import struct
-import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.sources.geopackage import (  # noqa: E402
+from histctx.sources.geopackage import (
     GeoPackageError, layers, parse_geometry, read_features,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 SQUARE = [[0.0, 0.0], [0.0, 10.0], [10.0, 10.0], [10.0, 0.0], [0.0, 0.0]]
 HOLE = [[2.0, 2.0], [4.0, 2.0], [4.0, 4.0], [2.0, 4.0], [2.0, 2.0]]

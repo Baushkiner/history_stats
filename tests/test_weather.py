@@ -5,23 +5,21 @@
 попадает: иначе карта заполнится записями «в 1873 году была погода».
 """
 
-import sys
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from histctx.schema import SCOPE_REGION  # noqa: E402
-from histctx.sources.weather import (  # noqa: E402
+from histctx.schema import SCOPE_REGION
+from histctx.sources.weather import (
     WEATHER_REGIONS, WEATHER_STATIONS, Observation, WeatherError, find_anomalies,
     read_series, region_records, station_records,
 )
 
+ROOT = Path(__file__).resolve().parents[1]
+
 NORMAL_T = {1: -10.0, 2: -9.0, 3: -3.0, 4: 5.0, 5: 12.0, 6: 17.0,
             7: 19.0, 8: 17.0, 9: 11.0, 10: 4.0, 11: -3.0, 12: -8.0}
-NORMAL_P = {m: 50.0 for m in range(1, 13)}
+NORMAL_P = dict.fromkeys(range(1, 13), 50.0)
 
 
 def series(years, *, station="A", region="Самарская губерния", lat=53.2, lon=50.15,
@@ -82,7 +80,7 @@ def test_threshold_is_adjustable():
 
 def test_small_deviation_is_not_a_drought():
     """Ровный ряд: самый сухой год выпадает по σ, но по величине это не засуха."""
-    mild = [o for o in series(YEARS)]
+    mild = list(series(YEARS))
     mild = [o.__class__(**{**o.__dict__, "prcp": o.prcp * 0.9})
             if o.year == 1891 and o.month in (4, 5, 6, 7, 8) else o for o in mild]
     assert 1891 not in find_anomalies(mild)

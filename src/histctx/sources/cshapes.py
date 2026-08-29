@@ -52,17 +52,13 @@ from io import BytesIO
 from typing import Iterable, Optional
 
 from ..geo import in_bbox
+from ..net import USER_AGENT
 from ..schema import LayerSpec
 from .shapefile import ShapefileError, features, read_dbf, read_shapes
 
 DATASET_URL = "https://icr.ethz.ch/data/cshapes/"
 ARCHIVE_URL = "https://icr.ethz.ch/data/cshapes/CShapes-2.0.zip"
 
-# Заголовки HTTP кодируются latin-1 — в User-Agent только ASCII.
-USER_AGENT = (
-    "histctx/0.2 (https://xn----ctbkalderxbemeylx6aq.xn--p1ai/; "
-    "historical context harvesting for genealogy)"
-)
 
 CITATION = (
     "Schvitz, Guy; Girardin, Luc; Rüegger, Seraina; Weidmann, Nils B.; "

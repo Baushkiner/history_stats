@@ -26,12 +26,12 @@ import argparse
 import sys
 from collections import Counter
 from pathlib import Path
+from typing import Optional
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+from _paths import ROOT
 
-from histctx.io_formats import write_jsonl, write_records_json  # noqa: E402
-from histctx.sources.errhs import (  # noqa: E402
+from histctx.io_formats import write_jsonl, write_records_json
+from histctx.sources.errhs import (
     CONFIDENCE_UNMATCHED, HARVEST_PRICES, TOPICS, ErrhsError, RistatCatalog,
     read_figures, region_records,
 )
@@ -74,8 +74,8 @@ def check(catalog: RistatCatalog, topic: str, benchmark: int) -> int:
     return 0
 
 
-def build(catalog: RistatCatalog, out_dir: Path, *, only: list[str] | None,
-          benchmarks: list[int] | None) -> int:
+def build(catalog: RistatCatalog, out_dir: Path, *, only: Optional[list[str]],
+          benchmarks: Optional[list[int]]) -> int:
     figures, rows_read, tables = [], 0, 0
     for topic, (title, years) in TOPICS.items():
         if only and topic not in only:
