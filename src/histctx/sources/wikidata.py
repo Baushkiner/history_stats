@@ -531,6 +531,7 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
                   extra: Optional[list[str]] = None,
                   with_owner: bool = False,
                   max_objects: Optional[int] = None,
+                  failures: Optional[list[str]] = None,
                   progress: Optional[Callable[[str], None]] = None) -> list[ContextRecord]:
     """Собирает слой в две ступени по всем государствам-преемникам.
 
@@ -544,8 +545,15 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
     Ошибка на одном государстве или на одном чанке не отменяет сбор: она
     печатается и работа идёт дальше. Потерять область хуже, чем потерять всё,
     но молча терять нельзя — поэтому о каждой потере сообщается.
+
+    `failures` — список, куда складываются описания таких потерь. Печати мало:
+    вызывающая сторона пишет выгрузку поверх прежней, и без списка она не
+    отличит полный сбор от сбора, потерявшего две страны из семнадцати.
+    Проверено на живом случае: 29.08.2026 у слоя иных конфессий Россия и
+    Польша ответили 504, и слой из 2 964 записей записался бы как 1 974.
     """
     say = progress or (lambda _: None)
+    lost = failures if failures is not None else []
 
     qids: list[str] = []
     seen: set[str] = set()
@@ -555,6 +563,7 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
             rows = client.query(ids_query(step_classes, country, extra, kind))
         except SparqlError as exc:
             say(f"    {name}: ОШИБКА — {exc}")
+            lost.append(f"первая ступень, {name}: {exc}")
             continue
         fresh = 0
         for row in rows:
@@ -588,6 +597,7 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
             rows = client.query(details_query(chunk, kind, with_owner=with_owner))
         except SparqlError as exc:
             say(f"    подробности {start}–{start + len(chunk)}: ОШИБКА — {exc}")
+            lost.append(f"вторая ступень, объекты {start}–{start + len(chunk)}: {exc}")
             continue
         records.extend(rows_to_records(rows, spec, require_bbox=require_bbox, kind=kind))
         say(f"    подробности {start + len(chunk)}/{len(qids)}")

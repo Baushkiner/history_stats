@@ -4,6 +4,7 @@
 """
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -531,14 +532,29 @@ def test_collect_layer_does_not_ask_the_same_object_twice():
 
 def test_collect_layer_survives_a_failing_country():
     """Потерять область плохо, потерять весь слой хуже — но молчать нельзя."""
-    said = []
+    said, lost = [], []
     client = _FakeClient([SparqlError("504")] + [[_id_row("Q1")]]
                          + [[]] * (len(COUNTRIES) - 2)
                          + [[_row(item="http://www.wikidata.org/entity/Q1",
                                   itemLabel="Храм", coord="Point(37.6 55.7)")]])
-    recs = collect_layer(client, ["Q16970"], SPEC, progress=said.append)
+    recs = collect_layer(client, ["Q16970"], SPEC, progress=said.append, failures=lost)
     assert len(recs) == 1
     assert any("ОШИБКА" in line for line in said)
+    # Печати мало: вызывающая сторона пишет выгрузку поверх прежней и без
+    # списка не отличит полный сбор от потерявшего страну.
+    assert len(lost) == 1 and "первая ступень" in lost[0] and "504" in lost[0]
+
+
+def test_collect_layer_reports_a_failing_chunk_too():
+    """Потерянный чанк усекает слой так же, как потерянная страна."""
+    lost = []
+    client = _FakeClient([[_id_row(f"Q{i}") for i in range(1500)]]
+                         + [[]] * (len(COUNTRIES) - 1)
+                         + [SparqlError("504"),
+                            [_row(item="http://www.wikidata.org/entity/Q1",
+                                  itemLabel="Храм", coord="Point(37.6 55.7)")]])
+    collect_layer(client, ["Q16970"], SPEC, chunk_size=1000, failures=lost)
+    assert len(lost) == 1 and "вторая ступень" in lost[0]
 
 
 def test_collect_layer_chunks_long_lists():
@@ -779,3 +795,76 @@ def test_all_shipped_queries_pass_the_directive_check():
     for path in sorted((ROOT / "queries").glob("*.rq")):
         meta = mod.parse_query(path)
         assert mod.check_directives(meta) == [], path.name
+
+
+def _previous_layer(path: Path, n: int) -> None:
+    """Кладёт на диск «прежнюю выгрузку» из n точек."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({
+        "type": "FeatureCollection",
+        "features": [{"type": "Feature", "id": f"churches:{i}",
+                      "geometry": {"type": "Point", "coordinates": [37.6, 55.7]},
+                      "properties": {"uid": f"churches:{i}", "layer": "churches",
+                                     "title": f"Храм {i}"}} for i in range(n)],
+    }, ensure_ascii=False), encoding="utf-8")
+
+
+def _one_object_client(first=None):
+    """Отвечает на первую страну `first`, на вторую — одним объектом."""
+    return _FakeClient([first if first is not None else [_id_row("Q1")]]
+                       + [[_id_row("Q1")]] * (1 if first is not None else 0)
+                       + [[]] * (len(COUNTRIES) - (2 if first is not None else 1))
+                       + [[_row(item="http://www.wikidata.org/entity/Q1",
+                                itemLabel="Храм", coord="Point(37.6 55.7)")]])
+
+
+def test_partial_harvest_does_not_overwrite_a_full_layer(tmp_path, capsys):
+    """Живой случай 29.08.2026: две страны ответили 504, слой усох втрое.
+
+    Прежняя выгрузка собрана целиком, эта — нет. Записать вторую поверх
+    первой значит потерять данные молча, а сбор для того и терпит осечку
+    страны, чтобы не терять всё.
+    """
+    mod = _harvest_module()
+    meta = mod.parse_query(ROOT / "queries" / "churches.rq")
+    geo = tmp_path / "geojson" / "churches.geojson"
+    _previous_layer(geo, 10)
+
+    written = mod.harvest(_one_object_client(SparqlError("504")), meta, SPEC,
+                          tmp_path, False, 5000)
+
+    assert written == 0
+    assert len(json.loads(geo.read_text(encoding="utf-8"))["features"]) == 10
+    assert "НЕ ЗАПИСАНО" in capsys.readouterr().err
+
+
+def test_layer_that_shrank_without_errors_is_not_written_either(tmp_path, capsys):
+    """Сервис умеет ответить успехом и пустотой: отказов нет, слоя тоже."""
+    mod = _harvest_module()
+    meta = mod.parse_query(ROOT / "queries" / "churches.rq")
+    geo = tmp_path / "geojson" / "churches.geojson"
+    _previous_layer(geo, 100)
+
+    assert mod.harvest(_one_object_client(), meta, SPEC, tmp_path, False, 5000) == 0
+    assert len(json.loads(geo.read_text(encoding="utf-8"))["features"]) == 100
+    assert "усох" in capsys.readouterr().err
+
+
+def test_force_writes_the_short_layer_when_the_loss_is_deliberate(tmp_path):
+    mod = _harvest_module()
+    meta = mod.parse_query(ROOT / "queries" / "churches.rq")
+    geo = tmp_path / "geojson" / "churches.geojson"
+    _previous_layer(geo, 100)
+
+    assert mod.harvest(_one_object_client(), meta, SPEC, tmp_path, False, 5000,
+                       force=True) == 1
+    assert len(json.loads(geo.read_text(encoding="utf-8"))["features"]) == 1
+
+
+def test_a_layer_may_lose_a_record_or_two_between_harvests(tmp_path):
+    """Викиданные живут: рудники потеряли одну запись из 1045, и это норма."""
+    mod = _harvest_module()
+    assert mod.refuse_to_write([], 1044, 1045) is None
+    assert mod.refuse_to_write([], 12, 0) is None, "новый слой сравнивать не с чем"
+    assert mod.refuse_to_write([], 1974, 2964)
+    assert mod.refuse_to_write(["первая ступень, Россия: 504"], 2964, 2964)

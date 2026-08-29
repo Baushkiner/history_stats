@@ -15,9 +15,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
+from typing import Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -174,7 +176,8 @@ def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
             paged: bool, page_size: int,
             countries: tuple = COUNTRIES,
             history: tuple = (),
-            max_objects: int = None) -> list:
+            max_objects: int = None,
+            failures: list = None) -> list:
     """Собирает записи слоя — тем способом, который объявлен в `@scope`."""
     classes = [qid for qid, _ in meta["qids"]]
     # Заголовок уже проверен `check_queries`, и сбор сюда не дошёл бы, если
@@ -192,7 +195,7 @@ def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
             kind=meta["kind"], countries=layer_countries(meta, countries),
             history=history,
             extra=meta["filters"], with_owner=bool(meta.get("owner")),
-            max_objects=max_objects, progress=print,
+            max_objects=max_objects, failures=failures, progress=print,
         )
 
     if max_objects is not None:
@@ -256,15 +259,54 @@ def probe(client: SparqlClient, meta: dict, spec: LayerSpec) -> int:
     return 0
 
 
+# Насколько слою позволено усохнуть между сборками. Викиданные живут: объект
+# теряет координату, у другого меняется класс, третий сливают с дубликатом —
+# рудники между двумя сборами потеряли одну запись из 1045, и это норма.
+# Треть слоя — не норма.
+SHRINK_LIMIT = 0.9
+
+
+def refuse_to_write(failures: list, fresh: int, previous: int) -> Optional[str]:
+    """Причина не перезаписывать прежнюю выгрузку — или None, если можно.
+
+    Сбор терпит осечку на отдельной стране: потерять область лучше, чем
+    потерять всё. Но записать усечённый слой поверх полного — это и есть
+    потерять всё, только молча. Живой случай 29.08.2026: у слоя иных
+    конфессий Россия и Польша ответили 504, и 2 964 записи превратились бы
+    в 1 974 без единого вопроса.
+
+    Проверок две, и вторая нужна не меньше первой: сервис умеет отвечать
+    успехом и пустотой одновременно, и тогда отказов нет, а слоя нет тоже.
+    """
+    if failures:
+        return ("сбор прошёл не целиком — " + "; ".join(failures))
+    if previous and fresh < previous * SHRINK_LIMIT:
+        return (f"слой усох против прежней выгрузки: было {previous}, "
+                f"стало {fresh} ({round(100 * fresh / previous)}%)")
+    return None
+
+
+def features_in(path: Path) -> int:
+    """Сколько точек в прежней выгрузке. Нет файла — считаем, что ноль."""
+    if not path.exists():
+        return 0
+    try:
+        return len(json.loads(path.read_text(encoding="utf-8")).get("features", []))
+    except (OSError, ValueError):
+        return 0
+
+
 def harvest(client: SparqlClient, meta: dict, spec: LayerSpec, out_dir: Path,
-            paged: bool, page_size: int) -> int:
+            paged: bool, page_size: int, force: bool = False) -> int:
     print(f"Сбор слоя «{meta['title']}» ({meta['layer']})…")
+    failures: list[str] = []
     # У события P17 указывает на государство времён события, а не на нынешнее,
     # поэтому слои событий обходят ещё и исторические государства. Проба этого
     # не делает намеренно: она стоит два обращения к сервису, и так и должно
     # остаться.
     records = collect(client, meta, spec, paged=paged, page_size=page_size,
-                      history=HISTORICAL_COUNTRIES if meta["kind"] == "event" else ())
+                      history=HISTORICAL_COUNTRIES if meta["kind"] == "event" else (),
+                      failures=failures)
     print(f"  с координатами в границах РИ/СССР: {len(records)}")
     dated = sum(1 for r in records if r.has_time)
     print(f"  с датировкой: {dated}")
@@ -280,7 +322,20 @@ def harvest(client: SparqlClient, meta: dict, spec: LayerSpec, out_dir: Path,
         return 0
 
     slug = spec.slug
-    write_geojson(records, out_dir / "geojson" / f"{slug}.geojson", layer_title=spec.title)
+    geo_path = out_dir / "geojson" / f"{slug}.geojson"
+    reason = refuse_to_write(failures, len(records), features_in(geo_path))
+    if reason and not force:
+        # Прежняя выгрузка остаётся на месте: она собрана целиком, а эта —
+        # нет. Молча подменить полное неполным нельзя, а решать, что делать
+        # дальше — пересобрать слой или согласиться на потерю, — человеку.
+        print(f"  НЕ ЗАПИСАНО: {reason}", file=sys.stderr)
+        print(f"  прежняя выгрузка {slug}.* сохранена; пересоберите слой "
+              f"позже или, если потеря осознанная, повторите с --force",
+              file=sys.stderr)
+        return 0
+    if reason:
+        print(f"  ЗАПИСАНО ПОВЕРХ, хотя {reason} (--force)", file=sys.stderr)
+    write_geojson(records, geo_path, layer_title=spec.title)
     write_jsonl(records, out_dir / "jsonl" / f"{slug}.jsonl")
     write_xlsx(records, out_dir / "xlsx" / f"{slug}.xlsx", sheet_name=spec.title)
     print(f"  записано в {out_dir}/{{geojson,jsonl,xlsx}}/{slug}.*")
@@ -296,6 +351,9 @@ def main() -> int:
                     help="живая проба по одному государству (при @scope class — "
                          "по всем классам), без записи файлов")
     ap.add_argument("--paged", action="store_true", help="постраничный сбор для больших слоёв")
+    ap.add_argument("--force", action="store_true",
+                    help="записать выгрузку, даже если сбор прошёл не целиком "
+                         "или слой заметно усох против прежнего")
     ap.add_argument("--page-size", type=int, default=5000)
     ap.add_argument("--out", type=Path, default=ROOT / "data" / "out")
     ap.add_argument("--cache", type=Path, default=ROOT / "data" / "cache")
@@ -354,7 +412,8 @@ def main() -> int:
             print(f"  слой {meta['layer']} не описан в registry.py — пропускаю", file=sys.stderr)
             continue
         try:
-            total += harvest(client, meta, spec, args.out, args.paged, args.page_size)
+            total += harvest(client, meta, spec, args.out, args.paged,
+                             args.page_size, force=args.force)
         except SparqlError as exc:
             print(f"  ОШИБКА при сборе {meta['layer']}: {exc}", file=sys.stderr)
 
