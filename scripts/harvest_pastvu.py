@@ -33,8 +33,7 @@ from typing import Optional
 from _paths import ROOT
 
 from histctx.geo import BBOX_RU, BBOX_RU_EAST
-from histctx.io_formats import HOISTABLE, write_jsonl
-from histctx.schema import COLUMNS, ContextRecord
+from histctx.io_formats import HOISTABLE, record_from_row, write_jsonl
 from histctx.sources.pastvu import (
     PASTVU_PHOTOS, YEAR_MAX, YEAR_MIN, PastVuClient, PastVuError,
     check_photo_fields, grid, in_requested_bbox, photos_to_records,
@@ -320,6 +319,10 @@ class Journal:
             print(f"  прошлый журнал отложен: {moved}")
 
     def write(self, records: list) -> int:
+        # Строка журнала — это строка выгрузки: то же, что пишет
+        # `io_formats.write_jsonl`, и читается она обратно тем же
+        # `record_from_row`. Своя запись нужна только потому, что журнал
+        # дописывается по клетке, а не пишется файлом за раз.
         for rec in records:
             row = rec.to_row()
             if rec.extra:
@@ -344,7 +347,7 @@ class Journal:
             for line in fh:
                 line = line.strip()
                 if line:
-                    yield _record_from_row(json.loads(line))
+                    yield record_from_row(json.loads(line))
 
     def _read_cells(self) -> set:
         with self.cells_path.open(encoding="utf-8") as fh:
@@ -460,17 +463,6 @@ def _shared_layer_props(records) -> dict:
         if not shared:
             break
     return shared or {}
-
-
-def _record_from_row(row: dict) -> ContextRecord:
-    """Строка выгрузки обратно в запись: поля те же, что пишет `to_row`."""
-    data = {k: row.get(k) for k in COLUMNS if row.get(k) is not None}
-    regions = data.pop("regions", None)
-    return ContextRecord(
-        **data,
-        regions=[r.strip() for r in str(regions).split(";") if r.strip()] if regions else [],
-        extra=row.get("extra") or {},
-    )
 
 
 def _key(cell: tuple) -> str:

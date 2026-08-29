@@ -207,12 +207,15 @@ def find_anomalies(observations: Iterable[Observation], *,
     if len(by_year) < min_years:
         return {}
 
+    # Холодное и жаркое лето меряются по одному ряду — средней температуре
+    # лета; расходятся они только знаком отклонения, см. `direction`.
+    summer_tavg = _season_series(by_year, SUMMER, "tavg", how="mean")
     series = {
         "засуха": _season_series(by_year, GROWING, "prcp", how="sum"),
         "дождливое лето": _season_series(by_year, SUMMER, "prcp", how="sum"),
         "суровая зима": _season_series(by_year, WINTER, "tavg", how="mean"),
-        "холодное лето": _season_series(by_year, SUMMER, "tavg", how="mean"),
-        "жаркое лето": _season_series(by_year, SUMMER, "tavg", how="mean"),
+        "холодное лето": summer_tavg,
+        "жаркое лето": summer_tavg,
     }
     # Знак: у засухи, суровой зимы и холодного лета аномалия отрицательная.
     direction = {"засуха": -1, "суровая зима": -1, "холодное лето": -1,

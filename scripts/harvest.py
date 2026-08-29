@@ -19,7 +19,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 from _paths import ROOT
 
@@ -345,6 +345,22 @@ def harvest(client: SparqlClient, meta: dict, spec: LayerSpec, out_dir: Path,
     return len(records)
 
 
+def described(metas: list[dict]) -> Iterator[tuple[dict, LayerSpec]]:
+    """Слои вместе с их описанием из реестра; необъявленные пропускаются.
+
+    Запрос без строки в `registry.py` — это слой без названия, прав и
+    источника: собрать его можно, но выгрузка вышла бы безымянной. Пропуск
+    печатается, а не проглатывается: файл в `queries/` кто-то положил не зря.
+    """
+    for meta in metas:
+        spec = BY_SLUG.get(meta["layer"])
+        if spec is None:
+            print(f"  слой {meta['layer']} не описан в registry.py — пропускаю",
+                  file=sys.stderr)
+            continue
+        yield meta, spec
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -397,12 +413,7 @@ def main() -> int:
 
     if args.probe:
         code = 0
-        for meta in metas:
-            spec = BY_SLUG.get(meta["layer"])
-            if spec is None:
-                print(f"  слой {meta['layer']} не описан в registry.py — пропускаю",
-                      file=sys.stderr)
-                continue
+        for meta, spec in described(metas):
             try:
                 code |= probe(client, meta, spec)
             except SparqlError as exc:
@@ -411,11 +422,7 @@ def main() -> int:
         return code
 
     total = 0
-    for meta in metas:
-        spec = BY_SLUG.get(meta["layer"])
-        if spec is None:
-            print(f"  слой {meta['layer']} не описан в registry.py — пропускаю", file=sys.stderr)
-            continue
+    for meta, spec in described(metas):
         try:
             total += harvest(client, meta, spec, args.out, args.paged,
                              args.page_size, force=args.force)
