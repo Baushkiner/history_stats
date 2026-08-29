@@ -767,6 +767,12 @@ Old World Drought Atlas обрывается на 44.75° в. д. — на се�
 Сбор: `python3 scripts/harvest_gulag.py --check`, затем `--build`.
 Разбор — `src/histctx/sources/gulag.py`, тесты — `tests/test_gulag.py`.
 
+Слой читают и глазами, а не только картой, поэтому у него есть своя книга:
+`python3 scripts/export_gulag_xlsx.py` собирает `data/out/xlsx/gulag_camps.xlsx`
+— лагеря, численность по годам, сводка и лист об источнике. Общая выгрузка
+`write_xlsx` пишет поля единой схемы и выбрасывает `extra`, а у этого слоя
+в `extra` лежит как раз численность по годам.
+
 ### Ещё три источника, найденные проходом по каталогу
 
 Полный поисковый проход по всем темам записан в `docs/DISCOVERY.md`; ниже —
