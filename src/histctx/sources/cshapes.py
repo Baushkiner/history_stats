@@ -111,6 +111,7 @@ STATE_BORDERS = LayerSpec(
     url=DATASET_URL,
     status="harvested",
     expected_rows=151,
+    gives_records=False,
 )
 
 # Названия государств в наборе английские, и слой от этого читается хуже, чем

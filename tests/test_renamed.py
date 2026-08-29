@@ -25,6 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from histctx.periods import PRECISION_OPEN  # noqa: E402
 from histctx.registry import BY_SLUG  # noqa: E402
 from histctx.sources.renamed import (  # noqa: E402
     NAMES_CHUNK_SIZE, chain_language, collect, dedupe, group_rows, ids_query,
@@ -206,7 +207,8 @@ def test_unknown_beginning_widens_the_interval_and_says_so():
     """Год начала неизвестен — интервал расширяется, а не сужается."""
     rec = by_title("Гросс-Диршкайм → Донское")[0]
     assert (rec.year_from, rec.year_to) == (1800, 1946)
-    assert rec.date_approx and rec.date_precision == "part"
+    # Измерен только конец, начало взято из рамки проекта — открытый срок.
+    assert rec.date_approx and rec.date_precision == PRECISION_OPEN
     assert rec.period_raw == "до 1946"
     assert rec.extra["name_variants"] == ["Groß Dirschkeim"]
 

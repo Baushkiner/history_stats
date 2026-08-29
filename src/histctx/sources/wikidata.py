@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Callable, Iterator, Optional
 
 from ..geo import in_bbox, valid_coords
+from ..periods import PRECISION_OPEN
 from ..schema import ContextRecord, LayerSpec, clean_text
 
 ENDPOINT = "https://query.wikidata.org/sparql"
@@ -680,10 +681,12 @@ def rows_to_records(rows: list[dict], spec: LayerSpec, *,
                 # `overlaps_years` не нашёл бы объект даже в его собственном
                 # году, хотя в выгрузку он всё равно попал бы.
                 year_to = max(year_from, OPEN_END_YEAR)
-                precision = "part"
+                # Год основания измерен, конец — наш горизонт. Это открытый
+                # срок, а не «часть века»: ширина взята из рамки проекта.
+                precision = PRECISION_OPEN
         if year_to and not year_from:
             year_from = year_to if is_event else min(year_to, 1800)
-            precision = "year" if is_event else "part"
+            precision = "year" if is_event else PRECISION_OPEN
 
         qid = _qid(_val(row, "item"))
         borrowed = _val(row, "coordSource") == "place"
@@ -697,7 +700,7 @@ def rows_to_records(rows: list[dict], spec: LayerSpec, *,
             year_from=year_from,
             year_to=year_to,
             date_precision=precision,
-            date_approx=precision == "part",
+            date_approx=precision == PRECISION_OPEN,
             period_raw=_raw_period(_val(row, "start"), _val(row, "end")),
             # Владелец имения — признак самого места, а не отдельная запись
             # о человеке: персоналии проект не собирает. Поле то же, что у

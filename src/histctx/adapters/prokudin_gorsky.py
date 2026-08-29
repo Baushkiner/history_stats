@@ -46,7 +46,11 @@ def load_prokudin_gorsky(path: Path) -> list:
             place_text=place,
             year_from=YEAR_FROM,
             year_to=YEAR_TO,
-            date_precision="part",
+            # Границы — годы экспедиций, они названы точно; какой именно год
+            # у конкретного снимка, каталог не говорит, и это сказано в
+            # `date_approx`. «Часть века» здесь была неправдой: 1903–1916 —
+            # четырнадцать названных лет, а не половина столетия.
+            date_precision="year",
             date_approx=True,
             period_raw="1903–1916",
             actor="С. М. Прокудин-Горский",

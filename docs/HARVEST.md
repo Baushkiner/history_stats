@@ -16,11 +16,11 @@
 | `ru.wikipedia.org` | Проверка ссылок-пояснений в подборке событий |
 | `api.pastvu.com`, `pastvu.com` | Старые фотографии с координатами и датировкой |
 | `meteo.ru` | Ряды метеонаблюдений ВНИИГМИ-МЦД, суточные и месячные, с 1881 года |
-| `www.ncei.noaa.gov` | GHCN-M: месячные ряды станций — температура с 1760-х, осадки с 1697-го, отсюда собираются оба погодных слоя; NOAA Paleoclimatology: атласы засух по годичным кольцам (ERDA, OWDA) |
+| `www.ncei.noaa.gov` | GHCN-M: месячные и суточные ряды станций, в том числе российских, — температура с 1760-х, осадки с 1697-го; отсюда собираются оба погодных слоя. NOAA Paleoclimatology: атласы засух по годичным кольцам (ERDA, OWDA) |
 | `psl.noaa.gov` | Реанализ 20CRv3 (с 1836 года) — там, где станций нет |
 | `crudata.uea.ac.uk` | CRU TS: сеточные ряды температуры и осадков |
-| `heidata.uni-heidelberg.de`, `doi.org` | Полигоны губерний 1897 и 1926 годов с итогами переписей (CC BY 4.0) |
-| `datasets.iisg.amsterdam`, `ristat.org`, `etl.ristat.org` | RISTAT: границы уездов 1897 года (CC0), таблицы ERRHS — урожай, посев и цены по губерниям — и свод стачек 1895–1904 годов (CC0). Архив выгрузки ERRHS собирается под запрос и отдаётся с `etl.ristat.org` |
+| `heidata.uni-heidelberg.de`, `doi.org` | Полигоны губерний 1897 и 1926 годов с итогами переписей (CC BY 4.0). Уездов в наборе нет — они берутся у RISTAT, см. строку ниже |
+| `ristat.org`, `etl.ristat.org`, `datasets.iisg.amsterdam` | RISTAT: границы уездов 1897 года (CC0) — тот же слой границ, альтернативный источник; статистические таблицы ERRHS — урожай, посев и цены по губерниям; свод стачек 1895–1904 годов (CC0). Архив выгрузки собирается под запрос и отдаётся с `etl.ristat.org` |
 | `icr.ethz.ch` | CShapes 2.0 — границы государств по датам их изменения (CC BY-NC-SA 4.0). Рвёт скачивание: сбор повторяет попытку |
 | `gulagmap.ru` | Лагерные управления 1918–1960 годов: `/api/camps` и три справочника к нему |
 | `russiainphoto.ru` | Фотоархив МАММ — снимки **только после договорённости**, см. `docs/CATALOG.md` |
@@ -36,20 +36,15 @@
 (`docs/DISCOVERY.md`), и подключение нового источника обычно означает новый
 домен в этой таблице. Строка сюда добавляется вместе с самим сборщиком — чтобы не
 выяснять задним числом, зачем окружению понадобился очередной адрес.
-Ближайший кандидат: статистические таблицы ERRHS с
-`datasets.iisg.amsterdam` — домен уже в таблице выше.
 
 Три нижние строки таблицы — исключение из правила «строка вместе со
 сборщиком»: слои `census_1897_uezd`, `openhistoricalmap` и `famine_1891`
 объявлены проходом по каталогу 23.08.2026, сборщиков у них ещё нет, а адреса
 понадобились уже на проверке — без них следующий проход снова упрётся
-в CONNECT и будет гадать, зачем эти домены нужны.
-Ближайшие кандидаты: `www.ncei.noaa.gov` (реконструкция засух по годичным
-кольцам, NOAA Paleoclimatology) и статистические таблицы ERRHS с
-`datasets.iisg.amsterdam` — оба домена уже в таблице выше. Третий,
-`dataverse.harvard.edu`, в таблице ещё не появился: наборы Imperiia Project
-(1820-е годы, CC BY-NC-SA 4.0) записаны в журнал дискавери со статусом «на
-очереди», и строка домена придёт вместе со сборщиком, а не раньше.
+в CONNECT и будет гадать, зачем эти домены нужны. Наборы Imperiia Project
+(1820-е годы, CC BY-NC-SA 4.0) стоят в журнале дискавери со статусом «на
+очереди»; лежат они на `dataverse.harvard.edu`, и домен в таблице уже есть —
+пришёл с уездным набором по голоду.
 
 ## Порядок
 
@@ -80,21 +75,25 @@ python3 scripts/harvest_geonames.py --build
 # 4. Лагерные управления: сначала проверка ответа API
 python3 scripts/harvest_gulag.py --check
 python3 scripts/harvest_gulag.py --build
+python3 scripts/export_gulag_xlsx.py                        # книга для чтения глазами
 
 # 5. Границы и итоги переписей: heiDATA (CC BY 4.0) и RISTAT (CC0)
 python3 scripts/harvest_admin_gis.py --check
 python3 scripts/harvest_admin_gis.py --build
 
-# 7. Границы государств 1886–1960: CShapes 2.0 (CC BY-NC-SA 4.0)
+# 6. Границы государств 1886–1960: CShapes 2.0 (CC BY-NC-SA 4.0)
 python3 scripts/harvest_cshapes.py --check
 python3 scripts/harvest_cshapes.py --build
-# 5. Урожай и цены по губерниям (RISTAT/ERRHS): сначала проба одной таблицы
+
+# 7. Урожай и цены по губерниям (RISTAT/ERRHS): сначала проба одной таблицы
 python3 scripts/harvest_errhs.py --check
 python3 scripts/harvest_errhs.py --build
-# 7. Засухи по годичным кольцам: сначала проба формата набора
+
+# 8. Засухи по годичным кольцам: сначала проба формата набора
 python3 scripts/harvest_drought.py --probe
 python3 scripts/harvest_drought.py --build
-# 6. Погода: ряды GHCN, проба, сборка слоёв. Идёт после границ —
+
+# 9. Погода: ряды GHCN, проба, сборка слоёв. Идёт после границ —
 #    губернию станции берём из полигонов 1897 года (иначе --no-regions)
 python3 scripts/harvest_weather.py --fetch
 python3 scripts/harvest_weather.py --probe data/raw/meteo/ghcn.csv
@@ -102,9 +101,13 @@ python3 scripts/harvest_weather.py --build data/raw/meteo/ghcn.csv \
     --source "GHCN-M v4, NOAA NCEI" \
     --url "https://www.ncei.noaa.gov/products/land-based-station/global-historical-climatology-network-monthly" \
     --license "данные NOAA/NCEI — общественное достояние (работа правительства США), ограничений на использование нет; NOAA требует ссылки на набор и гарантий точности не даёт"
-# 7. Стачки и рабочие волнения 1895–1904 годов: свод IISH (CC0)
+
+# 10. Стачки и рабочие волнения 1895–1904 годов: свод IISH (CC0)
 python3 scripts/harvest_strikes.py --probe
 python3 scripts/harvest_strikes.py --build
+
+# Выгрузка любого собранного слоя в XLSX — записи, сводка, лист об источнике
+python3 scripts/export_layer_xlsx.py --layer repressions
 ```
 
 Восьмая команда сети не требует вовсе: `python3 scripts/export_xlsx.py

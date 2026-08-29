@@ -20,37 +20,17 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from histctx.enrich import ContextEngine, Fact  # noqa: E402
-from histctx.io_formats import read_geojson, read_jsonl  # noqa: E402
+from histctx.io_formats import read_context  # noqa: E402
 from histctx.schema import ContextRecord  # noqa: E402
 
 
 def load_records(out_dir: Path) -> list[ContextRecord]:
-    """Читает context.jsonl, а при его отсутствии — собранные слои из out_dir.
+    """Читает выгрузку из data/out.
 
-    Слоёв два вида, и одним проходом их не собрать. Точечные лежат в
-    `geojson/`, территориальные — губернские итоги переписи, события без
-    точки — в GeoJSON не попадают по определению: у них нет координаты.
-    Они лежат построчным JSON в `jsonl/`, и без второго прохода такой слой
-    был бы собран впустую. Повторы отсеиваются по `uid`.
+    Разбор форматов — `histctx.io_formats`: тем же чтением пользуется отчёт о
+    качестве, и расходиться им нельзя.
     """
-    jsonl = out_dir / "context.jsonl"
-    if jsonl.exists():
-        return read_jsonl(jsonl)
-
-    records: list[ContextRecord] = []
-    seen: set[str] = set()
-    for path in sorted((out_dir / "geojson").glob("*.geojson")):
-        for record in read_geojson(path):
-            seen.add(record.uid)
-            records.append(record)
-
-    for path in sorted((out_dir / "jsonl").glob("*.jsonl")):
-        for record in read_jsonl(path):
-            if record.uid in seen:
-                continue
-            seen.add(record.uid)
-            records.append(record)
-    return records
+    return read_context(out_dir)
 
 
 def main() -> int:
