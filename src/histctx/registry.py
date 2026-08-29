@@ -28,8 +28,9 @@ SPARQL, машинный ответ, — но удобство источник�
 ненаписанного сборщика. Лицензия у CShapes была известна с самого начала
 (CC BY-NC-SA 4.0), и она подходит — проект некоммерческий.
 
-`expected_rows` — грубая оценка порядка величины, а не обещание. Реальное
-число станет известно после первого сбора и должно быть вписано сюда.
+`expected_rows` — у собранного слоя измеренное число записей, у ещё не
+собранного грубая оценка порядка величины, а не обещание. Шестнадцать слоёв
+Викиданных несут здесь итог сбора 24.08.2026; остальные ждут своего.
 """
 
 from __future__ import annotations
@@ -74,7 +75,7 @@ PLANNED = [
     # Группа: церкви, приходы и религиозные общины
     LayerSpec(
         slug="churches", title="Храмы и церкви", group="faith",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=12000,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=31890,
         description=(
             "Приходские церкви и соборы. Ключевой слой для генеалогии: метрические "
             "книги велись по приходам, и храм привязывает предка к конкретному приходу."
@@ -82,12 +83,12 @@ PLANNED = [
     ),
     LayerSpec(
         slug="monasteries", title="Монастыри и пустыни", group="faith",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=2200,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=1916,
         description="Монастыри, лавры, скиты и пустыни — центры паломничества, землевладения и призрения.",
     ),
     LayerSpec(
         slug="other_faiths", title="Мечети, синагоги, кирхи, костёлы", group="faith",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=3500,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=2964,
         description=(
             "Неправославные общины. Для многих родов это единственный способ найти "
             "нужный тип метрических записей: раввинат, мечеть, приход костёла."
@@ -95,7 +96,7 @@ PLANNED = [
     ),
     LayerSpec(
         slug="cemeteries", title="Кладбища и некрополи", group="faith",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=9000,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=8815,
         description="Места захоронений, включая иноверческие и военные.",
     ),
 
@@ -122,7 +123,7 @@ PLANNED = [
     # 8000 были взяты с потолка и завышены втрое.
     LayerSpec(
         slug="settlements_wd", title="Населённые места: год основания", group="admin",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=1031,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=936,
         description=(
             "Второй источник к слою «Населённые места»: у GeoNames года основания нет, "
             "и по времени такое место не подобрать. Здесь берутся только места с датой "
@@ -134,7 +135,7 @@ PLANNED = [
     ),
     LayerSpec(
         slug="renamed_places", title="Переименования населённых мест", group="admin",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=3000,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=4600,
         description=(
             "Прежние названия и годы переименования. Частая причина тупика в поиске: "
             "село в метрике названо иначе, чем на современной карте."
@@ -161,7 +162,7 @@ PLANNED = [
     ),
     LayerSpec(
         slug="epidemics", title="Эпидемии", group="hardship",
-        source="Викиданные + справочная литература", license=WD_CC0, status="planned", expected_rows=5,
+        source="Викиданные + справочная литература", license=WD_CC0, status="planned", expected_rows=1,
         description=(
             "Холера, тиф, оспа, испанка. В метрических книгах видны как всплеск "
             "смертей за короткий срок — слой объясняет причину. Из Викиданных "
@@ -173,13 +174,13 @@ PLANNED = [
     ),
     LayerSpec(
         slug="uprisings", title="Восстания и волнения", group="hardship",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=100,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=126,
         description="Крестьянские, рабочие и национальные выступления с привязкой к местности.",
     ),
     LayerSpec(
         slug="repressions", title="Места репрессий и спецпоселений", group="hardship",
         source="Викиданные", license=WD_CC0,
-        status="planned", expected_rows=600,
+        status="planned", expected_rows=1239,
         description=(
             "Тюрьмы и пересыльные пункты, расстрельные полигоны, места массовых "
             "убийств и братские могилы жертв террора. Лагеря сюда не берутся — "
@@ -188,7 +189,7 @@ PLANNED = [
     ),
     LayerSpec(
         slug="disasters", title="Пожары, наводнения, катастрофы", group="hardship",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=200,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=350,
         description=(
             "Городские пожары, наводнения, крушения — заметные события местной памяти. "
             "Отбор сужен по дате события до 1960 года: без этого слой заполняют теракты "
@@ -199,7 +200,7 @@ PLANNED = [
     # Группа: экономика и пути сообщения
     LayerSpec(
         slug="factories", title="Заводы и фабрики", group="economy",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=1400,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=1258,
         description=(
             "Промышленные предприятия с годом основания. Объясняет, куда уходили "
             "на заработки и почему род перебрался в город."
@@ -207,7 +208,7 @@ PLANNED = [
     ),
     LayerSpec(
         slug="fairs", title="Ярмарки и торги", group="economy",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=70,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=69,
         description=(
             "Места торга — узлы торговых и брачных связей между волостями: гостиные "
             "дворы, крытые рынки и те немногие ярмарки, что есть в Викиданных с "
@@ -221,7 +222,7 @@ PLANNED = [
         # Прежняя оценка в 6 000 взята на глаз и вдвое ниже одной России: проба
         # 23.08.2026 дала по ней 12 013 объектов с координатой. Остальные
         # шестнадцать государств считает координатор при полном сборе.
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=20000,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=24577,
         description=(
             "Станции с годом открытия. Железная дорога резко меняла судьбу села: "
             "появлялся отход, менялась география браков."
@@ -229,12 +230,12 @@ PLANNED = [
     ),
     LayerSpec(
         slug="mines", title="Рудники, копи, промыслы", group="economy",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=1100,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=1045,
         description="Горные заводы, копи, соляные и рыбные промыслы — места отхожих заработков.",
     ),
     LayerSpec(
         slug="estates", title="Усадьбы и имения", group="economy",
-        source="Викиданные", license=WD_CC0, status="planned", expected_rows=7000,
+        source="Викиданные", license=WD_CC0, status="planned", expected_rows=5674,
         description=(
             "Дворянские усадьбы, имения и остзейские мызы с владельцем. До 1861 года "
             "крепостной род почти всегда привязан к конкретному владельцу и имению."
