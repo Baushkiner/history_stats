@@ -120,3 +120,27 @@ def test_empty_geometry_is_not_an_error():
     flags = 0x01 | (1 << 4)
     blob = b"GP" + bytes([0, flags]) + struct.pack("<i", 4326)
     assert parse_geometry(blob) is None
+
+
+def test_xlsx_sheet_title_survives_a_colon(tmp_path):
+    """Регрессия: двоеточие в названии слоя роняло сбор после записи GeoJSON.
+
+    openpyxl запрещает в имени листа `[]:*?/\\`. Очистка в проекте была, но
+    ею пользовалась только многолистовая выгрузка; однолистовая ставила имя
+    как есть. Слой «Населённые места: год основания» собирался, писал
+    GeoJSON и падал на XLSX — команда возвращала ошибку при собранных данных.
+    """
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+    from histctx.io_formats import write_xlsx
+    from histctx.schema import LayerSpec
+
+    spec = LayerSpec(slug="x", title="Населённые места: год основания",
+                     group="admin", source="Викиданные", license="CC0")
+    rec = spec.new_record(title="Псков", lat=57.8, lon=28.3, year_from=903)
+    path = tmp_path / "x.xlsx"
+    assert write_xlsx([rec], path, sheet_name=spec.title) == 1
+
+    from openpyxl import load_workbook
+    assert ":" not in load_workbook(path).sheetnames[0]

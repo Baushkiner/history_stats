@@ -1,15 +1,45 @@
 # @layer factories
 # @title Заводы и фабрики
+# @scope country
 # @qid Q83405 фабрика
+# @qid Q380342 мануфактура
 #
 # Промышленные предприятия с годом основания: куда уходили на заработки.
+#
+# Мануфактура объявлена вторым классом потому, что в Викиданных она не
+# подкласс фабрики: у Q380342 своя ветка («предприятие с ручным трудом и
+# разделением труда»), и `wdt:P279*` до неё не достаёт — проверено запросом.
+# Для 1700–1860-х годов это основной тип предприятия, без него слой начался
+# бы с эпохи паровых машин, то есть с той поры, когда род уже переехал.
+#
+# Остальные заводы отдельными `@qid` не нужны: металлургический (Q100509052),
+# машиностроительный, сталелитейный, кирпичный, стекольный, текстильный,
+# сахарный, лесопилка, верфь, пивоварня и винокурня — подклассы Q83405, их
+# тянет то же `wdt:P31/wdt:P279*`.
+#
+# Проверены и не взяты:
+#   * промышленное здание (Q1662011) — надкласс самой фабрики; втянул бы
+#     депо, элеваторы и водонапорные башни, а заодно перекрыл бы соседние
+#     слои;
+#   * «physical plant» (Q7189622) — русская метка «промышленное
+#     предприятие» обманчива: класс про инженерную инфраструктуру здания;
+#   * мельницы (Q44494, Q244568) и электростанции (Q159719) — не заводской
+#     отход, у них своя история и свой слой, если он понадобится.
+#
+# `@scope country` означает, что запрос строит движок (`sources/wikidata.py`),
+# а не этот файл: сбор идёт в две ступени по государствам-преемникам.
+# Прежний вариант — с `SERVICE wikibase:box` поверх `wdt:P31/wdt:P279*` —
+# против живого сервиса не выполняется: рамка РИ/СССР слишком велика, и
+# запрос упирается в лимит времени. Тело ниже осталось как ручной вариант
+# для одной небольшой области; сбором оно не используется.
 SELECT ?item ?itemLabel ?coord ?start ?end ?adminLabel ?typeLabel ?article ?image ?description WHERE {
   SERVICE wikibase:box {
     ?item wdt:P625 ?coord .
-    bd:serviceParam wikibase:cornerSouthWest "Point(18 35)"^^geo:wktLiteral .
-    bd:serviceParam wikibase:cornerNorthEast "Point(180 82)"^^geo:wktLiteral .
+    bd:serviceParam wikibase:cornerSouthWest "Point(30 55)"^^geo:wktLiteral .
+    bd:serviceParam wikibase:cornerNorthEast "Point(42 62)"^^geo:wktLiteral .
   }
-  ?item wdt:P31/wdt:P279* wd:Q83405 .
+  VALUES ?cls { wd:Q83405 wd:Q380342 }
+  ?item wdt:P31/wdt:P279* ?cls .
   OPTIONAL { ?item wdt:P571 ?start . }
   OPTIONAL { ?item wdt:P576 ?end . }
   OPTIONAL { ?item wdt:P131 ?admin . }
@@ -17,6 +47,6 @@ SELECT ?item ?itemLabel ?coord ?start ?end ?adminLabel ?typeLabel ?article ?imag
   OPTIONAL { ?item wdt:P18 ?image . }
   OPTIONAL { ?article schema:about ?item ; schema:isPartOf <https://ru.wikipedia.org/> . }
   OPTIONAL { ?item schema:description ?description . FILTER(LANG(?description) = "ru") }
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "ru,en". }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "ru,en,uk,be,pl,lt,lv,et,fi,ro,hy,ka,az,kk,ky,uz,tg,tk,tr,de,sv,fr,nl". }
 }
 ORDER BY ?item
