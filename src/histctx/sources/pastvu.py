@@ -44,6 +44,7 @@ from typing import Iterator, Optional
 
 from ..geo import in_bbox, valid_coords
 from ..net import RETRY_CODES, USER_AGENT, wait_for_pause
+from ..normalize import to_int
 from ..schema import ContextRecord, LayerSpec, clean_text
 
 ENDPOINT = "https://api.pastvu.com/api2"
@@ -378,17 +379,10 @@ def _geo(geo) -> tuple[Optional[float], Optional[float]]:
 
 def _years(photo: dict) -> tuple[Optional[int], int]:
     """`year` — начало датировки, `year2` — её конец; второй бывает пуст."""
-    year_from = _int(photo.get("year"))
+    year_from = to_int(photo.get("year"))
     if year_from is None:
         return None, 0
-    year_to = _int(photo.get("year2")) or year_from
+    year_to = to_int(photo.get("year2")) or year_from
     if year_to < year_from:
         year_from, year_to = year_to, year_from
     return year_from, year_to
-
-
-def _int(value) -> Optional[int]:
-    try:
-        return int(str(value).strip())
-    except (TypeError, ValueError):
-        return None

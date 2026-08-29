@@ -659,6 +659,8 @@ def _cell(row: dict, key: str) -> Optional[str]:
 
 
 def _int(value) -> Optional[int]:
+    """Свой, а не `normalize.to_int`: опорный срез в таблицах ERRHS записан
+    дробным («1897.0»), и строгий разбор его не признаёт."""
     try:
         return int(float(str(value).strip()))
     except (TypeError, ValueError):

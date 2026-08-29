@@ -462,6 +462,8 @@ def _mean(values) -> Optional[float]:
 
 
 def _int(value) -> Optional[int]:
+    """Свой, а не `normalize.to_int`: год и месяц в метеорядах приходят
+    дробными («1899.0»), и строгий разбор потерял бы всю таблицу."""
     try:
         return int(float(str(value).strip()))
     except (TypeError, ValueError):
