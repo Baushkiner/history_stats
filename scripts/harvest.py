@@ -153,6 +153,8 @@ def layer_countries(meta: dict, countries: tuple = COUNTRIES) -> tuple:
     СССР, а то и вовсе не указан.
     """
     return WORLD if meta["scope"] == "class" else countries
+
+
 def check_directives(meta: dict) -> list[str]:
     """Проверяет директивы заголовка, кроме `@qid`. Возвращает жалобы."""
     bad = []
@@ -176,8 +178,8 @@ def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
             paged: bool, page_size: int,
             countries: tuple = COUNTRIES,
             history: tuple = (),
-            max_objects: int = None,
-            failures: list = None) -> list:
+            max_objects: Optional[int] = None,
+            failures: Optional[list] = None) -> list:
     """Собирает записи слоя — тем способом, который объявлен в `@scope`."""
     classes = [qid for qid, _ in meta["qids"]]
     # Заголовок уже проверен `check_queries`, и сбор сюда не дошёл бы, если

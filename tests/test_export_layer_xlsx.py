@@ -162,7 +162,8 @@ def test_шрифт_по_умолчанию_доходит_до_ячеек(tmp_p
     assert ws["B2"].font.size == 10
 
     # Читаем сам файл, а не обёртку: нулевой шрифт списка должен быть наш.
-    import re, zipfile
+    import re
+    import zipfile
     styles = zipfile.ZipFile(out).read("xl/styles.xml").decode("utf-8")
     fonts = re.search(r"<fonts.*?</fonts>", styles, re.S).group(0)
     first = re.findall(r"<font>.*?</font>", fonts, re.S)[0]

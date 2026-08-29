@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Optional, Sequence
 
-from .geo import SpatialIndex, haversine_km, region_key
+from .geo import SpatialIndex, region_key
 from .schema import SCOPE_REGION, SCOPE_STATE, ContextRecord
 
 # Вес записи падает, когда она далеко или относится к другому времени.

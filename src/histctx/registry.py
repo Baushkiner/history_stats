@@ -360,15 +360,3 @@ HARVESTED = HARVESTED_SOURCES + HARVESTED_WIKIDATA
 
 ALL_LAYERS = CURATED + HARVESTED + PLANNED + EXTERNAL
 BY_SLUG = {spec.slug: spec for spec in ALL_LAYERS}
-
-
-def layers_in_group(group: str) -> list[LayerSpec]:
-    return [s for s in ALL_LAYERS if s.group == group]
-
-
-def planned_slugs() -> list[str]:
-    return [s.slug for s in PLANNED]
-
-
-def external_slugs() -> list[str]:
-    return [s.slug for s in EXTERNAL]

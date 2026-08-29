@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from typing import Optional
 
 # Точность интервала, от самой точной к самой грубой.
@@ -194,9 +194,6 @@ class Period:
         if not self.ok:
             return False
         return self.year_from <= year_to and year_from <= self.year_to
-
-    def as_dict(self) -> dict:
-        return asdict(self)
 
 
 def _norm(text: str) -> str:
