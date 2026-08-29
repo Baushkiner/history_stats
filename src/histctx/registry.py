@@ -186,7 +186,7 @@ HARVESTED_WIKIDATA = [
     ),
     LayerSpec(
         slug="disasters", title="Пожары, наводнения, катастрофы", group="hardship",
-        source="Викиданные", license=WD_CC0, status="harvested", expected_rows=350,
+        source="Викиданные", license=WD_CC0, status="harvested", expected_rows=374,
         description=(
             "Городские пожары, наводнения, крушения — заметные события местной памяти. "
             "Отбор сужен по дате события до 1960 года: без этого слой заполняют теракты "
