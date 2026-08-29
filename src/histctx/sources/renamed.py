@@ -66,7 +66,7 @@ from ..schema import ContextRecord, LayerSpec, clean_text
 # Разбор Point(), Q-номеров и дат Викиданных уже написан для основного сбора.
 # Второй такой же разбор — второе место, где его чинить.
 from .wikidata import (
-    COUNTRIES, SparqlClient, SparqlError, _point, _qid, _val, _year,
+    COUNTRIES, LABEL_LANGS, SparqlClient, SparqlError, _point, _qid, _val, _year,
 )
 
 # Класс отбора. Транзитивное замыкание `wdt:P31/wdt:P279*` покрывает город,
@@ -177,7 +177,7 @@ def names_query(qids: list[str], *,
         "  OPTIONAL { ?item wdt:P31 ?type . }\n"
         "  OPTIONAL { ?article schema:about ?item ; "
         "schema:isPartOf <https://ru.wikipedia.org/> . }\n"
-        '  SERVICE wikibase:label { bd:serviceParam wikibase:language "ru,en". }\n'
+        '  SERVICE wikibase:label { bd:serviceParam wikibase:language "' + LABEL_LANGS + '". }\n'
         "}"
     )
 

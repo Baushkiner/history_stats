@@ -136,6 +136,6 @@ SELECT ?item ?itemLabel ?coord ?start ?end ?adminLabel ?typeLabel ?article ?imag
   OPTIONAL { ?item wdt:P18 ?image . }
   OPTIONAL { ?article schema:about ?item ; schema:isPartOf <https://ru.wikipedia.org/> . }
   OPTIONAL { ?item schema:description ?description . FILTER(LANG(?description) = "ru") }
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "ru,en". }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "ru,en,uk,be,pl,lt,lv,et,fi,ro,hy,ka,az,kk,ky,uz,tg,tk,tr,de,sv,fr,nl". }
 }
 ORDER BY ?item

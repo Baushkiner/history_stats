@@ -14,8 +14,9 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from histctx.schema import LayerSpec  # noqa: E402
 from histctx.sources.wikidata import (  # noqa: E402
-    COUNTRIES, USER_AGENT, WORLD, SparqlClient, SparqlError, _point, _qid, _year,
-    collect_layer, dedupe, details_query, ids_query, rows_to_records, stage1_plan,
+    COUNTRIES, LABEL_LANGS, USER_AGENT, WORLD, SparqlClient, SparqlError,
+    _point, _qid, _year, collect_layer, dedupe, details_query, ids_query,
+    rows_to_records, stage1_plan,
 )
 
 SPEC = LayerSpec(slug="churches", title="Храмы", group="faith", source="Викиданные", license="CC0")
@@ -435,6 +436,27 @@ def test_details_query_asks_for_everything_rows_to_records_reads():
     assert "SERVICE wikibase:label" in q
     # Сортировка на второй ступени не нужна и стоит дорого.
     assert "ORDER BY" not in q
+
+
+def test_label_service_asks_local_languages_after_russian():
+    """Русский первым, языки территории следом — иначе слой теряет названия.
+
+    С одними «ru,en» сервис возвращал голый Q-номер каждой восьмой записи:
+    у волынской церкви или латвийского имения русской подписи может не быть
+    вовсе. Порядок при этом важен не меньше состава: русский и английский
+    стоят первыми, поэтому подписанному по-русски объекту список названия
+    не меняет.
+    """
+    langs = LABEL_LANGS.split(",")
+    assert langs[:2] == ["ru", "en"], LABEL_LANGS
+    # Языки territории, где велись метрические книги наших губерний.
+    for lang in ("uk", "be", "pl", "lt", "lv", "et", "fi", "hy", "ka", "az"):
+        assert lang in langs, f"{lang}: язык территории потерялся из списка"
+    assert len(langs) == len(set(langs)), "повтор в списке языков"
+
+    from histctx.sources.renamed import names_query
+    for sparql in (details_query(["Q1"]), names_query(["Q1"])):
+        assert f'wikibase:language "{LABEL_LANGS}"' in sparql
 
 
 def test_details_query_switches_dates_for_events():
