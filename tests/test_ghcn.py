@@ -110,6 +110,28 @@ def test_other_stations_and_other_elements_are_skipped():
     assert list(ghcn.parse_tavg(lines, stations=tavg_stations())) == []
 
 
+def test_tavg_month_cut_before_the_quality_flag_is_dropped():
+    """Та же дыра, что и у осадков: флаг стоит за значением, и строка может
+    оборваться между ними. Забракованное измерение прошло бы тогда за чистое.
+    """
+    values = [2050] * 12
+    line = dat_line("RSM00028900", 1891, values, qc_flags=["O"] * 12)
+    assert list(ghcn.parse_tavg([line], stations=tavg_stations())) == []
+
+    # Обрыв ровно за значением декабря: оно читается, а флаг «O» — уже нет.
+    cut = line[:19 + 11 * 8 + 5]
+    assert ghcn.to_int(cut[19 + 11 * 8:]) == 2050, "значение декабря на месте"
+    assert list(ghcn.parse_tavg([cut], stations=tavg_stations())) == []
+
+
+def test_tavg_reads_every_month_of_a_whole_line():
+    """Проверка длины не должна отрезать последний месяц у целой строки."""
+    line = dat_line("RSM00028900", 1891, list(range(100, 1300, 100)))
+    readings = list(ghcn.parse_tavg([line], stations=tavg_stations()))
+    assert [r.month for r in readings] == list(range(1, 13))
+    assert readings[-1].value == 12.0
+
+
 # --- осадки ----------------------------------------------------------------
 
 def test_prcp_values_are_tenths_of_a_millimetre():
