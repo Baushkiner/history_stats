@@ -30,7 +30,7 @@ from pathlib import Path
 from _paths import ROOT
 
 from histctx.geo import in_bbox
-from histctx.registry import ALL_LAYERS
+from histctx.registry import BY_SLUG
 from histctx.schema import COLUMNS, COLUMNS_RU
 from histctx.sources.wikidata import OPEN_END_YEAR
 from histctx.xlsx_style import (
@@ -61,7 +61,7 @@ COMPUTED = [
 ]
 
 
-def load(slug: str, src: Path) -> tuple[list[dict], dict]:
+def load(src: Path) -> tuple[list[dict], dict]:
     """Читает слой и возвращает записи вместе с шапкой файла."""
     with src.open(encoding="utf-8") as fh:
         payload = json.load(fh)
@@ -447,8 +447,8 @@ def main(argv=None) -> int:
               file=sys.stderr)
         return 1
 
-    spec = next((s for s in ALL_LAYERS if s.slug == args.layer), None)
-    rows, header = load(args.layer, src)
+    spec = BY_SLUG.get(args.layer)
+    rows, header = load(src)
     columns, constant = split_columns(rows)
     path = build(rows, columns, constant, spec, header, out)
 

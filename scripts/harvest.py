@@ -321,7 +321,7 @@ def harvest(client: SparqlClient, meta: dict, spec: LayerSpec, out_dir: Path,
         # затрёт прошлую удачную выгрузку. Молча подменять данные пустотой
         # нельзя: файлы остаются как были.
         print(f"  ПУСТО — файлы {spec.slug}.* не перезаписаны "
-              f"(прошлая выгрузка сохранена)", file=sys.stderr)
+              "(прошлая выгрузка сохранена)", file=sys.stderr)
         return 0
 
     slug = spec.slug

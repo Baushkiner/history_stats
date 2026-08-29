@@ -81,7 +81,6 @@ def parse_geometry(blob: bytes) -> Optional[dict]:
     if len(blob) < 8 or blob[0:2] != b"GP":
         raise GeoPackageError("поле геометрии не начинается сигнатурой GP")
     flags = blob[3]
-    little = bool(flags & 0x01)
     envelope = (flags >> 1) & 0x07
     # Размер необязательной рамки: 0 — нет, 1 — четыре числа, дальше с Z и M.
     sizes = {0: 0, 1: 32, 2: 48, 3: 48, 4: 64}
@@ -90,8 +89,9 @@ def parse_geometry(blob: bytes) -> Optional[dict]:
     offset = 8 + sizes[envelope]
     if (flags >> 4) & 0x01:      # пустая геометрия — это не ошибка
         return None
+    # Младший бит флагов — порядок байт заголовка, и он здесь ни при чём:
+    # рамку мы не читаем, а у WKB свой байт порядка в самом начале (см. `_wkb`).
     geometry, _ = _wkb(blob, offset)
-    _ = little
     return geometry
 
 
