@@ -102,19 +102,24 @@ def test_boundary_layers_are_not_reported_as_missing():
     assert "labour_conflicts" in gaps
 
 
-def test_one_sided_dates_in_the_export_are_open_not_part_of_century():
+# «Часть века» разбирается только из текста датировки («вторая половина
+# 19 в.»), а текст есть только у слоёв, которые ведутся вручную.
+PART_OF_CENTURY_LAYERS = {"literary_places"}
+
+
+def test_part_of_century_stays_where_it_was_parsed_from_text():
     """Храм «с 1890» — открытый срок, а не «часть века».
 
-    Сборщик Викиданных ставит `open`, когда измерен один конец срока, но
-    выгрузка храмов и кладбищ дважды возвращалась в репозиторий с прежней
-    пометкой `part`: пересбор шёл мимо этой правки, а отчёт этого не видел.
-    Проверяется сама выгрузка — то, что лежит в репозитории и читается картой.
+    Сборщики ставят `open`, когда измерен один конец срока, но выгрузка
+    одиннадцати слоёв возвращалась в репозиторий с прежней пометкой `part`:
+    пересбор шёл мимо правки, разводившей эти два случая, а отчёт этого не
+    видел. Проверяется сама выгрузка — то, что лежит в репозитории и
+    читается картой.
     """
-    for slug in ("churches", "cemeteries"):
-        path = ROOT / "data" / "out" / "geojson" / f"{slug}.geojson"
+    for path in sorted((ROOT / "data" / "out" / "geojson").glob("*.geojson")):
+        if path.stem in PART_OF_CENTURY_LAYERS:
+            continue
         features = json.loads(path.read_text(encoding="utf-8"))["features"]
-        one_sided = [f["properties"] for f in features
-                     if (f["properties"].get("period_raw") or "").startswith(("с ", "до "))]
-        assert one_sided, slug
-        wrong = [p["uid"] for p in one_sided if p.get("date_precision") != "open"]
-        assert not wrong, f"{slug}: {len(wrong)} односторонних датировок не помечены open"
+        wrong = [f["properties"].get("period_raw") for f in features
+                 if f["properties"].get("date_precision") == "part"]
+        assert not wrong, f"{path.stem}: {len(wrong)} записей «часть века», например {wrong[0]!r}"
