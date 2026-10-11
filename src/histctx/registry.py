@@ -50,6 +50,7 @@ from .schema import LayerSpec
 
 from .adapters.battles import BATTLES
 from .adapters.bookplaces import LITERARY, TENISHEV
+from .adapters.epidemics import EPIDEMICS
 from .adapters.prokudin_gorsky import PROKUDIN
 from .adapters.state_events import STATE_EVENTS
 from .sources.admin_gis import ADMIN_GIS
@@ -63,7 +64,7 @@ from .sources.ristat import RISTAT_BOUNDARIES
 from .sources.strikes import STRIKES
 from .sources.weather import WEATHER_REGIONS, WEATHER_STATIONS
 
-CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
+CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS, EPIDEMICS]
 
 # Слои, собранные своим сборщиком из внешнего набора и лежащие в data/out.
 # От CURATED отличаются происхождением: их не ведут вручную, их пересобирают
@@ -159,16 +160,15 @@ HARVESTED_WIKIDATA = [
 
     # Группа: бедствия и потрясения
     LayerSpec(
-        slug="epidemics", title="Эпидемии", group="hardship",
-        source="Викиданные + справочная литература", license=WD_CC0,
+        slug="epidemics_wd", title="Эпидемии: Викиданные", group="hardship",
+        source="Викиданные", license=WD_CC0,
         status="harvested", expected_rows=1,
         description=(
-            "Холера, тиф, оспа, испанка. В метрических книгах видны как всплеск "
-            "смертей за короткий срок — слой объясняет причину. Из Викиданных "
-            "почти ничего не берётся: дореволюционных вспышек с координатой и "
-            "датой там нет (по Российской империи — ноль), а нынешние отсекает "
-            "граница 1960 года. Тему держит кураторский слой «Указы, реформы и "
-            "потрясения» с перечнем губерний."
+            "Второй источник к кураторскому слою «Эпидемии»: что есть в Викиданных "
+            "о вспышках с координатой и датой. Дореволюционных там нет вовсе (по "
+            "Российской империи — ноль), нынешние отсекает граница 1960 года, и "
+            "слой даёт одну запись. Slug отдельный, чтобы сбор не затирал подборку; "
+            "запрос оставлен — он подберёт то, что в Викиданных появится."
         ),
     ),
     LayerSpec(

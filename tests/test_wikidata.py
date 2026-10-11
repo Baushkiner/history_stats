@@ -184,7 +184,7 @@ def test_event_queries_declare_kind_and_ask_for_event_dates():
     он построит, а не тело файла: файл в этом случае сбором не используется.
     """
     mod = _harvest_module()
-    for name in ("epidemics", "uprisings", "disasters"):
+    for name in ("epidemics_wd", "uprisings", "disasters"):
         meta = mod.parse_query(ROOT / "queries" / f"{name}.rq")
         assert meta["kind"] == "event", name
         sparql = (details_query(["Q1"], "event") if meta["scope"] == "country"

@@ -132,7 +132,7 @@ def test_event_layers_are_bounded_by_the_period_of_interest():
     девяностых. Класс при этом объявлен верно, лишнее отсекается по дате.
     """
     mod = _harvest_module()
-    for name in ("disasters", "epidemics", "uprisings"):
+    for name in ("disasters", "epidemics_wd", "uprisings"):
         meta = mod.parse_query(ROOT / "queries" / f"{name}.rq")
         assert meta["scope"] == "country", name
         assert meta["kind"] == "event", name

@@ -4,7 +4,7 @@
     python3 scripts/build_core.py --raw data/raw --out data/out
     python3 scripts/build_core.py --report-only     # только отчёт, из data/out
 
-Из data/raw и data/curated читаются пять слоёв, которые ведутся вручную.
+Из data/raw и data/curated читаются шесть слоёв, которые ведутся вручную.
 Остальные собираются своими сборщиками (`harvest*.py`) и к моменту запуска
 уже лежат в data/out — они читаются оттуда и попадают в общий массив и в
 отчёт. Иначе отчёт описывал бы три процента выгрузки и вводил в заблуждение
@@ -34,6 +34,7 @@ from histctx.adapters import (
 )
 from histctx.adapters.battles import BATTLES
 from histctx.adapters.bookplaces import LITERARY, TENISHEV
+from histctx.adapters.epidemics import EPIDEMICS, load_epidemics
 from histctx.adapters.prokudin_gorsky import PROKUDIN
 from histctx.adapters.state_events import STATE_EVENTS
 from histctx.geo import extract_region
@@ -52,6 +53,13 @@ SOURCES = [
     ("bookplaces", TENISHEV, load_tenishev),
     ("battles", BATTLES, load_battles),
     ("prokudin", PROKUDIN, load_prokudin_gorsky),
+]
+
+
+# Подборки в data/curated: имя файла и чем его читать.
+CURATED_FILES = [
+    ("state_events.json", STATE_EVENTS, load_state_events),
+    ("epidemics.json", EPIDEMICS, load_epidemics),
 ]
 
 
@@ -82,16 +90,17 @@ def main() -> int:
     specs: dict[str, LayerSpec] = {}
     missing: list[str] = []
 
-    # Территориальные события лежат в самом репозитории: их не выгрузишь
-    # запросом, и xlsx для них не нужен.
-    events_path = args.curated / "state_events.json"
-    if events_path.exists():
-        records = load_state_events(events_path)
-        layers[STATE_EVENTS.slug] = records
-        specs[STATE_EVENTS.slug] = STATE_EVENTS
-        print(f"  {STATE_EVENTS.title}: {len(records)} записей  <- {events_path.name}")
-    else:
-        missing.append(f"{STATE_EVENTS.title} (ожидался файл {events_path})")
+    # Территориальные события и вспышки эпидемий лежат в самом репозитории:
+    # их не выгрузишь запросом, и xlsx для них не нужен.
+    for name, spec, loader in CURATED_FILES:
+        path = args.curated / name
+        if not path.exists():
+            missing.append(f"{spec.title} (ожидался файл {path})")
+            continue
+        records = loader(path)
+        layers[spec.slug] = records
+        specs[spec.slug] = spec
+        print(f"  {spec.title}: {len(records)} записей  <- {path.name}")
 
     for needle, spec, loader in SOURCES:
         path = find_file(args.raw, needle)
