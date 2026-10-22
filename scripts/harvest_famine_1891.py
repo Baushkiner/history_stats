@@ -18,8 +18,10 @@
 
 На выходе:
 
-* `jsonl/famine_1891.jsonl` — 216 записей по уездам и 24 по губерниям,
-  охват «регион», без точки; в репозиторий не идёт;
+* `jsonl/famine_1891.jsonl` — записи четырёх видов, охват «регион», без
+  точки: 216 уездов главной таблицы, 24 губернии, холера 1892 года по уездам
+  панели и годы со сверхсмертностью не ниже полутора сигм; в репозиторий
+  не идёт;
 * `boundaries/famine_1891_districts.geojson` — полигоны 216 уездов главной
   таблицы с русскими названиями, парой в RISTAT и главными числами помощи:
   подложка карты, лежит рядом с границами 1897 года и в репозиторий идёт.
@@ -41,9 +43,10 @@ from _paths import ROOT
 
 from histctx.io_formats import write_feature_collection, write_jsonl
 from histctx.sources.famine_1891 import (
-    DATASET_URL, FAMINE_1891, FILES, MAIN, PROVINCES_FILE, REQUIRED_MAIN, REQUIRED_PROVINCES,
-    DistrictIndex, FamineError, ProvinceIndex, boundaries_geojson, cached, check_columns,
-    check_manifest, fetch_manifest, load_shapes, province_records, read_table, rows_to_records,
+    DATASET_URL, FAMINE_1891, FILES, MAIN, PANEL, PROVINCES_FILE, REQUIRED_MAIN, REQUIRED_PANEL,
+    REQUIRED_PROVINCES, WORK_YEARS, DistrictIndex, FamineError, ProvinceIndex,
+    boundaries_geojson, cached, check_columns, check_manifest, fetch_manifest, load_shapes,
+    panel_records, province_records, read_table, rows_to_records,
 )
 
 CACHE = ROOT / "data" / "raw" / "famine_1891"
@@ -62,9 +65,10 @@ def load_indexes(districts_path: Path, provinces_path: Path) -> tuple[DistrictIn
     return DistrictIndex.load(districts_path), ProvinceIndex.load(provinces_path)
 
 
-def collect(cache_dir: Path, districts_path: Path, provinces_path: Path) -> tuple[list, list, list]:
-    """Записи по уездам, записи по губерниям и полигоны — одно и то же для обоих режимов."""
+def collect(cache_dir: Path, districts_path: Path, provinces_path: Path) -> dict:
+    """Всё собранное разом — одно и то же для проверки и для сборки."""
     districts, provinces = load_indexes(districts_path, provinces_path)
+
     rows = read_table(cached(MAIN, cache_dir))
     check_columns(rows[0].keys() if rows else [], REQUIRED_MAIN, MAIN.name)
     district_records = rows_to_records(rows, districts)
@@ -73,7 +77,27 @@ def collect(cache_dir: Path, districts_path: Path, provinces_path: Path) -> tupl
     check_columns(province_rows[0].keys() if province_rows else [], REQUIRED_PROVINCES,
                   PROVINCES_FILE.name)
     province_recs = province_records(province_rows, provinces)
-    return district_records, province_recs, load_shapes(cache_dir)
+
+    panel_rows = read_table(cached(PANEL, cache_dir))
+    check_columns(panel_rows[0].keys() if panel_rows else [], REQUIRED_PANEL, PANEL.name)
+    cholera, excess, stats = panel_records(panel_rows, districts)
+
+    return {
+        "districts": district_records, "provinces": province_recs,
+        "cholera": cholera, "excess": excess, "panel_stats": stats,
+        "panel_rows": len(panel_rows), "panel_columns": len(panel_rows[0]) if panel_rows else 0,
+        "index": districts, "shapes": load_shapes(cache_dir),
+    }
+
+
+def _report_unmatched(records: list, index: DistrictIndex) -> None:
+    unmatched = [r for r in records if r.confidence == "district_unmatched"]
+    print(f"  пара в RISTAT 1897 найдена у {len(records) - len(unmatched)} из {len(records)}")
+    if unmatched:
+        print("  без пары — остаются в данных с пометкой district_unmatched:")
+        for rec in unmatched:
+            known = ", ".join(index.candidates(rec.region)) or "губерния не найдена"
+            print(f"    {rec.place_text}  (в справочнике: {known})")
 
 
 def check(cache_dir: Path, districts_path: Path, provinces_path: Path) -> int:
@@ -100,38 +124,52 @@ def check(cache_dir: Path, districts_path: Path, provinces_path: Path) -> int:
     print(f"{PROVINCES_FILE.name}: строк {len(province_rows)}, колонок "
           f"{len(province_rows[0]) if province_rows else 0}")
 
-    district_records, province_recs, shapes = collect(cache_dir, districts_path, provinces_path)
-    print(f"\nЗаписей по уездам: {len(district_records)} (охват «уезд внутри губернии», без точки)")
-    for category, count in collections.Counter(r.category for r in district_records).most_common():
+    got = collect(cache_dir, districts_path, provinces_path)
+    print(f"{PANEL.name}: строк {got['panel_rows']}, колонок {got['panel_columns']}")
+
+    districts = got["districts"]
+    print(f"\nЗаписей по уездам: {len(districts)} (охват «уезд внутри губернии», без точки)")
+    for category, count in collections.Counter(r.category for r in districts).most_common():
         print(f"  {count:>5}  {category}")
-    print(f"  губерний: {len({r.region for r in district_records if r.region})}, "
+    print(f"  губерний: {len({r.region for r in districts if r.region})}, "
           f"период помощи прочитан по месяцам у "
-          f"{sum(1 for r in district_records if r.date_precision == 'month')}")
+          f"{sum(1 for r in districts if r.date_precision == 'month')}")
+    _report_unmatched(districts, got["index"])
 
-    unmatched = [r for r in district_records if r.confidence == "district_unmatched"]
-    print(f"  пара в RISTAT 1897 найдена у {len(district_records) - len(unmatched)} из "
-          f"{len(district_records)}")
-    if unmatched:
-        districts, _ = load_indexes(districts_path, provinces_path)
-        print("  без пары — остаются в данных с пометкой district_unmatched:")
-        for rec in unmatched:
-            known = ", ".join(districts.candidates(rec.region)) or "губерния не найдена"
-            print(f"    {rec.place_text}  (в справочнике: {known})")
-
-    print(f"\nЗаписей по губерниям: {len(province_recs)}")
-    bad = [r for r in province_recs if r.confidence != "ok"]
+    provinces = got["provinces"]
+    print(f"\nЗаписей по губерниям: {len(provinces)}")
+    bad = [r for r in provinces if r.confidence != "ok"]
     print(f"  названия восстановлены из двойной кодировки, сверены с provinces_1897: "
-          f"{len(province_recs) - len(bad)} из {len(province_recs)}")
+          f"{len(provinces) - len(bad)} из {len(provinces)}")
     for rec in bad:
         print(f"    не нашлась среди губерний 1897 года: {rec.region}")
 
-    ids = {r.source_id for r in district_records}
+    stats = got["panel_stats"]
+    print(f"\nПанель 1885–1896: тождество est_em = est_cdr − cdr_pred проверено на "
+          f"{stats['identity_rows']} строках, расхождение до {stats['identity_max_diff']:.1e}")
+    print(f"  σ сверхсмертности по всей панели {stats['sigma']:.3f} на тысячу, "
+          f"порог 1,5σ = {stats['threshold']:.3f}")
+    cholera, excess = got["cholera"], got["excess"]
+    died = f"{sum(r.extra['famine'].get('cholera_deaths', 0) for r in cholera):,}"
+    print(f"  холера 1892 года: {len(cholera)} уездов с умершими, "
+          f"всего умерших {died.replace(',', ' ')}")
+    _report_unmatched(cholera, got["index"])
+    by_year = collections.Counter(r.year_from for r in excess)
+    print(f"  сверхсмертность не ниже порога: {len(excess)} записей «уезд-год», по годам: "
+          + ", ".join(f"{y}: {n}" for y, n in sorted(by_year.items())))
+    print(f"  поле work «{FAMINE_1891.title.split(':')[0]}» несут записи за "
+          f"{WORK_YEARS[0]}–{WORK_YEARS[1]} годы: "
+          f"{sum(1 for r in excess if r.work)} из {len(excess)}")
+    _report_unmatched(excess, got["index"])
+
+    shapes = got["shapes"]
+    ids = {r.source_id for r in districts}
     found = sum(1 for f in shapes if str((f.get('properties') or {}).get('ter_id')) in ids)
     print(f"\nПолигонов в DistrictMap.shp: {len(shapes)}, из них с уездом главной таблицы: "
           f"{found} из {len(ids)}")
 
     print("\n  примеры:")
-    for rec in district_records[:3]:
+    for rec in districts[:2] + cholera[:1] + excess[:1]:
         print(f"    {rec.title}")
         print(f"      {rec.summary}")
     print("\nНабор на месте, перечень сходится, разбор работает — можно запускать --build.")
@@ -139,22 +177,25 @@ def check(cache_dir: Path, districts_path: Path, provinces_path: Path) -> int:
 
 
 def build(cache_dir: Path, out_dir: Path, districts_path: Path, provinces_path: Path) -> int:
-    district_records, province_recs, shapes = collect(cache_dir, districts_path, provinces_path)
-    records = district_records + province_recs
-    if not district_records:
+    got = collect(cache_dir, districts_path, provinces_path)
+    districts = got["districts"]
+    records = districts + got["provinces"] + got["cholera"] + got["excess"]
+    if not districts:
         print("Ничего не собрано.", file=sys.stderr)
         return 1
 
     out_dir.mkdir(parents=True, exist_ok=True)
     jsonl = out_dir / "jsonl" / f"{FAMINE_1891.slug}.jsonl"
     write_jsonl(records, jsonl)
-    unmatched = sum(1 for r in district_records if r.confidence == "district_unmatched")
-    print(f"Собрано {len(records)} записей: {len(district_records)} по уездам, "
-          f"{len(province_recs)} по губерниям (охват «регион», без точки).")
+    unmatched = sum(1 for r in records if r.confidence == "district_unmatched")
+    print(f"Собрано {len(records)} записей (охват «регион», без точки): "
+          f"{len(districts)} по уездам, {len(got['provinces'])} по губерниям, "
+          f"{len(got['cholera'])} — холера 1892 года, {len(got['excess'])} — "
+          f"сверхсмертность за год (порог {got['panel_stats']['threshold']:.2f} на тысячу).")
     print(f"  уездов без пары в RISTAT 1897 (остались в данных): {unmatched}")
     print(f"  файл: {jsonl.relative_to(ROOT)}")
 
-    collection = boundaries_geojson(shapes, district_records)
+    collection = boundaries_geojson(got["shapes"], districts)
     path = out_dir / "boundaries" / "famine_1891_districts.geojson"
     n = write_feature_collection(collection, path, compact=True)
     print(f"Полигонов уездов: {n} → {path.relative_to(ROOT)} "

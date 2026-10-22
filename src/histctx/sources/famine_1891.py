@@ -19,8 +19,9 @@
   населения на помощи, сбор на душу. Названия губерний испорчены двойной
   кодировкой и восстанавливаются здесь;
 * `time-series-dataset.tab` — панель 499 уездов 50 губерний за 1885–1896
-  годы: рождения и смерти, оценка сверхсмертности, холера 1892 года.
-  Разбирается второй очередью, см. `panel_records`;
+  годы: рождения и смерти, оценка сверхсмертности, холера 1892 года. Даёт
+  ещё два вида записей — холеру 1892 года по уездам и годы со
+  сверхсмертностью не ниже полутора сигм по всей панели (`panel_records`);
 * `DistrictMap.*` — шейпфайл 566 уездов; поле `ter_id` сопоставляется
   с `ter_ID` главной таблицы, все 216 находятся. Полигоны идут в подложку
   карты, а не в записи.
@@ -54,6 +55,7 @@ from __future__ import annotations
 import csv
 import json
 import re
+import statistics
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
@@ -94,15 +96,17 @@ FAMINE_1891 = LayerSpec(
     license=LICENSE,
     url=DATASET_URL,
     status="harvested",
-    expected_rows=240,
+    expected_rows=1002,
     description=(
         "216 уездов 22 губерний: число людей на продовольственной помощи помесячно "
         "с июля 1891 по август 1892 года, ссуды семенами и хлебом в пудах, население, "
         "расстояние до железной дороги; отдельной таблицей — 24 губернии с долей "
-        "населения на помощи и сверхсмертностью 1892 года. Даёт голоду уезд там, где "
-        "вручную собранное событие в state_events знает только перечень семнадцати "
-        "губерний: слои накладываются и сводятся по полю work. Записи "
-        "территориальные, без точки: координаты набора — уездный город."
+        "населения на помощи и сверхсмертностью 1892 года; из панели 499 уездов "
+        "50 губерний за 1885–1896 годы — холера 1892 года (343 уезда с умершими) и "
+        "годы со сверхсмертностью не ниже полутора сигм (419 записей «уезд-год»). "
+        "Даёт голоду уезд там, где вручную собранное событие в state_events знает "
+        "только перечень семнадцати губерний: слои накладываются и сводятся по полю "
+        "work. Записи территориальные, без точки: координаты набора — уездный город."
     ),
 )
 
@@ -339,8 +343,14 @@ def _thousands(value: float) -> str:
 
 
 def _percent(value: float) -> str:
+    if 0 < value < 0.05:
+        return "менее 0,1%"
     shown = f"{value:.0f}" if value >= 10 else f"{value:.1f}".replace(".", ",")
     return f"{shown}%"
+
+
+def _people(value: float) -> str:
+    return f"{_thousands(value)} {_plural(value, 'человек', 'человека', 'человек')}"
 
 
 def _plural(value: float, one: str, few: str, many: str) -> str:
@@ -566,14 +576,185 @@ DISTRICTS = {
     "Novokhopersk": "Новохопёрский", "Ostrogozhsk": "Острогожский", "Pavlovsk": "Павловский",
     "Valuiki": "Валуйский", "Voronezh": "Воронежский", "Zadonsk": "Задонский",
     "Zemliansk": "Землянский",
+
+    # --- уезды панели 1885–1896 годов (time-series-dataset.tab), которых нет
+    # в главной таблице: ещё 28 губерний. Тёзки из разных губерний дают одно
+    # прилагательное («Бельский» в Гродненской и Смоленской), и это не ошибка.
+    # Архангельская
+    "Pechora": "Печорский",
+    # Астраханская
+    "Astrakhan'": "Астраханский", "Chernyi Iar": "Черноярский", "Enotaevsk": "Енотаевский",
+    "Krasnyi Iar": "Красноярский", "Tsarev": "Царевский",
+    # Бессарабская
+    "Akkerman": "Аккерманский", "Bel'tsy": "Белецкий", "Bendery": "Бендерский",
+    "Ismail": "Измаильский", "Khotin": "Хотинский", "Kishinev": "Кишинёвский",
+    "Orgeev": "Оргеевский", "Soroki": "Сорокский",
+    # Черниговская
+    "Borzna": "Борзнянский", "Chernigov": "Черниговский", "Glukhov": "Глуховский",
+    "Gorodnia": "Городнянский", "Konotop": "Конотопский", "Kozelets": "Козелецкий",
+    "Krolevets": "Кролевецкий", "Mglin": "Мглинский", "Nezhin": "Нежинский",
+    "Novgorod-Seversk": "Новгород-Северский", "Novozybkov": "Новозыбковский",
+    "Oster": "Остерский", "Sosnitsa": "Сосницкий", "Starodub": "Стародубский",
+    "Surazh": "Суражский",
+    # Екатеринославская
+    "Aleksandrovsk": "Александровский", "Bakhmut": "Бахмутский",
+    "Ekaterinoslav": "Екатеринославский", "Mariupol'": "Мариупольский",
+    "Novomoskovsk": "Новомосковский", "Pavlograd": "Павлоградский",
+    "Slavianoserbsk": "Славяносербский", "Verkhnedneprovsk": "Верхнеднепровский",
+    # Эстляндская
+    "Gapsal'": "Гапсальский", "Revel'": "Ревельский", "Veisenshtein": "Вейсенштейнский",
+    "Vezenberg": "Везенбергский",
+    # Гродненская
+    "Bel'sk": "Бельский", "Belostok": "Белостокский", "Brest-Litovsk": "Брестский",
+    "Grodno": "Гродненский", "Kobrin": "Кобринский", "Pruzhany": "Пружанский",
+    "Slonim": "Слонимский", "Sokolka": "Сокольский", "Volkovysk": "Волковысский",
+    # Ярославская
+    "Danilov": "Даниловский", "Iaroslavl'": "Ярославский", "Liubim": "Любимский",
+    "Mologa": "Мологский", "Myshkin": "Мышкинский", "Poshekhon'e": "Пошехонский",
+    "Romanovo-Borisoglebsk": "Романово-Борисоглебский", "Rostov": "Ростовский",
+    "Rybinsk": "Рыбинский", "Uglich": "Угличский",
+    # Киевская
+    "Berdichev": "Бердичевский", "Cherkassy": "Черкасский", "Chigirin": "Чигиринский",
+    "Kanev": "Каневский", "Kiev": "Киевский", "Lipovets": "Липовецкий",
+    "Radomysl'": "Радомысльский", "Skvira": "Сквирский", "Tarashcha": "Таращанский",
+    "Uman'": "Уманский", "Vasil'kov": "Васильковский", "Zvenigorodka": "Звенигородский",
+    # Костромская
+    "Buisk": "Буйский", "Chukhloma": "Чухломский", "Galich": "Галичский",
+    "Iur'evets": "Юрьевецкий", "Kineshma": "Кинешемский", "Kologriv": "Кологривский",
+    "Kostroma": "Костромской", "Nerekhta": "Нерехтский", "Soligalich": "Солигаличский",
+    "Varnavin": "Варнавинский", "Vetluga": "Ветлужский",
+    # Ковенская
+    "Kovno": "Ковенский", "Novoaleksandrovsk": "Новоалександровский",
+    "Ponevezh": "Поневежский", "Rossieny": "Россиенский", "Shavli": "Шавельский",
+    "Tel'shi": "Тельшевский", "Vil'komir": "Вилькомирский",
+    # Курляндская
+    "Bausk": "Бауский", "Doblensk": "Добленский", "Fridrikhshtadt": "Фридрихштадтский",
+    "Gazenpot": "Газенпотский", "Gol'dingen": "Гольдингенский", "Grobin": "Гробинский",
+    "Illukst": "Иллукстский", "Tal'sen": "Тальсенский", "Tukkum": "Туккумский",
+    "Vindava": "Виндавский",
+    # Лифляндская
+    "Ezel'": "Эзельский", "Fellin": "Феллинский", "Iur'ev": "Юрьевский",
+    "Pernov": "Перновский", "Riga": "Рижский", "Valk": "Валкский", "Venden": "Венденский",
+    "Verro": "Верроский", "Vol'mar": "Вольмарский",
+    # Минская
+    "Bobruisk": "Бобруйский", "Borisov": "Борисовский", "Igumen": "Игуменский",
+    "Minsk": "Минский", "Mozyr'": "Мозырский", "Novogrudok": "Новогрудский",
+    "Pinsk": "Пинский", "Rechitsa": "Речицкий", "Slutsk": "Слуцкий",
+    # Могилёвская
+    "Bykhov": "Быховский", "Chausy": "Чаусский", "Chernikov": "Чериковский",
+    "Gomel'": "Гомельский", "Gorki": "Горецкий", "Klimovichi": "Климовичский",
+    "Mogilev": "Могилёвский", "Mstislavl'": "Мстиславский", "Orsha": "Оршанский",
+    "Rogachev": "Рогачёвский", "Senno": "Сенненский",
+    # Московская
+    "Bogorodsk": "Богородский", "Bronnitsy": "Бронницкий", "Dmitrov": "Дмитровский",
+    "Klin": "Клинский", "Kolomna": "Коломенский", "Moscow": "Московский",
+    "Mozhaisk": "Можайский", "Podol'sk": "Подольский", "Ruza": "Рузский",
+    "Serpukhov": "Серпуховский", "Vereia": "Верейский", "Volokolamsk": "Волоколамский",
+    "Zvenigorod": "Звенигородский",
+    # Новгородская
+    "Belozersk": "Белозерский", "Borovichi": "Боровичский", "Cherepovets": "Череповецкий",
+    "Dem'iansk": "Демянский", "Kirillov": "Кирилловский", "Kresttsy": "Крестецкий",
+    "Novgorod": "Новгородский", "Staraia Russa": "Старорусский", "Tikhvin": "Тихвинский",
+    "Ustiuzhna": "Устюженский", "Valdai": "Валдайский",
+    # Подольская
+    "Balta": "Балтский", "Bratslav": "Брацлавский", "Gaisin": "Гайсинский",
+    "Iampol'": "Ямпольский", "Kamenets-Podol'skii": "Каменец-Подольский",
+    "Letichev": "Летичевский", "Litin": "Литинский", "Mogilev-na-Dnestre": "Могилёвский",
+    "Ol'gopol'": "Ольгопольский", "Proskurov": "Проскуровский", "Ushitsa": "Ушицкий",
+    "Vinnitsa": "Винницкий",
+    # Полтавская
+    "Gadiach": "Гадячский", "Khorol'": "Хорольский", "Kobeliaki": "Кобелякский",
+    "Konstantinograd": "Константиноградский", "Kremenchug": "Кременчугский",
+    "Lokhvitsa": "Лохвицкий", "Lubny": "Лубенский", "Mirgorod": "Миргородский",
+    "Pereiaslav": "Переяславский", "Piriatin": "Пирятинский", "Poltava": "Полтавский",
+    "Priluki": "Прилукский", "Romny": "Роменский", "Zen'kov": "Зеньковский",
+    "Zolotonosha": "Золотоношский",
+    # Псковская
+    "Kholm": "Холмский", "Novorzhev": "Новоржевский", "Opochka": "Опочецкий",
+    "Ostrov": "Островский", "Porkhov": "Порховский", "Pskov": "Псковский",
+    "Toropets": "Торопецкий", "Velikie Luki": "Великолукский",
+    # Смоленская
+    "Dorogobuzh": "Дорогобужский", "Dukhovshchina": "Духовщинский",
+    "El'ninsk": "Ельнинский", "Gzhatsk": "Гжатский", "Iukhnov": "Юхновский",
+    "Krasninsk": "Краснинский", "Porech'e": "Поречский", "Roslavl'": "Рославльский",
+    "Smolensk": "Смоленский", "Sychevka": "Сычёвский", "Viaz'ma": "Вяземский",
+    # Санкт-Петербургская
+    "Gdov": "Гдовский", "Iamburg": "Ямбургский", "Luga": "Лужский",
+    "Novaia Ladoga": "Новоладожский", "Petergof": "Петергофский",
+    "Shlissel'burg": "Шлиссельбургский", "St Petersburg": "Санкт-Петербургский",
+    "Tsarskoe Selo": "Царскосельский",
+    # Тверская
+    "Bezhetsk": "Бежецкий", "Kaliazin": "Калязинский", "Kashin": "Кашинский",
+    "Korcheva": "Корчевский", "Novotorzhok": "Новоторжский", "Ostashkov": "Осташковский",
+    "Rzhev": "Ржевский", "Staritsa": "Старицкий", "Tver'": "Тверской",
+    "Ves'egonsk": "Весьегонский", "Vyshnii Volochek": "Вышневолоцкий",
+    "Zubtsov": "Зубцовский",
+    # Уфимская
+    "Ufa": "Уфимский",
+    # Виленская
+    "Disna": "Дисненский", "Lida": "Лидский", "Oshmiany": "Ошмянский",
+    "Sventsiany": "Свенцянский", "Troki": "Трокский", "Vil'na": "Виленский",
+    "Vileika": "Вилейский",
+    # Витебская
+    "Drissa": "Дриссенский", "Dvinsk": "Двинский", "Gorodok": "Городокский",
+    "Lepel'": "Лепельский", "Liutsyn": "Люцинский", "Nevel'": "Невельский",
+    "Polotsk": "Полоцкий", "Rezhitsa": "Режицкий", "Sebezh": "Себежский",
+    "Velizh": "Велижский", "Vitebsk": "Витебский",
+    # Владимирская
+    "Aleksandrov": "Александровский", "Gorokhovets": "Гороховецкий", "Kovrov": "Ковровский",
+    "Melenki": "Меленковский", "Murom": "Муромский", "Pereslavl'": "Переславский",
+    "Pokrov": "Покровский", "Shuia": "Шуйский", "Sudogda": "Судогодский",
+    "Suzdal'": "Суздальский", "Viazniki": "Вязниковский", "Vladimir": "Владимирский",
+    # Вологодская
+    "Griazovets": "Грязовецкий", "Iarensk": "Яренский", "Kadnikov": "Кадниковский",
+    "Nikol'sk": "Никольский", "Sol'vychegodsk": "Сольвычегодский", "Tot'ma": "Тотемский",
+    "Ust'sysol'sk": "Усть-Сысольский", "Vel'sk": "Вельский",
+    "Velikii Ustiug": "Великоустюгский", "Vologda": "Вологодский",
+    # Волынская
+    "Dubno": "Дубенский", "Kovel'": "Ковельский", "Kremenets": "Кременецкий",
+    "Lutsk": "Луцкий", "Novograd-Volynsk": "Новоград-Волынский", "Ostrog": "Острожский",
+    "Ovruch": "Овручский", "Rovno": "Ровенский", "Starokonstantinov": "Староконстантиновский",
+    "Vladimir-Volynsk": "Владимир-Волынский", "Zaslavl'": "Заславский",
+    "Zhitomir": "Житомирский",
 }
 
-# Где справочник RISTAT пишет уезд не так, как он назывался: сверка идёт по
-# его написанию, в запись идёт наше. Это написание, а не другой уезд.
+# Названия, которые зависят от губернии: Область Войска Донского делилась
+# не на уезды, а на округа, и панель называет округ по его станице или
+# городу — «Novocherkassk» это Черкасский округ. «Rostov» при этом есть и в
+# Ярославской губернии, поэтому ключ здесь — губерния и уезд вместе.
+# Значение с единицей внутри берётся как есть, без добавления «уезд».
+DISTRICTS_BY_PROVINCE = {
+    ("Don Cossacks", "Don-1"): "Донской 1-й округ",
+    ("Don Cossacks", "Don-2"): "Донской 2-й округ",
+    ("Don Cossacks", "Donetsk"): "Донецкий округ",
+    ("Don Cossacks", "Khopersk"): "Хопёрский округ",
+    ("Don Cossacks", "Novocherkassk"): "Черкасский округ",
+    ("Don Cossacks", "Rostov"): "Ростовский округ",
+    ("Don Cossacks", "Taganrog"): "Таганрогский округ",
+    ("Don Cossacks", "Ust'-Medveditskaia"): "Усть-Медведицкий округ",
+}
+
+UNIT_WORDS = ("уезд", "округ", "отдел")
+
+# Где справочник RISTAT пишет единицу не так, как она называлась в 1890-е:
+# сверка идёт по его написанию, в запись идёт наше. Первые строки — чистые
+# написания; Петроградский и Изяславский — названия 1914 и 1910 годов,
+# которые справочник 1897 года приписал уездам задним числом.
 RISTAT_DISTRICT_SPELLING = {
     "Малоярославецкий": "Малоярославский",
     "Мещовский": "Мещонский",
     "Курмышский": "Курмыжский",
+    "Верхнеднепровский": "Верхне-днепровский",
+    "Сокольский": "Соколский",
+    "Волковысский": "Волковыский",
+    "Мологский": "Моложский",
+    "Великолукский": "Великолуцкий",
+    "Рославльский": "Рославский",
+    "Великоустюгский": "Устюжский",
+    "Новоград-Волынский": "Новоградволынский",
+    "Усть-Медведицкий": "Усть-Медведковский",
+    "Санкт-Петербургский": "Петроградский",
+    "Заславский": "Изяславский",
 }
 # То же для губерний: у RISTAT Донская область названа землёй.
 RISTAT_PROVINCE_SPELLING = {
@@ -586,11 +767,22 @@ def province_name(latin) -> Optional[str]:
     return PROVINCES.get(text) if text else None
 
 
-def district_name(latin) -> Optional[str]:
-    """«Elets» → «Елецкий уезд»; неизвестное написание — None."""
+def district_name(latin, province_latin=None) -> Optional[str]:
+    """«Elets» → «Елецкий уезд», («Don Cossacks», «Rostov») → «Ростовский округ».
+
+    Неизвестное написание — None: запись останется с пометкой, а не с
+    выдуманным названием.
+    """
     text = clean_text(latin)
-    adjective = DISTRICTS.get(text) if text else None
-    return f"{adjective} уезд" if adjective else None
+    if not text:
+        return None
+    gub = clean_text(province_latin)
+    name = DISTRICTS_BY_PROVINCE.get((gub, text)) if gub else None
+    if name is None:
+        name = DISTRICTS.get(text)
+    if name is None:
+        return None
+    return name if name.endswith(UNIT_WORDS) else f"{name} уезд"
 
 
 def _genitive(province: str) -> str:
@@ -598,6 +790,8 @@ def _genitive(province: str) -> str:
     words = province.split()
     if len(words) == 2 and words[1] == "губерния" and words[0].endswith(("ая", "яя")):
         return words[0][:-2] + ("ой" if words[0].endswith("ая") else "ей") + " губернии"
+    if province.startswith("Область "):
+        return "Области " + province[len("Область "):]
     return province
 
 
@@ -635,7 +829,9 @@ class DistrictIndex:
         """RISTAT_ID уезда внутри своей губернии или None."""
         if not province or not district:
             return None
-        adjective = district.replace(" уезд", "")
+        adjective = district
+        for unit in UNIT_WORDS:
+            adjective = adjective.replace(f" {unit}", "")
         candidates = [adjective, RISTAT_DISTRICT_SPELLING.get(adjective)]
         provinces = [province, RISTAT_PROVINCE_SPELLING.get(province)]
         for prov in filter(None, provinces):
@@ -674,6 +870,50 @@ class ProvinceIndex:
         return None
 
 
+# --- место записи: уезд внутри губернии -------------------------------------
+
+@dataclass(frozen=True)
+class Place:
+    """Куда относится запись: по-русски, с парой в RISTAT и пометкой."""
+
+    province: Optional[str]
+    district: Optional[str]
+    place_text: Optional[str]
+    head: str                  # «Елецкий уезд Орловской губернии» для заголовка
+    ristat_id: Optional[str]
+    confidence: str
+
+
+def locate(gub_latin, uezd_latin, index: Optional[DistrictIndex]) -> Place:
+    """Губерния и уезд из латиницы набора, сверенные со справочником границ.
+
+    Уезд, которого словарь не знает, остаётся в `place_text` латиницей с
+    пометкой, а запись получает `district_unmatched` — так же, как уезд,
+    которому не нашлось пары среди уездов 1897 года.
+    """
+    province = province_name(gub_latin)
+    district = district_name(uezd_latin, gub_latin)
+    uezd_raw = clean_text(uezd_latin)
+    gub_raw = clean_text(gub_latin)
+    ristat_id = index.find(province, district) if index is not None else None
+    confidence = "ok" if (district and (index is None or ristat_id)) else "district_unmatched"
+    place_district = district or (f"{uezd_raw} (уезд, написание набора)" if uezd_raw else None)
+    place_province = province or gub_raw
+    place_text = ", ".join(p for p in (place_district, place_province) if p) or None
+    if district and province:
+        head = f"{district} {_genitive(province)}"
+    else:
+        head = place_text or "уезд без названия"
+    return Place(province, district, place_text, head, ristat_id, confidence)
+
+
+def _record_extra(row: dict, place: Place) -> dict:
+    extra = {"famine": source_columns(row), "citation": CITATION}
+    if place.ristat_id:
+        extra["RISTAT_ID"] = place.ristat_id
+    return extra
+
+
 # --- записи главной таблицы -------------------------------------------------
 
 def row_to_record(row: dict, index: Optional[DistrictIndex] = None) -> ContextRecord:
@@ -683,11 +923,7 @@ def row_to_record(row: dict, index: Optional[DistrictIndex] = None) -> ContextRe
     поставить на него голод значило бы соврать о месте. Координаты остаются
     в `extra` под исходными именами колонок.
     """
-    province = province_name(row.get("gub_name"))
-    district = district_name(row.get("uezd_name"))
-    uezd_raw = clean_text(row.get("uezd_name"))
-    gub_raw = clean_text(row.get("gub_name"))
-
+    place = locate(row.get("gub_name"), row.get("uezd_name"), index)
     values = monthly_relief(row)
     period = relief_period(values)
     if period:
@@ -695,30 +931,14 @@ def row_to_record(row: dict, index: Optional[DistrictIndex] = None) -> ContextRe
     else:
         precision, period_raw = "year", f"{YEAR_FROM}–{YEAR_TO}"
 
-    ristat_id = index.find(province, district) if index is not None else None
-    confidence = "ok" if (district and (index is None or ristat_id)) else "district_unmatched"
-
-    place_district = district or (f"{uezd_raw} (уезд, написание набора)" if uezd_raw else None)
-    place_province = province or gub_raw
-    place_text = ", ".join(p for p in (place_district, place_province) if p) or None
-    if district and province:
-        title = f"{district} {_genitive(province)}: голод 1891–1892 годов"
-    else:
-        title = f"{place_text or 'уезд без названия'}: голод 1891–1892 годов"
-
-    extra = {"famine": source_columns(row), "citation": CITATION}
-    if ristat_id:
-        extra["RISTAT_ID"] = ristat_id
-    ter_id = clean_text(row.get("ter_ID"))
-
     return FAMINE_1891.new_record(
-        title=title,
+        title=f"{place.head}: голод 1891–1892 годов",
         category=relief_category(row),
         scope=SCOPE_REGION,
-        place_text=place_text,
-        region=province,
-        regions=[province] if province else [],
-        district=district,
+        place_text=place.place_text,
+        region=place.province,
+        regions=[place.province] if place.province else [],
+        district=place.district,
         year_from=YEAR_FROM,
         year_to=YEAR_TO,
         date_precision=precision,
@@ -726,9 +946,9 @@ def row_to_record(row: dict, index: Optional[DistrictIndex] = None) -> ContextRe
         work=WORK,
         summary=build_summary(row),
         url=DATASET_URL,
-        source_id=ter_id,
-        confidence=confidence,
-        extra=extra,
+        source_id=clean_text(row.get("ter_ID")),
+        confidence=place.confidence,
+        extra=_record_extra(row, place),
     )
 
 
@@ -849,6 +1069,193 @@ def province_records(rows: Iterable[dict],
             extra=extra,
         ))
     return out
+
+
+# --- панель 1885–1896 годов: холера и сверхсмертность по годам ---------------
+# Та же панель, по которой статья считает сверхсмертность: рождения и смерти
+# по уездам из ежегодников ЦСК МВД, переведённые в коэффициенты на тысячу
+# населения. Из неё берутся два факта. Холера 1892 года — единственный год,
+# за который колонки заполнены, — даёт слою эпидемий то, чего в Викиданных
+# нет вовсе. Сверхсмертность `est_em = est_cdr − cdr_pred` — смертей на тысячу
+# сверх ожидаемого — становится записью «уезд-год» по правилу слоя погоды:
+# отклонение не меньше полутора сигм, сигма по всей панели.
+
+REQUIRED_PANEL = ("ter_id", "year", "nameg", "name", "cholera_cases", "cholera_deaths",
+                  "est_cdr", "cdr_pred", "est_em", "deaths_m", "deaths_f", "births_m",
+                  "births_f")
+
+CATEGORY_CHOLERA = "холера 1892 года"
+CATEGORY_EXCESS = "сверхсмертность за год"
+
+SIGMA_FACTOR = 1.5
+# Поле work — только у записей панели за годы голода: 1891 — неурожай,
+# 1892–1893 — годы, которые статья считает голодными (`famine2`).
+# Сверхсмертность 1885 года в Лифляндии сводить с голодом 1891 года нельзя.
+WORK_YEARS = (1891, 1893)
+# Тождество est_em = est_cdr − cdr_pred сходится в наборе до 1e-8; если
+# оно разойдётся, единицу «на тысячу» писать в текст нельзя — сбор встанет.
+IDENTITY_TOLERANCE = 1e-6
+
+
+def check_identity(rows: Iterable[dict],
+                   tolerance: float = IDENTITY_TOLERANCE) -> tuple[int, float]:
+    """Сколько строк проверено и наибольшее расхождение est_em с est_cdr − cdr_pred."""
+    checked, worst = 0, 0.0
+    for row in rows:
+        em, cdr, pred = (number(row.get(k)) for k in ("est_em", "est_cdr", "cdr_pred"))
+        if em is None or cdr is None or pred is None:
+            continue
+        checked += 1
+        worst = max(worst, abs(em - (cdr - pred)))
+    if checked and worst > tolerance:
+        raise FamineError(f"est_em не равно est_cdr − cdr_pred: расхождение до {worst:g} "
+                          f"на {checked} строках — единицу «на тысячу» писать нельзя")
+    return checked, worst
+
+
+def excess_threshold(values: Iterable[Optional[float]],
+                     factor: float = SIGMA_FACTOR) -> tuple[float, float]:
+    """(σ, порог): выборочное стандартное отклонение est_em по всей панели."""
+    data = [v for v in values if v is not None]
+    if len(data) < 2:
+        raise FamineError("панель пуста: порог сверхсмертности считать не по чему")
+    sigma = statistics.stdev(data)
+    return sigma, factor * sigma
+
+
+def _year(row: dict) -> Optional[int]:
+    year = number(row.get("year"))
+    return int(year) if year is not None else None
+
+
+def _total(row: dict, male: str, female: str) -> Optional[float]:
+    m, f = number(row.get(male)), number(row.get(female))
+    return m + f if m is not None and f is not None else None
+
+
+def _per_mille(value: float) -> str:
+    return f"{value:.1f}".replace(".", ",")
+
+
+def _work_for(year: Optional[int]) -> Optional[str]:
+    return WORK if year is not None and WORK_YEARS[0] <= year <= WORK_YEARS[1] else None
+
+
+def cholera_summary(row: dict) -> str:
+    cases = number(row.get("cholera_cases"))
+    deaths = number(row.get("cholera_deaths")) or 0.0
+    parts = []
+    if cases:
+        parts.append(f"заболели {_thousands(cases)}")
+    parts.append(f"умерли {_people(deaths)}")
+    text = "Холера 1892 года: " + ", ".join(parts)
+    total = _total(row, "deaths_m", "deaths_f")
+    if total and deaths:
+        text += (f" — {_percent(100.0 * deaths / total)} всех смертей в уезде за год "
+                 f"({_thousands(total)})")
+    return text + "."
+
+
+def cholera_records(rows: Iterable[dict],
+                    index: Optional[DistrictIndex] = None) -> list[ContextRecord]:
+    """Запись на уезд с умершими от холеры > 0; уезды с нулём не берутся."""
+    out = []
+    for row in rows:
+        deaths = number(row.get("cholera_deaths"))
+        year = _year(row)
+        if not deaths or deaths <= 0 or year is None:
+            continue
+        place = locate(row.get("nameg"), row.get("name"), index)
+        out.append(FAMINE_1891.new_record(
+            title=f"{place.head}: холера {year} года",
+            category=CATEGORY_CHOLERA,
+            scope=SCOPE_REGION,
+            place_text=place.place_text,
+            region=place.province,
+            regions=[place.province] if place.province else [],
+            district=place.district,
+            year_from=year,
+            year_to=year,
+            date_precision="year",
+            period_raw=str(year),
+            work=_work_for(year),
+            summary=cholera_summary(row),
+            url=DATASET_URL,
+            source_id=f"{clean_text(row.get('ter_id'))}:{year}:cholera",
+            confidence=place.confidence,
+            extra=_record_extra(row, place),
+        ))
+    return out
+
+
+def excess_summary(row: dict, threshold: float) -> str:
+    year = _year(row)
+    cdr, pred, em = (number(row.get(k)) for k in ("est_cdr", "cdr_pred", "est_em"))
+    text = (f"Смертность {year} года — {_per_mille(cdr)} на тысячу населения при "
+            f"ожидаемых {_per_mille(pred)}: сверх обычного {_per_mille(em)} на тысячу "
+            f"(порог слоя {_per_mille(threshold)})")
+    deaths = _total(row, "deaths_m", "deaths_f")
+    births = _total(row, "births_m", "births_f")
+    tail = []
+    if deaths is not None:
+        tail.append(f"умерло {_people(deaths)}")
+    if births is not None:
+        tail.append(f"родилось {_thousands(births)}")
+    cholera = number(row.get("cholera_deaths"))
+    if cholera:
+        tail.append(f"от холеры умерло {_thousands(cholera)}")
+    if tail:
+        text += ". " + "; ".join(tail).capitalize()
+    return text + "."
+
+
+def excess_records(rows: Iterable[dict], index: Optional[DistrictIndex],
+                   threshold: float) -> list[ContextRecord]:
+    """Запись «уезд-год» там, где сверхсмертность не ниже порога."""
+    out = []
+    for row in rows:
+        em = number(row.get("est_em"))
+        year = _year(row)
+        if em is None or em < threshold or year is None:
+            continue
+        place = locate(row.get("nameg"), row.get("name"), index)
+        extra = _record_extra(row, place)
+        extra["excess_threshold"] = {"sigma_factor": SIGMA_FACTOR, "value": round(threshold, 4)}
+        out.append(FAMINE_1891.new_record(
+            title=f"{place.head}: сверхсмертность {year} года",
+            category=CATEGORY_EXCESS,
+            scope=SCOPE_REGION,
+            place_text=place.place_text,
+            region=place.province,
+            regions=[place.province] if place.province else [],
+            district=place.district,
+            year_from=year,
+            year_to=year,
+            date_precision="year",
+            period_raw=str(year),
+            work=_work_for(year),
+            summary=excess_summary(row, threshold),
+            url=DATASET_URL,
+            source_id=f"{clean_text(row.get('ter_id'))}:{year}:excess",
+            confidence=place.confidence,
+            extra=extra,
+        ))
+    return out
+
+
+def panel_records(rows: Iterable[dict],
+                  index: Optional[DistrictIndex] = None) -> tuple[list, list, dict]:
+    """Холера, сверхсмертность и то, на чём держится порог.
+
+    Тождество проверяется до того, как единица попадёт в текст; сигма
+    считается по всей панели, а не по строкам, прошедшим порог.
+    """
+    rows = list(rows)
+    checked, worst = check_identity(rows)
+    sigma, threshold = excess_threshold(number(r.get("est_em")) for r in rows)
+    stats = {"identity_rows": checked, "identity_max_diff": worst,
+             "sigma": sigma, "threshold": threshold}
+    return cholera_records(rows, index), excess_records(rows, index, threshold), stats
 
 
 # --- полигоны уездов: подложка, а не слой -----------------------------------

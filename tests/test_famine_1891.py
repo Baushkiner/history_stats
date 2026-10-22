@@ -3,10 +3,11 @@
 Сети в тестах нет: строки сняты с ингестированных TSV набора и урезаны до
 нужных колонок. Четыре уезда главной таблицы — с помощью, без помощи, с
 пустыми колонками помощи и без пары в справочнике границ, — губерния с
-испорченной кодировкой и перечень файлов. Проверяется, что записи
-территориальные и без точки, что названия русские, что границы лет и период
-помощи прочитаны, что неразобранное остаётся в данных с пометкой и что
-исходные колонки лежат в `extra`.
+испорченной кодировкой, строки панели с холерой и сверхсмертностью и
+перечень файлов. Проверяется, что записи территориальные и без точки, что
+названия русские, что границы лет и период помощи прочитаны, что
+неразобранное остаётся в данных с пометкой и что исходные колонки лежат
+в `extra`.
 """
 
 from pathlib import Path
@@ -16,12 +17,13 @@ import pytest
 from histctx.geo import region_key
 from histctx.schema import SCOPE_REGION
 from histctx.sources.famine_1891 import (
-    CATEGORY_NO_RELIEF, CATEGORY_PROVINCE, CATEGORY_RELIEF, CATEGORY_UNKNOWN, DISTRICTS, FILES,
-    MONTH_COLUMNS, MONTHS, PROVINCES, RISTAT_DISTRICT_SPELLING, WORK, DistrictIndex,
-    FamineError, ProvinceIndex, boundaries_geojson, check_columns, check_manifest,
-    decode_province, district_name, monthly_relief, onset_by_share, period_text,
-    province_from_table, province_name, province_records, relief_period, row_to_record,
-    rows_to_records,
+    CATEGORY_CHOLERA, CATEGORY_EXCESS, CATEGORY_NO_RELIEF, CATEGORY_PROVINCE, CATEGORY_RELIEF,
+    CATEGORY_UNKNOWN, DISTRICTS, DISTRICTS_BY_PROVINCE, FILES, MONTH_COLUMNS, MONTHS, PROVINCES,
+    RISTAT_DISTRICT_SPELLING, WORK, DistrictIndex, FamineError, ProvinceIndex,
+    boundaries_geojson, check_columns, check_identity, check_manifest, cholera_records,
+    decode_province, district_name, excess_records, excess_threshold, monthly_relief,
+    onset_by_share, panel_records, period_text, province_from_table, province_name,
+    province_records, relief_period, row_to_record, rows_to_records,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -315,6 +317,139 @@ def test_boundaries_take_only_districts_of_the_table():
     assert props["loan_food_pud"] == 681154 and props["relief_share_max_pct"] == 71.7
 
 
+# --- панель 1885–1896 годов -------------------------------------------------
+
+# Строки time-series-dataset.tab: Николаевский уезд Самарской губернии в
+# 1892 году (холера и сверхсмертность), Эзельский уезд в 1885-м (ни того, ни
+# другого), Ростовский округ Войска Донского (единица — округ, тёзка в
+# Ярославской) и Елецкий уезд в 1891-м — сверхсмертность в год неурожая.
+NIKOLAEV_1892 = {
+    "ter_id": "492", "year": "1892", "nameg": "Samara", "name": "Nikolaev",
+    "births_m": "11605", "births_f": "10768", "deaths_m": "18408", "deaths_f": "17925",
+    "cholera_cases": "12367", "cholera_deaths": "5110", "est_cbr": "45.41911123",
+    "est_cdr": "73.75911001", "cdr_pred": "47.31705774", "est_em": "26.44205227",
+    "long": "49.39561842", "lat": "52.04757772", "relief": "1", "famine": "1", "famine2": "1",
+}
+EZEL_1885 = {
+    "ter_id": "0", "year": "1885", "nameg": "Livland", "name": "Ezel'",
+    "births_m": "870", "births_f": "804", "deaths_m": "649", "deaths_f": "630",
+    "cholera_cases": "", "cholera_deaths": "", "est_cdr": "22.81158593",
+    "cdr_pred": "23.07517064", "est_em": "-0.263584705", "relief": "0", "famine": "0",
+}
+ROSTOV_1892 = {
+    "ter_id": "562", "year": "1892", "nameg": "Don Cossacks", "name": "Rostov",
+    "births_m": "7497", "births_f": "7251", "deaths_m": "12091", "deaths_f": "9766",
+    "cholera_cases": "12887", "cholera_deaths": "6443", "est_cdr": "62.44500314",
+    "cdr_pred": "33.24429321", "est_em": "29.20070994", "famine": "1",
+}
+ELETS_1891 = {
+    "ter_id": "33", "year": "1891", "nameg": "Orel", "name": "Elets",
+    "births_m": "8043", "births_f": "7505", "deaths_m": "7067", "deaths_f": "6890",
+    "cholera_cases": "", "cholera_deaths": "", "est_cdr": "52.85481116",
+    "cdr_pred": "43.61718369", "est_em": "9.237627476", "relief": "1", "famine": "0",
+}
+# Высокая сверхсмертность за пределами голодных лет: поле work ей не положено.
+EZEL_1888 = {**EZEL_1885, "year": "1888", "est_cdr": "40.0", "cdr_pred": "23.0", "est_em": "17.0"}
+
+PANEL = [NIKOLAEV_1892, EZEL_1885, ROSTOV_1892, ELETS_1891, EZEL_1888]
+
+PANEL_INDEX = DistrictIndex([
+    _feature("Самарская губерния", "Николаевский", "1897_60"),
+    _feature("Лифляндская губерния", "Эзельский", "1897_41"),
+    _feature("Земля войска Донского", "Ростовский", "1897_24"),
+    _feature("Ярославская губерния", "Ростовский", "1897_99"),
+    _feature("Орловская губерния", "Елецкий", "1897_51"),
+])
+
+
+def test_identity_is_checked_before_the_unit_goes_into_text():
+    """est_em = est_cdr − cdr_pred — смертей на тысячу; сходится до 1e-8."""
+    checked, worst = check_identity(PANEL)
+    assert checked == 5 and worst < 1e-6
+    broken = {**NIKOLAEV_1892, "est_em": "30"}
+    with pytest.raises(FamineError) as exc:
+        check_identity([broken])
+    assert "на тысячу" in str(exc.value)
+
+
+def test_threshold_is_one_and_a_half_sigma_over_the_whole_panel():
+    """σ — выборочное стандартное отклонение по всем строкам, не по прошедшим порог.
+
+    По живой панели 22.10.2026: σ = 4,738 на тысячу, порог 7,107, по нему
+    419 строк «уезд-год», из них 139 за 1892 год.
+    """
+    sigma, threshold = excess_threshold([0.0, 0.0, 10.0, 10.0])
+    assert round(sigma, 4) == 5.7735 and round(threshold, 4) == 8.6603
+    with pytest.raises(FamineError):
+        excess_threshold([1.0])
+
+
+def test_cholera_record_is_only_made_where_people_died():
+    records = cholera_records(PANEL, PANEL_INDEX)
+    assert [r.source_id for r in records] == ["492:1892:cholera", "562:1892:cholera"]
+    rec = records[0]
+    assert rec.category == CATEGORY_CHOLERA and rec.scope == SCOPE_REGION and not rec.has_point
+    assert rec.title == "Николаевский уезд Самарской губернии: холера 1892 года"
+    assert rec.region == "Самарская губерния" and rec.district == "Николаевский уезд"
+    assert (rec.year_from, rec.year_to) == (1892, 1892) and rec.period_raw == "1892"
+    assert rec.work == WORK and rec.url.endswith("Q4DMKK")
+    assert rec.summary == ("Холера 1892 года: заболели 12\u00a0367, умерли 5\u00a0110 человек — "
+                           "14% всех смертей в уезде за год (36\u00a0333).")
+    assert rec.extra["famine"]["cholera_cases"] == 12367 and rec.extra["RISTAT_ID"] == "1897_60"
+
+
+def test_don_okrug_is_named_by_its_province_and_matched_as_zemlia():
+    """«Rostov» есть и в Ярославской, и на Дону: ключ словаря — губерния с уездом.
+    Войско Донское делилось на округа, а справочник RISTAT зовёт его землёй."""
+    assert district_name("Rostov", "Don Cossacks") == "Ростовский округ"
+    assert district_name("Rostov", "Iaroslavl'") == "Ростовский уезд"
+    assert district_name("Rostov") == "Ростовский уезд"
+    assert ("Don Cossacks", "Novocherkassk") in DISTRICTS_BY_PROVINCE
+    rec = cholera_records([ROSTOV_1892], PANEL_INDEX)[0]
+    assert rec.district == "Ростовский округ" and rec.region == "Область Войска Донского"
+    assert "умерли 6\u00a0443 человека — 29% всех смертей" in rec.summary
+    tiny = cholera_records([{**ROSTOV_1892, "cholera_deaths": "2", "cholera_cases": "4"}],
+                           PANEL_INDEX)[0]
+    assert "умерли 2 человека — менее 0,1% всех смертей" in tiny.summary
+    assert rec.title == "Ростовский округ Области Войска Донского: холера 1892 года"
+    assert rec.confidence == "ok" and rec.extra["RISTAT_ID"] == "1897_24"
+
+
+def test_excess_record_is_made_above_the_threshold_only():
+    records = excess_records(PANEL, PANEL_INDEX, threshold=7.107)
+    assert [r.source_id for r in records] == [
+        "492:1892:excess", "562:1892:excess", "33:1891:excess", "0:1888:excess",
+    ]
+    rec = records[0]
+    assert rec.category == CATEGORY_EXCESS and rec.year_from == 1892 and not rec.has_point
+    assert rec.summary.startswith("Смертность 1892 года — 73,8 на тысячу населения при "
+                                  "ожидаемых 47,3: сверх обычного 26,4 на тысячу "
+                                  "(порог слоя 7,1)")
+    assert rec.summary.endswith("Умерло 36\u00a0333 человека; родилось 22\u00a0373; "
+                                "от холеры умерло 5\u00a0110.")
+    assert rec.extra["excess_threshold"] == {"sigma_factor": 1.5, "value": 7.107}
+    assert rec.extra["famine"]["famine"] == 1 and rec.extra["famine"]["relief"] == 1
+
+
+def test_work_is_carried_only_in_the_famine_years():
+    """Сверхсмертность 1888 года в Лифляндии с голодом 1891 года не сводится."""
+    by_id = {r.source_id: r for r in excess_records(PANEL, PANEL_INDEX, threshold=7.107)}
+    assert by_id["33:1891:excess"].work == WORK
+    assert by_id["492:1892:excess"].work == WORK
+    assert by_id["0:1888:excess"].work is None
+    # Переменные регрессии статьи остаются в extra и в категорию не идут.
+    assert by_id["33:1891:excess"].category == CATEGORY_EXCESS
+    assert by_id["33:1891:excess"].extra["famine"]["famine"] == 0
+
+
+def test_panel_records_check_identity_and_compute_the_threshold():
+    cholera, excess, stats = panel_records(PANEL, PANEL_INDEX)
+    assert stats["identity_rows"] == 5 and stats["identity_max_diff"] < 1e-6
+    assert round(stats["sigma"], 3) == round(excess_threshold(
+        [26.44205227, -0.263584705, 29.20070994, 9.237627476, 17.0])[0], 3)
+    assert len(cholera) == 2 and all(r.year_from >= 1891 for r in excess)
+
+
 # --- словари против справочника границ в репозитории ------------------------
 
 @pytest.mark.skipif(not DISTRICTS_1897.exists(), reason="нет districts_1897.geojson")
@@ -324,10 +459,11 @@ def test_every_dictionary_district_is_spelled_as_in_ristat():
     index = DistrictIndex.load(DISTRICTS_1897)
     known = {district for _, district in index.by_key}
     missing = []
-    for adjective in set(DISTRICTS.values()):
+    for name in set(DISTRICTS.values()) | set(DISTRICTS_BY_PROVINCE.values()):
+        adjective = name.replace(" округ", "")
         spelled = RISTAT_DISTRICT_SPELLING.get(adjective, adjective)
         if region_key(spelled) not in known:
-            missing.append(adjective)
+            missing.append(name)
     assert not missing, missing
 
 
