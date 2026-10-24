@@ -58,6 +58,7 @@ from .adapters.bookplaces import LITERARY, TENISHEV
 from .adapters.prokudin_gorsky import PROKUDIN
 from .adapters.state_events import STATE_EVENTS
 from .sources.admin_gis import ADMIN_GIS
+from .sources.burned_villages import BURNED_VILLAGES
 from .sources.cshapes import STATE_BORDERS
 from .sources.drought import DROUGHT_ATLAS
 from .sources.drought_geda import DROUGHT_ATLAS_GEDA
@@ -92,7 +93,8 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      DROUGHT_ATLAS_GEDA, ADMIN_UKRAINE, CENSUS_1926, PODILLYA,
                      FAMINE_1933, MORTALITY_1871_1914,
                      PEASANT_UNREST, REFORMS_UEZD, MOBILIZATION_1914, CITY_POPULATION,
-                     OCCUPATION_CITIES]
+                     OCCUPATION_CITIES,
+                     BURNED_VILLAGES]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
