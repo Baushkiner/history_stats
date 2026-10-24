@@ -76,8 +76,13 @@ RECORD_ID = "11059894"
 RECORD_API = f"https://zenodo.org/api/records/{RECORD_ID}"
 DOI_URL = "https://doi.org/10.5281/zenodo.11059894"
 FILE_NAME = "geda_trim.nc"
-FILE_URL = f"{RECORD_API}/files/{FILE_NAME}/content"
+FILES_API = f"{RECORD_API}/files"
+FILE_URL = f"{FILES_API}/{FILE_NAME}/content"
 # Сверено с API Zenodo 24.10.2026: файл в записи один, лицензия CC BY 4.0.
+# Карточку записи (`/api/records/<id>`) сборщик не запрашивает: robots.txt
+# Zenodo закрывает `/api`, оставляя открытым только `/api/records/*/files`.
+# Поэтому автоматически сверяются файл, размер и md5, а лицензия — нет: она
+# проверена по карточке руками и записана в `license` слоя.
 FILE_SIZE = 226_412_265
 FILE_MD5 = "b05338614a43627b43acb878d860fb6a"
 LICENSE_ID = "cc-by-4.0"
@@ -168,8 +173,8 @@ class GedaError(DroughtError):
 # --- запись на Zenodo ------------------------------------------------------
 
 def fetch_record(*, timeout: int = 60) -> dict:
-    """Карточка записи по API Zenodo: файлы, размеры, контрольные суммы, лицензия."""
-    raw = fetch_bytes(RECORD_API, error=GedaError, timeout=timeout)
+    """Перечень файлов записи по API Zenodo: имена, размеры, контрольные суммы."""
+    raw = fetch_bytes(FILES_API, error=GedaError, timeout=timeout)
     try:
         return json.loads(raw)
     except ValueError as exc:
@@ -177,9 +182,9 @@ def fetch_record(*, timeout: int = 60) -> dict:
 
 
 def check_record(record: dict) -> list[str]:
-    """Расхождения карточки с тем, что записано в коде. Пусто — всё сходится."""
+    """Расхождения перечня файлов с тем, что записано в коде. Пусто — всё сходится."""
     problems = []
-    files = {f.get("key"): f for f in record.get("files") or []}
+    files = {f.get("key"): f for f in record.get("entries") or []}
     got = files.get(FILE_NAME)
     if got is None:
         problems.append(f"в записи нет файла {FILE_NAME}; есть: {sorted(files)}")
@@ -191,10 +196,6 @@ def check_record(record: dict) -> list[str]:
                             f"ожидалась md5:{FILE_MD5}")
     if len(files) > 1:
         problems.append(f"в записи {len(files)} файлов, а ждали один: {sorted(files)}")
-    license_id = ((record.get("metadata") or {}).get("license") or {}).get("id")
-    if license_id != LICENSE_ID:
-        problems.append(f"лицензия в карточке {license_id!r}, а записана {LICENSE_ID!r} — "
-                        "поправьте `license` в карточке слоя")
     return problems
 
 

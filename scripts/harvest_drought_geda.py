@@ -41,7 +41,7 @@ from histctx.io_formats import write_geojson, write_jsonl
 from histctx.sources.drought import ERDA, YEAR_FROM, YEAR_TO, find_episodes
 from histctx.sources.drought import load as load_erda
 from histctx.sources.drought_geda import (
-    DOI_URL, DROUGHT_ATLAS_GEDA, FILE_NAME, GEDA, RECORD_API, THRESHOLD, GedaError,
+    DOI_URL, DROUGHT_ATLAS_GEDA, FILE_NAME, FILES_API, GEDA, THRESHOLD, GedaError,
     Territory, agreement, cached, check_record, episodes_to_records, fetch_record,
     make_keep, open_netcdf, read_atlas, sigma_class,
 )
@@ -73,9 +73,9 @@ def check(args) -> int:
         print(f"  файл задан руками ({args.file}) — карточку и md5 не сверяю")
     else:
         record = fetch_record()
-        files = record.get("files") or []
-        print(f"  API: {RECORD_API}; файлов {len(files)}, лицензия "
-              f"{((record.get('metadata') or {}).get('license') or {}).get('id')}")
+        files = record.get("entries") or []
+        print(f"  API: {FILES_API}; файлов {len(files)} (лицензия сверена руками, "
+              "карточку robots.txt Zenodo закрывает)")
         problems = check_record(record)
         if problems:
             print("\nКарточка расходится с записанным в коде — сбор остановлен:",

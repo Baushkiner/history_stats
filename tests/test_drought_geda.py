@@ -18,7 +18,7 @@ import pytest
 from histctx.registry import BY_SLUG
 from histctx.sources.drought import find_episodes
 from histctx.sources.drought_geda import (
-    DOI_URL, DROUGHT_ATLAS_GEDA, FILE_MD5, FILE_NAME, FILE_SIZE, LICENSE_ID, REASON_ABROAD,
+    DOI_URL, DROUGHT_ATLAS_GEDA, FILE_MD5, FILE_NAME, FILE_SIZE, REASON_ABROAD,
     REASON_ERDA, REASON_SEA, THRESHOLD, Cube, GedaError, Territory, agreement, check_record,
     clean, episodes_to_records, make_keep, node_number, open_netcdf, read_atlas, sigma_class,
 )
@@ -192,8 +192,7 @@ def test_missing_borders_stop_the_harvest(tmp_path):
 
 def record(**overrides):
     base = {
-        "files": [{"key": FILE_NAME, "size": FILE_SIZE, "checksum": f"md5:{FILE_MD5}"}],
-        "metadata": {"license": {"id": LICENSE_ID}},
+        "entries": [{"key": FILE_NAME, "size": FILE_SIZE, "checksum": f"md5:{FILE_MD5}"}],
     }
     base.update(overrides)
     return base
@@ -201,11 +200,9 @@ def record(**overrides):
 
 def test_zenodo_record_is_checked_against_the_code():
     assert check_record(record()) == []
-    changed = record(files=[{"key": FILE_NAME, "size": 1, "checksum": "md5:0"}])
+    changed = record(entries=[{"key": FILE_NAME, "size": 1, "checksum": "md5:0"}])
     assert len(check_record(changed)) == 2
-    assert check_record(record(files=[]))
-    assert any("лицензия" in p for p in check_record(record(metadata={"license":
-                                                                     {"id": "cc-by-nc-4.0"}})))
+    assert check_record(record(entries=[]))
 
 
 def test_without_h5py_the_error_says_what_to_install(monkeypatch, tmp_path):
