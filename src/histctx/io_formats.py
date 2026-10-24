@@ -250,9 +250,15 @@ def record_from_row(row: dict) -> ContextRecord:
 
 
 def read_jsonl(path: Path) -> list[ContextRecord]:
-    """Построчный JSON обратно в записи."""
+    """Построчный JSON обратно в записи.
+
+    Строки режутся по `\n`, а не `str.splitlines()`: тот считает концом
+    строки ещё и NEL (U+0085) с разделителями абзацев, а такие знаки бывают
+    внутри значения — исходное название губернии у голода 1891 года приходит
+    испорченной кодировкой, и NEL стоит прямо в нём.
+    """
     return [record_from_row(json.loads(line))
-            for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+            for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
 
 
 def read_records_json(path: Path) -> list[ContextRecord]:

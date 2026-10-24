@@ -31,6 +31,11 @@ SPARQL, машинный ответ, — но удобство источник�
 ненаписанного сборщика. Лицензия у CShapes была известна с самого начала
 (CC BY-NC-SA 4.0), и она подходит — проект некоммерческий.
 
+Следом ушёл голод 1891–1892 годов (`famine_1891`): проход 23.08.2026 нашёл
+набор к статье В. Чарныш, записал его сюда как найденный и не собранный, а
+22.10.2026 у него появился сборщик (`scripts/harvest_famine_1891.py`).
+Карточка слоя теперь живёт рядом с разбором, в `sources/famine_1891.py`.
+
 Шестнадцать слоёв Викиданных стояли в `PLANNED` и после того, как их собрали:
 запрос был написан, сбор прошёл 24.08.2026, а статус остался прежним. Теперь
 они в `HARVESTED_WIKIDATA` со статусом `harvested`. В `PLANNED` остался один
@@ -56,6 +61,7 @@ from .sources.admin_gis import ADMIN_GIS
 from .sources.cshapes import STATE_BORDERS
 from .sources.drought import DROUGHT_ATLAS
 from .sources.errhs import HARVEST_PRICES
+from .sources.famine_1891 import FAMINE_1891
 from .sources.geonames import SETTLEMENTS
 from .sources.gulag import GULAG_CAMPS
 from .sources.pastvu import PASTVU_PHOTOS
@@ -75,7 +81,7 @@ CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 # общий HARVESTED складывается из двух в конце файла.
 HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      STATE_BORDERS, HARVEST_PRICES, DROUGHT_ATLAS,
-                     WEATHER_STATIONS, WEATHER_REGIONS, STRIKES]
+                     WEATHER_STATIONS, WEATHER_REGIONS, STRIKES, FAMINE_1891]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
@@ -336,23 +342,6 @@ EXTERNAL = [
             "хранит только точку. Содержимое разнородно: станции и дороги ближе к "
             "economy, утраченные здания — к culture; группа поставлена по преобладающему "
             "(границы и населённые места), и раскладка по группам — отдельная работа."
-        ),
-    ),
-    LayerSpec(
-        slug="famine_1891", title="Голод 1891–1892 годов: помощь и смертность по уездам",
-        group="hardship",
-        source="Harvard Dataverse, набор В. Чарныш (MIT) к статье о голоде 1891/92 годов",
-        license="CC0 1.0 — указано в карточке набора",
-        status="planned", expected_rows=215,
-        url="https://doi.org/10.7910/DVN/Q4DMKK",
-        description=(
-            "215 уездов с координатами: урожай 1889–1891 годов, доля населения на "
-            "продовольственной помощи, ссуды семенами и хлебом, месяц начала голода, "
-            "расстояние до железной дороги. Отдельной таблицей — избыточная смертность "
-            "по девятнадцати губерниям. Даёт голоду 1891 года уезд там, где вручную "
-            "собранное территориальное событие в state_events знает только перечень "
-            "семнадцати губерний: слои не заменяют друг друга, но накладываются, и при "
-            "подборе контекста это пересечение придётся разводить явно."
         ),
     ),
 ]

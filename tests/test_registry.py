@@ -100,7 +100,9 @@ AWAITING_COLLECTOR = {
     # Внешние проекты: нужен разбор формата, а для части — договорённость.
     "photos_russiainphoto", "weather_chronicles",
     # Найдено проходом по каталогу 23.08.2026: разведка, сборщика ещё нет.
-    "census_1897_uezd", "openhistoricalmap", "famine_1891",
+    # Третий найденный тогда же слой, famine_1891, отсюда ушёл 22.10.2026 —
+    # собран `scripts/harvest_famine_1891.py`.
+    "census_1897_uezd", "openhistoricalmap",
 }
 
 
