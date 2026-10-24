@@ -65,6 +65,7 @@ from .sources.errhs import HARVEST_PRICES
 from .sources.famine_1891 import FAMINE_1891
 from .sources.geonames import SETTLEMENTS
 from .sources.gulag import GULAG_CAMPS
+from .sources.huri import ADMIN_UKRAINE, CENSUS_1926, PODILLYA
 from .sources.pastvu import PASTVU_PHOTOS
 from .sources.ristat import RISTAT_BOUNDARIES
 from .sources.strikes import STRIKES
@@ -74,16 +75,16 @@ CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
 # Слои, собранные своим сборщиком из внешнего набора и лежащие в data/out.
 # От CURATED отличаются происхождением: их не ведут вручную, их пересобирают
-# командой. `admin_boundaries_1897` и `state_borders` — единственные здесь,
-# кто не даёт записей схемы: это полигоны для подложки карты, они лежат
-# в data/out/boundaries.
+# командой. `admin_boundaries_1897`, `state_borders` и `admin_ussr_ukraine`
+# (районы УССР 1922–1937 годов) — единственные здесь, кто не даёт записей
+# схемы: это полигоны для подложки карты, они лежат в data/out/boundaries.
 # PastVu и погода пришли сюда из EXTERNAL: разбор сверен с живым сервисом.
 # Слои из Викиданных собраны тоже, но объявлены ниже, своим списком:
 # общий HARVESTED складывается из двух в конце файла.
 HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      STATE_BORDERS, HARVEST_PRICES, DROUGHT_ATLAS,
                      WEATHER_STATIONS, WEATHER_REGIONS, STRIKES, FAMINE_1891,
-                     DROUGHT_ATLAS_GEDA]
+                     DROUGHT_ATLAS_GEDA, ADMIN_UKRAINE, CENSUS_1926, PODILLYA]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
