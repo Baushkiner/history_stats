@@ -131,12 +131,14 @@ BURNED_VILLAGES = LayerSpec(
     license=LICENSE,
     url=DATASET_URL,
     status="harvested",
-    expected_rows=7929,
+    # 7 929 деревень набора и 29 карточек НАРБ без пары из кэша на 24.10.2026;
+    # с полным обходом НАРБ число вырастет на несведённые карточки.
+    expected_rows=7958,
     description=(
         "7 929 деревень, пострадавших при карательных акциях 1941–1944 годов: месяц "
         "уничтожения, сожжённые дворы и погибшие (194 940 человек), довоенные область "
-        "и район. Координата набора берётся, только если она одна на деревню: 3 536 "
-        "деревень встают точкой, остальные — записью района, потому что геокодер "
+        "и район. Координата набора берётся, только если она одна на деревню: 3 552 "
+        "деревни встают точкой, остальные — записью района, потому что геокодер "
         "набора ставил одноимённые деревни разных районов в одну точку. Карточки "
         "базы НАРБ, сведённые с набором по названию и району, добавляют дворы и "
         "жителей деревни до войны, дату словами, архивные шифры и судьбу деревни. "
@@ -398,9 +400,15 @@ def check_scan(scan: MonthScan, villages: list[dict]) -> list[str]:
 
 # --- координата: деревня или чужая точка ------------------------------------
 
+# Тип поселения после запятой — «Староселье, пос.», «Антоново, хут.» — в
+# наборе и в базе пишется не всегда одинаково и для сравнения снимается.
+_RE_KIND_TAIL = re.compile(r",\s*(пос|поселок|хут|хутор|хутора|дер|д)\.?\s*$")
+
+
 def name_key(name) -> str:
-    """«Абразеево», «абразеёво » → «абразеево»: для сравнения, не для показа."""
+    """«Абразеево», «абразеёво », «Абразеево, пос.» → «абразеево»: для сравнения."""
     text = (village_name(name) or "").lower().replace("ё", "е")
+    text = _RE_KIND_TAIL.sub("", text)
     return " ".join(re.sub(r"[^а-яa-z0-9]+", " ", text).split())
 
 
@@ -721,8 +729,8 @@ HOW_RAYON_NUMBERS = "район и числа, название другое"
 def rayons_close(a, b) -> bool:
     """Один ли район: ключи равны или расходятся на одну букву.
 
-    «Дубровенский» и «Дубровненский» —
-    одно и то же; у ключей короче шести букв поправка не делается.
+    «Дубровенский» и «Дубровненский» — одно и то же; у ключей короче шести
+    букв поправка не делается.
     """
     ka, kb = rayon_key(a), rayon_key(b)
     if not ka or not kb:
@@ -772,6 +780,12 @@ def _how(village: dict, card: dict, same_name: bool) -> Optional[str]:
 _RANK = {HOW_EXACT: 0, HOW_NAME_RAYON: 1, HOW_NAME_NUMBERS: 2, HOW_RAYON_NUMBERS: 3}
 
 
+def _twin_key(v: dict) -> tuple:
+    return (name_key(v.get("VILLAGE")), rayon_key(v.get("RAYON_PREWAR")),
+            _count(v.get("HOUSES_DESTROYED")), _count(v.get("PEOPLE_KILLED")),
+            v.get("LAT"), v.get("LONG"))
+
+
 def match_cards(villages: list[dict], cards: Iterable[dict]) -> tuple[dict, dict]:
     """Сводит карточки НАРБ с деревнями набора.
 
@@ -791,7 +805,7 @@ def match_cards(villages: list[dict], cards: Iterable[dict]) -> tuple[dict, dict
         by_name[name_key(v.get("VILLAGE"))].append(v)
         by_rayon[rayon_key(v.get("RAYON_PREWAR"))].append(v)
 
-    proposals = []   # (rank, card url, vid)
+    proposals = []   # (ранг, как сведено, карточка, деревня)
     stats = Counter()
     cards = list(cards)
     for card in cards:
@@ -812,10 +826,13 @@ def match_cards(villages: list[dict], cards: Iterable[dict]) -> tuple[dict, dict
             continue
         best = min(o[0] for o in options)
         top = [o for o in options if o[0] == best]
-        if len({o[2]["VID"] for o in top}) > 1:
+        if len({o[2]["VID"] for o in top}) > 1 and len({_twin_key(o[2]) for o in top}) > 1:
             stats["неоднозначно"] += 1
             continue
-        proposals.append((best, top[0][1], card, top[0][2]))
+        # Двойники — одна деревня двумя строками набора (то же название, район,
+        # числа и точка): карточка достаётся каждой из строк.
+        for _, how, v in top:
+            proposals.append((best, how, card, v))
 
     # Деревне — одна карточка: лучший ранг выигрывает, равные — снимаются.
     by_vid = defaultdict(list)
@@ -833,7 +850,8 @@ def match_cards(villages: list[dict], cards: Iterable[dict]) -> tuple[dict, dict
         stats["без пары"] += len(items) - 1
         stats[top[0][1]] += 1
     stats["карточек"] = len(cards)
-    stats["сведено"] = len(matched)
+    stats["сведено"] = len({card["url"] for card, _ in matched.values()})
+    stats["деревень с карточкой"] = len(matched)
     return matched, dict(stats)
 
 

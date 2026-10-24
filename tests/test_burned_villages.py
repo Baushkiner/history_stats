@@ -501,3 +501,18 @@ def test_card_cache_skips_a_truncated_line(tmp_path):
     path.write_text(json.dumps(_card(), ensure_ascii=False) + "\n{\"url\": \"https://db.n",
                     encoding="utf-8")
     assert list(CardCache(path).cards) == [CARD_URL]
+
+
+def test_settlement_kind_is_dropped_from_the_name_key():
+    assert name_key("Староселье, пос.") == name_key("Староселье")
+    assert name_key("Антоново, хут.") == "антоново"
+
+
+def test_card_goes_to_both_rows_of_a_duplicated_village():
+    second = dict(_villages()[-1], VID="9999", VIL_ID="9998")   # Хатынь второй строкой
+    villages = _villages() + [second]
+    card = _card(name="Хатынь", rayon_prewar="Логойский", rayon="Логойский",
+                 houses_destroyed="26", people_killed="149", url="https://db.narb.by/village/h/")
+    matched, stats = match_cards(villages, [card])
+    assert set(matched) == {"7351", "9999"}
+    assert stats["сведено"] == 1 and stats["деревень с карточкой"] == 2

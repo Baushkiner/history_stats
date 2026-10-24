@@ -141,8 +141,9 @@ def probe_narb(cache_dir: Path, sample: int, pause: float) -> int:
     cards = [cache.cards[u] for u in picked]
     villages = load_villages(cache_dir)
     matched, stats = match_cards(villages, cards)
-    share = len(matched) / len(cards) if cards else 0
-    print(f"  сведено с деревнями набора: {len(matched)} из {len(cards)} ({share:.0%})")
+    share = stats["сведено"] / len(cards) if cards else 0
+    print(f"  сведено с деревнями набора: {stats['сведено']} из {len(cards)} ({share:.0%}); "
+          f"деревень набора с карточкой: {len(matched)}")
     for key in ("название, район и числа", "название и район",
                 "название и числа, район другой", "район и числа, название другое",
                 "неоднозначно", "без пары"):
