@@ -156,7 +156,7 @@ python3 scripts/harvest_occupation.py --build
 #     и карточки базы НАРБ (db.narb.by, права не выяснены). Полный обход карточек —
 #     часы; --build пишет то, что уже в кэше
 python3 scripts/harvest_burned_villages.py --probe
-python3 scripts/harvest_burned_villages.py --narb-all      # можно прерывать и продолжать
+python3 scripts/harvest_burned_villages.py --narb-all      # только после разрешения НАРБ; можно прерывать
 python3 scripts/harvest_burned_villages.py --build
 # 20. Церковные приходы: Викиданные, тот же harvest.py, но с @place, @label
 #     и @frame. Идёт после границ (шаг 5 и 6): рамка — губернии 1897 года
