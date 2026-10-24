@@ -21,7 +21,7 @@ from histctx.sources.famine_1891 import (
     CATEGORY_UNKNOWN, DISTRICTS, DISTRICTS_BY_PROVINCE, FILES, MONTH_COLUMNS, MONTHS, PROVINCES,
     RISTAT_DISTRICT_SPELLING, WORK, DistrictIndex, FamineError, ProvinceIndex,
     boundaries_geojson, check_columns, check_identity, check_manifest, cholera_records,
-    decode_province, district_name, excess_records, excess_threshold, monthly_relief,
+    decode_province, district_key, district_name, excess_records, excess_threshold, monthly_relief,
     onset_by_share, panel_records, period_text, province_from_table, province_name,
     province_records, relief_period, row_to_record, rows_to_records,
 )
@@ -72,16 +72,18 @@ UNKNOWN = {**ELETS, "ter_ID": "901", "uezd_name": "Novyi Gorod"}
 ROWS = [ELETS, BOLKHOV, ZHIZDRA, STRAY, UNKNOWN]
 
 
-def _feature(province: str, name: str, ristat_id: str) -> dict:
+def _feature(province: str, name: str, distr_id: int, ristat_id: str) -> dict:
+    """Уезд справочника: `Distr_ID` у каждого свой, `RISTAT_ID` — общий на губернию."""
     return {"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[[0, 0]]]},
-            "properties": {"prov_RU": province, "Name_RU": name, "RISTAT_ID": ristat_id}}
+            "properties": {"prov_RU": province, "Name_RU": name, "Distr_ID": distr_id,
+                           "RISTAT_ID": ristat_id}}
 
 
 INDEX = DistrictIndex([
-    _feature("Орловская губерния", "Елецкий", "1897_51"),
-    _feature("Орловская губерния", "Болховский", "1897_51"),
-    _feature("Калужская губерния", "Жиздринский", "1897_29"),
-    _feature("Калужская губерния", "Малоярославский", "1897_29"),
+    _feature("Орловская губерния", "Елецкий", 461, "1897_51"),
+    _feature("Орловская губерния", "Болховский", 455, "1897_51"),
+    _feature("Калужская губерния", "Жиздринский", 425, "1897_29"),
+    _feature("Калужская губерния", "Малоярославский", 417, "1897_29"),
 ])
 
 
@@ -189,13 +191,31 @@ def test_district_without_relief_is_kept_and_says_so():
 def test_district_is_matched_inside_its_province():
     rec = row_to_record(ELETS, INDEX)
     assert rec.confidence == "ok"
-    assert rec.extra["RISTAT_ID"] == "1897_51"
-    assert INDEX.find("Орловская губерния", "Елецкий уезд") == "1897_51"
+    assert rec.extra["Distr_ID"] == "461" and "RISTAT_ID" not in rec.extra
+    assert INDEX.find("Орловская губерния", "Елецкий уезд") == "461"
     # Сравнение идёт через region_key, а не по равенству строк.
-    assert INDEX.find("Орловской губернии", "Елецкий") == "1897_51"
+    assert INDEX.find("Орловской губернии", "Елецкий") == "461"
     # Написание RISTAT отличается от исторического — сверка знает об этом.
-    assert INDEX.find("Калужская губерния", "Малоярославецкий уезд") == "1897_29"
+    assert INDEX.find("Калужская губерния", "Малоярославецкий уезд") == "417"
     assert INDEX.find("Калужская губерния", "Елецкий уезд") is None
+
+
+def test_two_districts_of_one_province_get_different_ids():
+    """`RISTAT_ID` справочника один на губернию: по нему Елецкий и Болховский
+    уезды были бы одним уездом. Уезд различает только `Distr_ID`."""
+    elets = row_to_record(ELETS, INDEX).extra["Distr_ID"]
+    bolkhov = row_to_record(BOLKHOV, INDEX).extra["Distr_ID"]
+    assert (elets, bolkhov) == ("461", "455")
+
+
+def test_numbered_okrugs_are_not_merged():
+    """`region_key` номеров не видит: Донской 1-й и 2-й округа — разные уезды."""
+    index = DistrictIndex([
+        _feature("Земля войска Донского", "Донской 2-й", 544, "1897_13"),
+        _feature("Земля войска Донского", "Донской 1-й", 551, "1897_13"),
+    ])
+    assert index.find("Земля войска Донского", "Донской 1-й округ") == "551"
+    assert index.find("Земля войска Донского", "Донской 2-й округ") == "544"
 
 
 def test_unmatched_district_is_marked_not_dropped():
@@ -206,7 +226,7 @@ def test_unmatched_district_is_marked_not_dropped():
     assert set(bad) == {"900", "901"}
     stray = bad["900"]
     assert stray.district == "Елецкий уезд" and stray.region == "Калужская губерния"
-    assert "RISTAT_ID" not in stray.extra and stray.usable
+    assert "Distr_ID" not in stray.extra and stray.usable
     unknown = bad["901"]
     assert unknown.district is None
     assert unknown.place_text == "Novyi Gorod (уезд, написание набора), Орловская губерния"
@@ -312,7 +332,7 @@ def test_boundaries_take_only_districts_of_the_table():
     assert len(collection["features"]) == 1
     props = collection["features"][0]["properties"]
     assert props["uezd"] == "Елецкий уезд" and props["province"] == "Орловская губерния"
-    assert props["RISTAT_ID"] == "1897_51" and props["relief_months"] == 9
+    assert props["Distr_ID"] == "461" and props["relief_months"] == 9
     assert props["relief_period"] == "ноябрь 1891 — июль 1892"
     assert props["loan_food_pud"] == 681154 and props["relief_share_max_pct"] == 71.7
 
@@ -354,11 +374,11 @@ EZEL_1888 = {**EZEL_1885, "year": "1888", "est_cdr": "40.0", "cdr_pred": "23.0",
 PANEL = [NIKOLAEV_1892, EZEL_1885, ROSTOV_1892, ELETS_1891, EZEL_1888]
 
 PANEL_INDEX = DistrictIndex([
-    _feature("Самарская губерния", "Николаевский", "1897_60"),
-    _feature("Лифляндская губерния", "Эзельский", "1897_41"),
-    _feature("Земля войска Донского", "Ростовский", "1897_24"),
-    _feature("Ярославская губерния", "Ростовский", "1897_99"),
-    _feature("Орловская губерния", "Елецкий", "1897_51"),
+    _feature("Самарская губерния", "Николаевский", 695, "1897_64"),
+    _feature("Лифляндская губерния", "Эзельский", 835, "1897_40"),
+    _feature("Земля войска Донского", "Ростовский", 547, "1897_13"),
+    _feature("Ярославская губерния", "Ростовский", 100, "1897_97"),
+    _feature("Орловская губерния", "Елецкий", 461, "1897_51"),
 ])
 
 
@@ -395,7 +415,7 @@ def test_cholera_record_is_only_made_where_people_died():
     assert rec.work == WORK and rec.url.endswith("Q4DMKK")
     assert rec.summary == ("Холера 1892 года: заболели 12\u00a0367, умерли 5\u00a0110 человек — "
                            "14% всех смертей в уезде за год (36\u00a0333).")
-    assert rec.extra["famine"]["cholera_cases"] == 12367 and rec.extra["RISTAT_ID"] == "1897_60"
+    assert rec.extra["famine"]["cholera_cases"] == 12367 and rec.extra["Distr_ID"] == "695"
 
 
 def test_don_okrug_is_named_by_its_province_and_matched_as_zemlia():
@@ -412,7 +432,7 @@ def test_don_okrug_is_named_by_its_province_and_matched_as_zemlia():
                            PANEL_INDEX)[0]
     assert "умерли 2 человека — менее 0,1% всех смертей" in tiny.summary
     assert rec.title == "Ростовский округ Области Войска Донского: холера 1892 года"
-    assert rec.confidence == "ok" and rec.extra["RISTAT_ID"] == "1897_24"
+    assert rec.confidence == "ok" and rec.extra["Distr_ID"] == "547"
 
 
 def test_excess_record_is_made_above_the_threshold_only():
@@ -462,7 +482,7 @@ def test_every_dictionary_district_is_spelled_as_in_ristat():
     for name in set(DISTRICTS.values()) | set(DISTRICTS_BY_PROVINCE.values()):
         adjective = name.replace(" округ", "")
         spelled = RISTAT_DISTRICT_SPELLING.get(adjective, adjective)
-        if region_key(spelled) not in known:
+        if district_key(spelled) not in known:
             missing.append(name)
     assert not missing, missing
 
