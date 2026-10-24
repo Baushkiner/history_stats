@@ -58,6 +58,7 @@ from .adapters.bookplaces import LITERARY, TENISHEV
 from .adapters.prokudin_gorsky import PROKUDIN
 from .adapters.state_events import STATE_EVENTS
 from .sources.admin_gis import ADMIN_GIS
+from .sources.burned_villages import BURNED_VILLAGES
 from .sources.cshapes import STATE_BORDERS
 from .sources.drought import DROUGHT_ATLAS
 from .sources.errhs import HARVEST_PRICES
@@ -81,7 +82,8 @@ CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 # общий HARVESTED складывается из двух в конце файла.
 HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      STATE_BORDERS, HARVEST_PRICES, DROUGHT_ATLAS,
-                     WEATHER_STATIONS, WEATHER_REGIONS, STRIKES, FAMINE_1891]
+                     WEATHER_STATIONS, WEATHER_REGIONS, STRIKES, FAMINE_1891,
+                     BURNED_VILLAGES]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
