@@ -29,6 +29,7 @@
 | `overpass-api.openhistoricalmap.org` | Датированные объекты OpenHistoricalMap (CC0) |
 | `dataverse.harvard.edu`, `dvn-cloud-iqss.s3.amazonaws.com` | Набор по голоду 1891–1892 годов и три пакета воспроизведения, подключённые 24.10.2026, — волнения и земство, мобилизация 1914–1916 годов, население городов (все CC0 1.0): список файлов — `/api/datasets/:persistentId/`, сами файлы — `/api/access/datafile/{id}`, тот же путь, что у heiDATA; карточка набора — через `doi.org`. Файлы без ингеста (`.dta`, `.tar`) и исходники таблиц (`?format=original`) отдаются переадресацией на подписанную ссылку S3. Тем же путём — `main_data.Rdata` набора Rozenas, Zhukov (CC0 1.0): районы УССР 1933 года для слоя голода 1932–1933 годов. |
 | `zenodo.org` | Great Eurasian Drought Atlas (CC BY 4.0): перечень файлов — `/api/records/11059894/files` (имена, размеры, md5; карточку `/api/records/<id>` robots.txt закрывает, лицензия сверена руками), сам файл — `/api/records/11059894/files/geda_trim.nc/content`, 226 МБ; DOI набора — через `doi.org`. Пакет воспроизведения Маркевича, Науменко, Цянь по голоду 1932–1933 годов («Other (Attribution)»): перечень файлов — `/api/records/10983057/files`, архив — `/api/records/10983057/files/v3.zip/content`. robots.txt Zenodo закрывает `/api/`, но этот путь разрешает явно (`Allow: /api/records/*/files`); карточку записи `/api/records/<id>` сборщик не запрашивает |
+| `zenodo.org` | Cliopatria, Seshat Global History Databank (CC BY 4.0), v0.2.1 — границы государств 1600–1885 годов: перечень содержимого архива — `/api/records/23128623/files/Seshat-Global-History-Databank/cliopatria-v0.2.1.zip/container` (размер и CRC32 вложенных файлов), сам набор — тот же адрес плюс `/Seshat-Global-History-Databank-cliopatria-5f43337/cliopatria.geojson.zip`, 46 МБ вместо 299 МБ всего архива. Оба пути под `/api/records/*/files`, который robots.txt открывает; карточку записи сборщик не запрашивает, лицензия сверена руками |
 | `maps-huri-ws.net` | Сервер карт атласа HURI MAPA (ArcGIS REST, `/arcgis/rest/services`): районы УССР 1922–1937 годов (`famine_maps/master_admin`), перепись 1926 года по районам (`famine_maps/master_ethnic`), поселения Подолии (`podillya/podillya`). Права не выяснены — берутся факты со ссылкой. Рвёт соединение на рукопожатии примерно на каждом десятом запросе: сбор повторяет попытку |
 | `download.geonames.org` | Альтернативные названия GeoNames по странам (`/export/dump/alternatenames/XX.zip`, CC BY 4.0) — русские имена городов слоя населения городов: у каждого имени есть язык и флаги «основное» и «историческое» |
 | `dataverse.harvard.edu` | Набор по голоду 1891–1892 годов (CC0 1.0): список файлов — `/api/datasets/:persistentId/`, сами файлы — `/api/access/datafile/{id}`, тот же путь, что у heiDATA; карточка набора — через `doi.org` |
@@ -170,6 +171,10 @@ python3 scripts/harvest.py --layer parishes
 python3 scripts/harvest_burial_sites_terror.py --probe
 python3 scripts/harvest_burial_sites_terror.py --fetch
 python3 scripts/harvest_burial_sites_terror.py --build
+# 22. Границы государств 1600–1885: Cliopatria, Zenodo (CC BY 4.0). С 1886 года
+#     границу ведёт CShapes (шаг 6); --check сверяет размер и CRC32 набора
+python3 scripts/harvest_cliopatria.py --check
+python3 scripts/harvest_cliopatria.py --build
 
 # Выгрузка любого собранного слоя в XLSX — записи, сводка, лист об источнике
 python3 scripts/export_layer_xlsx.py --layer repressions
@@ -1632,7 +1637,10 @@ TSV-копия Dataverse теряет подписи колонок, а друг
 (CC BY-NC-SA 4.0) — 151 период 46 государств 1886–1960 годов, границы и
 столицы по датам их изменения. Файлы: `boundaries_1897`, `boundaries_1926`,
 `provinces_1897`, `districts_1897`, `state_borders` — все в
-`data/out/boundaries/`. Шейпфайл и GeoPackage читаются своим разбором на
+`data/out/boundaries/`. До 1886 года границы государств продолжает
+Cliopatria (CC BY 4.0): 1 187 строк 121 политии 1600–1885 годов по годам,
+файл `state_borders_early`; разбор — `sources/cliopatria.py`, раздел
+«Границы» в `docs/CATALOG.md`. Шейпфайл и GeoPackage читаются своим разбором на
 стандартной библиотеке: `src/histctx/sources/shapefile.py` и `geopackage.py`,
 чтобы не тянуть geopandas с fiona ради трёх наборов.
 
@@ -1642,6 +1650,7 @@ TSV-копия Dataverse теряет подписи колонок, а друг
 JSON, и разбор у него свой (раздел «Районы УССР и перепись 1926 года»).
 
 Первым двум наборам отбор по охвату РИ/СССР не нужен: они и составлены по
-нему. CShapes составлен по миру, и отбор к нему применяется — по вершинам
-границы, а не по описанному прямоугольнику: у России прямоугольник растянут
-от −180° до 180° из-за Чукотки, и по нему в слой попало бы полмира.
+нему. CShapes и Cliopatria составлены по миру, и отбор к ним применяется —
+по вершинам границы, а не по описанному прямоугольнику: у России
+прямоугольник растянут от −180° до 180° из-за Чукотки, и по нему в слой
+попало бы полмира.
