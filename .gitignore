@@ -64,3 +64,8 @@ data/out/boundaries/state_borders_world.geojson
 # (scripts/harvest_famine_1933.py --check), в репозиторий идут только записи
 # и полигоны районов УССР.
 data/raw/famine_1933/
+# Страницы справочника «Освобождение городов» с soldat.ru и набор Grunewald
+# для сверки дат: около девятисот килобайт, скачиваются заново одной
+# командой (scripts/harvest_occupation.py --check); в репозиторий идут
+# только записи слоя.
+data/raw/occupation_cities/
