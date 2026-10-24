@@ -18,10 +18,11 @@
 
 На выходе:
 
-* `jsonl/famine_1891.jsonl` — записи четырёх видов, охват «регион», без
-  точки: 216 уездов главной таблицы, 24 губернии, холера 1892 года по уездам
-  панели и годы со сверхсмертностью не ниже полутора сигм; в репозиторий
-  не идёт;
+* `famine_1891.json` и `jsonl/famine_1891.jsonl` — записи четырёх видов,
+  охват «регион», без точки: 216 уездов главной таблицы, 24 губернии,
+  холера 1892 года по уездам панели и годы со сверхсмертностью не ниже
+  полутора сигм. В репозиторий идёт `famine_1891.json`: `jsonl/`
+  в `.gitignore`;
 * `boundaries/famine_1891_districts.geojson` — полигоны 216 уездов главной
   таблицы с русскими названиями, парой в RISTAT и главными числами помощи:
   подложка карты, лежит рядом с границами 1897 года и в репозиторий идёт.
@@ -41,7 +42,7 @@ from pathlib import Path
 
 from _paths import ROOT
 
-from histctx.io_formats import write_feature_collection, write_jsonl
+from histctx.io_formats import write_feature_collection, write_jsonl, write_records_json
 from histctx.sources.famine_1891 import (
     DATASET_URL, FAMINE_1891, FILES, MAIN, PANEL, PROVINCES_FILE, REQUIRED_MAIN, REQUIRED_PANEL,
     REQUIRED_PROVINCES, WORK_YEARS, DistrictIndex, FamineError, ProvinceIndex,
@@ -185,6 +186,9 @@ def build(cache_dir: Path, out_dir: Path, districts_path: Path, provinces_path: 
         return 1
 
     out_dir.mkdir(parents=True, exist_ok=True)
+    # В репозиторий записи идут файлом `<слой>.json`: `jsonl/` в `.gitignore`.
+    json_path = out_dir / f"{FAMINE_1891.slug}.json"
+    write_records_json(records, json_path, title=FAMINE_1891.title)
     jsonl = out_dir / "jsonl" / f"{FAMINE_1891.slug}.jsonl"
     write_jsonl(records, jsonl)
     unmatched = sum(1 for r in records if r.confidence == "district_unmatched")
@@ -193,7 +197,8 @@ def build(cache_dir: Path, out_dir: Path, districts_path: Path, provinces_path: 
           f"{len(got['cholera'])} — холера 1892 года, {len(got['excess'])} — "
           f"сверхсмертность за год (порог {got['panel_stats']['threshold']:.2f} на тысячу).")
     print(f"  уездов без пары в RISTAT 1897 (остались в данных): {unmatched}")
-    print(f"  файл: {jsonl.relative_to(ROOT)}")
+    for path in (json_path, jsonl):
+        print(f"  файл: {path.relative_to(ROOT)}")
 
     collection = boundaries_geojson(got["shapes"], districts)
     path = out_dir / "boundaries" / "famine_1891_districts.geojson"
