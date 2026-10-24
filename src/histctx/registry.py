@@ -60,6 +60,7 @@ from .adapters.state_events import STATE_EVENTS
 from .sources.admin_gis import ADMIN_GIS
 from .sources.cshapes import STATE_BORDERS
 from .sources.drought import DROUGHT_ATLAS
+from .sources.drought_geda import DROUGHT_ATLAS_GEDA
 from .sources.errhs import HARVEST_PRICES
 from .sources.famine_1891 import FAMINE_1891
 from .sources.geonames import SETTLEMENTS
@@ -81,7 +82,8 @@ CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 # общий HARVESTED складывается из двух в конце файла.
 HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      STATE_BORDERS, HARVEST_PRICES, DROUGHT_ATLAS,
-                     WEATHER_STATIONS, WEATHER_REGIONS, STRIKES, FAMINE_1891]
+                     WEATHER_STATIONS, WEATHER_REGIONS, STRIKES, FAMINE_1891,
+                     DROUGHT_ATLAS_GEDA]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых

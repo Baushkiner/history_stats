@@ -19,6 +19,10 @@ dependencies = [
 # rdflib — только для разбора SPARQL в тестах: строка `@filter` в заголовке
 # запроса иначе проверяется живым сервисом посреди сбора.
 dev = ["pytest>=7.0", "rdflib>=6.0"]
+# h5py — только сборщику засух GEDA (`scripts/harvest_drought_geda.py`): набор
+# лежит на Zenodo одним NetCDF4, а это HDF5, и без библиотеки его не прочесть.
+# Остальной проект и тесты без неё работают.
+geda = ["h5py>=3.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

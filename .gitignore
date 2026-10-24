@@ -26,6 +26,11 @@ data/raw/meteo/
 # только записи и полигоны уездов.
 data/raw/famine_1891/
 
+# Great Eurasian Drought Atlas с Zenodo: один NetCDF4 на 226 МБ, вся
+# Евразия за 1000–2020 годы. Скачивается заново командой
+# scripts/harvest_drought_geda.py --check (размер и md5 сверяются).
+data/raw/geda/
+
 # Крупные выгрузки пересобираются скриптами; в репозиторий идут
 # только отчёт и небольшие GeoJSON-слои.
 data/out/*.xlsx
