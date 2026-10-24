@@ -16,6 +16,7 @@ import urllib.error
 import pytest
 
 from histctx.schema import SCOPE_POINT, SCOPE_REGION
+from histctx.net import USER_AGENT
 from histctx.sources.burned_villages import (
     BURNED_VILLAGES, CATEGORY_BURNED, CATEGORY_NARB_EMPTY, CATEGORY_NARB_ONLY, CATEGORY_NONE,
     CONFIDENCE_SHARED,
@@ -476,8 +477,8 @@ def test_client_does_not_retry_refusals():
 
 
 def test_signature_names_the_project_without_the_filtered_word():
-    assert NARB_USER_AGENT.startswith("histctx/")
-    assert "harvesting" not in NARB_USER_AGENT
+    # Сайт отказывает подписи сборщика — подпись под фильтр не подгоняется.
+    assert NARB_USER_AGENT == USER_AGENT
 
 
 def test_card_cache_appends_and_reloads(tmp_path):
