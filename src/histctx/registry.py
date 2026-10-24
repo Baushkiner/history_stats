@@ -71,6 +71,9 @@ from .sources.pastvu import PASTVU_PHOTOS
 from .sources.ristat import RISTAT_BOUNDARIES
 from .sources.strikes import STRIKES
 from .sources.weather import WEATHER_REGIONS, WEATHER_STATIONS
+from .sources.reforms_1851 import PEASANT_UNREST, REFORMS_UEZD
+from .sources.mobilization_1914 import MOBILIZATION_1914
+from .sources.city_population import CITY_POPULATION
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -86,7 +89,8 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      STATE_BORDERS, HARVEST_PRICES, DROUGHT_ATLAS,
                      WEATHER_STATIONS, WEATHER_REGIONS, STRIKES, FAMINE_1891,
                      DROUGHT_ATLAS_GEDA, ADMIN_UKRAINE, CENSUS_1926, PODILLYA,
-                     FAMINE_1933, MORTALITY_1871_1914]
+                     FAMINE_1933, MORTALITY_1871_1914,
+                     PEASANT_UNREST, REFORMS_UEZD, MOBILIZATION_1914, CITY_POPULATION]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
