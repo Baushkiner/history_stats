@@ -4,7 +4,7 @@
   * `CURATED`   — ведутся вручную, лежат в data/raw или data/curated;
   * `HARVESTED` — собраны и лежат в data/out, пересобираются командой. Список
     складывается из двух: `HARVESTED_SOURCES` — свои сборщики по внешним
-    наборам, `HARVESTED_WIKIDATA` — шестнадцать слоёв по запросам из queries/;
+    наборам, `HARVESTED_WIKIDATA` — семнадцать слоёв по запросам из queries/;
   * `PLANNED`   — слой объявлен, а способа собрать его нет; список должен
     сокращаться;
   * `EXTERNAL`  — данные уже собраны другими проектами: свой сбор у каждого,
@@ -58,36 +58,51 @@ from .adapters.bookplaces import LITERARY, TENISHEV
 from .adapters.prokudin_gorsky import PROKUDIN
 from .adapters.state_events import STATE_EVENTS
 from .sources.admin_gis import ADMIN_GIS
+from .sources.burned_villages import BURNED_VILLAGES
 from .sources.cshapes import STATE_BORDERS
 from .sources.drought import DROUGHT_ATLAS
+from .sources.drought_geda import DROUGHT_ATLAS_GEDA
 from .sources.errhs import HARVEST_PRICES
 from .sources.famine_1891 import FAMINE_1891
+from .sources.famine_1933 import FAMINE_1933, MORTALITY_1871_1914
 from .sources.geonames import SETTLEMENTS
 from .sources.gulag import GULAG_CAMPS
+from .sources.huri import ADMIN_UKRAINE, CENSUS_1926, PODILLYA
+from .sources.occupation import OCCUPATION_CITIES
+from .sources.mapofmemory import BURIAL_SITES_TERROR
 from .sources.pastvu import PASTVU_PHOTOS
 from .sources.ristat import RISTAT_BOUNDARIES
 from .sources.strikes import STRIKES
 from .sources.weather import WEATHER_REGIONS, WEATHER_STATIONS
+from .sources.reforms_1851 import PEASANT_UNREST, REFORMS_UEZD
+from .sources.mobilization_1914 import MOBILIZATION_1914
+from .sources.city_population import CITY_POPULATION
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
 # Слои, собранные своим сборщиком из внешнего набора и лежащие в data/out.
 # От CURATED отличаются происхождением: их не ведут вручную, их пересобирают
-# командой. `admin_boundaries_1897` и `state_borders` — единственные здесь,
-# кто не даёт записей схемы: это полигоны для подложки карты, они лежат
-# в data/out/boundaries.
+# командой. `admin_boundaries_1897`, `state_borders` и `admin_ussr_ukraine`
+# (районы УССР 1922–1937 годов) — единственные здесь, кто не даёт записей
+# схемы: это полигоны для подложки карты, они лежат в data/out/boundaries.
 # PastVu и погода пришли сюда из EXTERNAL: разбор сверен с живым сервисом.
 # Слои из Викиданных собраны тоже, но объявлены ниже, своим списком:
 # общий HARVESTED складывается из двух в конце файла.
 HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      STATE_BORDERS, HARVEST_PRICES, DROUGHT_ATLAS,
-                     WEATHER_STATIONS, WEATHER_REGIONS, STRIKES, FAMINE_1891]
+                     WEATHER_STATIONS, WEATHER_REGIONS, STRIKES, FAMINE_1891,
+                     DROUGHT_ATLAS_GEDA, ADMIN_UKRAINE, CENSUS_1926, PODILLYA,
+                     FAMINE_1933, MORTALITY_1871_1914,
+                     PEASANT_UNREST, REFORMS_UEZD, MOBILIZATION_1914, CITY_POPULATION,
+                     OCCUPATION_CITIES,
+                     BURNED_VILLAGES,
+                     BURIAL_SITES_TERROR]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
 # свой сборщик: годы переименования лежат в квалификаторах, а вторая ступень
-# движка умеет только `wdt:`. Все шестнадцать собраны 24.08.2026, и
-# `expected_rows` у них — измеренное число записей, а не оценка.
+# движка умеет только `wdt:`. Шестнадцать собраны 24.08.2026, приходы —
+# 24.10.2026, и `expected_rows` у них — измеренное число записей, а не оценка.
 
 WD_CC0 = "CC0 (Викиданные)"
 
@@ -244,6 +259,25 @@ HARVESTED_WIKIDATA = [
         description=(
             "Дворянские усадьбы, имения и остзейские мызы с владельцем. До 1861 года "
             "крепостной род почти всегда привязан к конкретному владельцу и имению."
+        ),
+    ),
+    # Группа та же, что у храмов: приход — единица, по которой велись
+    # метрические книги, храм — её здание. Собран 24.10.2026: 7 884 записи,
+    # из них 3 294 в рамке РИ/СССР, 4 590 — за ней (Галиция, Пруссия, земли
+    # Польши после 1945 года) с пометкой outside_bbox. Замеры —
+    # в queries/parishes.rq.
+    LayerSpec(
+        slug="parishes", title="Церковные приходы", group="faith",
+        source="Викиданные", license=WD_CC0, status="harvested", expected_rows=7884,
+        url="https://www.wikidata.org/wiki/Q102496",
+        description=(
+            "Приходы как единицы, а не здания: с какого года приход, в какой епархии "
+            "и какой конфессии. Почти весь слой — Царство Польское (2 559 приходов в "
+            "губерниях 1897 года) и лютеранские приходы Финляндии (300); по остальной "
+            "империи приходы в Викиданных почти не заведены. Точка — своя или "
+            "заимствованная у храма прихода либо у его села (place_level). Связки "
+            "«деревня → приход» здесь нет: перечень сёл прихода в Викиданных "
+            "заполнен у 11 приходов из 12 тысяч."
         ),
     ),
 ]

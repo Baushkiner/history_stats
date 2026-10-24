@@ -373,7 +373,8 @@ _OWNERS = """  OPTIONAL {{
 
 
 def ids_query(classes: list[str], country: Optional[str],
-              extra: Optional[list[str]] = None, kind: str = "object") -> str:
+              extra: Optional[list[str]] = None, kind: str = "object",
+              *, need_coord: bool = True) -> str:
     """Ступень 1: Q-номера объектов класса с координатами в одном государстве.
 
     `country` = None — без условия по P17, разом по всему миру (см. `WORLD`).
@@ -383,10 +384,26 @@ def ids_query(classes: list[str], country: Optional[str],
     `kind="event"` меняет то, откуда берётся координата: у события своей
     `P625` часто нет, оно привязано к месту через `P276`. Тогда координата
     берётся у места — см. пояснение в `details_query`.
+
+    `need_coord=False` — список без условия на координату. Нужен слоям с
+    директивой `@place`: координату они занимают на второй ступени, у храма
+    или у населённого пункта, и отсеивать на первой то, чего ещё не искали,
+    нельзя. Так собираются приходы: своей `P625` нет у двух из пяти.
     """
     values = " ".join(f"wd:{c}" for c in classes)
     tail = "".join(f"  {line}\n" for line in (extra or []))
     p17 = f"        wdt:P17 wd:{country} ;\n" if country else ""
+    if not need_coord and kind != "event":
+        where = ("  ?item wdt:P31/wdt:P279* ?cls"
+                 + (f" ;\n        wdt:P17 wd:{country}" if country else "")
+                 + " .\n")
+        return (
+            "SELECT ?item WHERE {\n"
+            f"  VALUES ?cls {{ {values} }}\n"
+            f"{where}"
+            f"{tail}"
+            "}"
+        )
     if kind == "event":
         # У события координата бывает не своя, а места, где оно случилось:
         # без этого UNION слой терял почти всё. Точку с запятой в конце P17
@@ -435,8 +452,84 @@ def stage1_plan(classes: list[str],
     return plan
 
 
+def place_paths(place: tuple[str, ...]) -> list[tuple[str, str]]:
+    """Пути к заимствованной координате из директивы `@place`, по порядку.
+
+    Каждый путь — пара «метка, шаблон OPTIONAL». Метка уходит в
+    `?coordSource` и в `extra["coord_via"]` записи: по ней видно, чья
+    точка стоит на карте.
+
+    Два вида путей:
+
+    * `^P5607`, `^P127` — обратная ссылка: что-то с координатой само
+      указывает на объект. Так храм указывает на свой приход — «находится
+      в церковно-территориальной единице» (P5607) или «владелец» (P127, так
+      в Финляндии). Класс источника не проверяется: на приходы так ссылаются
+      храмы, а храм — лучшая точка прихода, какая бывает;
+    * `P159`, `P276`, `P131` — прямая ссылка на место. Здесь место обязано
+      быть населённым пунктом (`SETTLEMENT`), как у событий: гмина, община
+      или уезд дали бы точку в своей середине, а она выглядит на карте
+      достоверно и врёт.
+    """
+    paths: list[tuple[str, str]] = []
+    for n, token in enumerate(place, start=1):
+        var = f"?pc{n}"
+        if token.startswith("^"):
+            prop = token[1:]
+            body = f"?pb{n} wdt:{prop} ?item ; wdt:P625 {var} ."
+        else:
+            body = (f"?item wdt:{token} ?pp{n} . "
+                    f"?pp{n} wdt:P31/wdt:P279* wd:{SETTLEMENT} ; wdt:P625 {var} .")
+        paths.append((token, f"  OPTIONAL {{ {body} }}\n"))
+    return paths
+
+
+def _place_coord(place: tuple[str, ...]) -> str:
+    """Координата объекта: своя, а если её нет — по путям `@place` по порядку."""
+    paths = place_paths(place)
+    optionals = "".join(block for _, block in paths)
+    variables = ", ".join(["?ownCoord"] + [f"?pc{n}" for n in range(1, len(paths) + 1)])
+    # Метка — вложенными IF от последнего пути к первому: первый заданный
+    # путь, у которого нашлась точка, и даёт метку.
+    label = '"none"'
+    for n in range(len(paths), 0, -1):
+        label = f'IF(BOUND(?pc{n}), "{paths[n - 1][0]}", {label})'
+    return (
+        "  OPTIONAL { ?item wdt:P625 ?ownCoord . }\n"
+        f"{optionals}"
+        f"  BIND(COALESCE({variables}) AS ?coord)\n"
+        "  FILTER(BOUND(?coord))\n"
+        f'  BIND(IF(BOUND(?ownCoord), "own", {label}) AS ?coordSource)\n'
+    )
+
+
+# Подписи свойств, которые слой просит директивой `@label` (`@label P708
+# diocese`). Сворачиваются подзапросом по тем же причинам, что и владельцы
+# (см. `_OWNERS`): у прихода бывает две епархии — до и после реформы, — и
+# обычное соединение дало бы по строке на каждую. Берутся все значения, кроме
+# отклонённых: прежняя епархия для генеалогии важнее нынешней, архив метрик
+# лежит у неё.
+_LABELS = """  OPTIONAL {{
+    SELECT ?item (GROUP_CONCAT(DISTINCT ?{key}Name; separator="; ") AS ?x_{key}) WHERE {{
+      VALUES ?item {{ {values} }}
+      ?item p:{prop} ?{key}Statement .
+      ?{key}Statement ps:{prop} ?{key}Value .
+      FILTER NOT EXISTS {{ ?{key}Statement wikibase:rank wikibase:DeprecatedRank }}
+      OPTIONAL {{ ?{key}Value rdfs:label ?{key}Ru . FILTER(LANG(?{key}Ru) = "ru") }}
+      OPTIONAL {{ ?{key}Value rdfs:label ?{key}En . FILTER(LANG(?{key}En) = "en") }}
+      OPTIONAL {{ ?{key}Value rdfs:label ?{key}Pl . FILTER(LANG(?{key}Pl) = "pl") }}
+      OPTIONAL {{ ?{key}Value rdfs:label ?{key}Fi . FILTER(LANG(?{key}Fi) = "fi") }}
+      BIND(COALESCE(?{key}Ru, ?{key}En, ?{key}Pl, ?{key}Fi) AS ?{key}Name)
+      FILTER(BOUND(?{key}Name))
+    }}
+    GROUP BY ?item
+  }}"""
+
+
 def details_query(qids: list[str], kind: str = "object", *,
-                  with_owner: bool = False) -> str:
+                  with_owner: bool = False,
+                  place: tuple[str, ...] = (),
+                  labels: tuple[tuple[str, str], ...] = ()) -> str:
     """Ступень 2: подробности к готовому списку Q-номеров.
 
     У события координата берётся из двух мест. Своей `P625` у него часто нет —
@@ -451,12 +544,27 @@ def details_query(qids: list[str], kind: str = "object", *,
     `with_owner` добавляет владельца (P127) — нужен усадьбам, где до 1861 года
     род привязан к владельцу. Слои, которые его не просят, запрос не меняют:
     их выгрузка обязана остаться прежней, по ней считаются `uid`.
+
+    `place` — пути к заимствованной координате у здания (директива `@place`,
+    см. `place_paths`): своя `P625` по-прежнему главная, остальные пути
+    спрашиваются по порядку. `labels` — пары «свойство, ключ» из директив
+    `@label`: подписи значений приходят столбцом `?x_<ключ>` и ложатся в
+    `extra` записи. Оба пусты по умолчанию, и тогда запрос прежний.
     """
     values = " ".join(f"wd:{q}" for q in qids)
     dates = _DATES_EVENT if kind == "event" else _DATES_OBJECT
     owner_col = " ?owners" if with_owner else ""
     owners = f"{_OWNERS.format(values=values)}\n" if with_owner else ""
-    if kind == "event":
+    label_cols = "".join(f" ?x_{key}" for _, key in labels)
+    owners += "".join(f"{_LABELS.format(values=values, prop=prop, key=key)}\n"
+                      for prop, key in labels)
+    owner_col += label_cols
+    if place and kind != "event":
+        coord = _place_coord(place)
+        head = ("SELECT ?item ?itemLabel ?coord ?coordSource ?start ?end "
+                "?adminLabel ?typeLabel ?article ?image ?description"
+                f"{owner_col} WHERE {{\n")
+    elif kind == "event":
         coord = (
             "  OPTIONAL { ?item wdt:P625 ?ownCoord . }\n"
             "  OPTIONAL {\n"
@@ -518,7 +626,8 @@ def dedupe(records: list[ContextRecord]) -> list[ContextRecord]:
 
 def _stage1_rows(client: SparqlClient, step_classes: list[str], country: Optional[str],
                  extra: Optional[list[str]], kind: str, name: str,
-                 say: Callable[[str], None], lost: list[str]) -> list[dict]:
+                 say: Callable[[str], None], lost: list[str],
+                 need_coord: bool = True) -> list[dict]:
     """Строки первой ступени. Упавший запрос дробится по одному классу.
 
     Несколько классов в одном `VALUES` — то, что кладёт запрос в лимит
@@ -532,7 +641,8 @@ def _stage1_rows(client: SparqlClient, step_classes: list[str], country: Optiona
     упавший и по отдельности.
     """
     try:
-        return client.query(ids_query(step_classes, country, extra, kind))
+        return client.query(ids_query(step_classes, country, extra, kind,
+                                      need_coord=need_coord))
     except SparqlError as exc:
         say(f"    {name}: ОШИБКА — {exc}")
         if len(step_classes) == 1:
@@ -542,7 +652,8 @@ def _stage1_rows(client: SparqlClient, step_classes: list[str], country: Optiona
         rows: list[dict] = []
         for cls in step_classes:
             try:
-                part = client.query(ids_query([cls], country, extra, kind))
+                part = client.query(ids_query([cls], country, extra, kind,
+                                              need_coord=need_coord))
             except SparqlError as exc2:
                 say(f"    {name}, класс {cls}: ОШИБКА — {exc2}")
                 lost.append(f"первая ступень, {name}, класс {cls}: {exc2}")
@@ -560,6 +671,8 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
                   require_bbox: bool = True,
                   extra: Optional[list[str]] = None,
                   with_owner: bool = False,
+                  place: tuple[str, ...] = (),
+                  labels: tuple[tuple[str, str], ...] = (),
                   max_objects: Optional[int] = None,
                   failures: Optional[list[str]] = None,
                   progress: Optional[Callable[[str], None]] = None) -> list[ContextRecord]:
@@ -581,15 +694,22 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
     отличит полный сбор от сбора, потерявшего две страны из семнадцати.
     Проверено на живом случае: 29.08.2026 у слоя иных конфессий Россия и
     Польша ответили 504, и слой из 2 964 записей записался бы как 1 974.
+
+    `place` и `labels` — директивы `@place` и `@label` (см. `details_query`).
+    С `place` первая ступень не требует координаты, а объекты, которым она
+    не нашлась ни своя, ни заимствованная, пересчитываются и печатаются:
+    на карту они не встанут, но молча пропадать не должны.
     """
     say = progress or (lambda _: None)
     lost = failures if failures is not None else []
+    need_coord = not (place and kind != "event")
 
     qids: list[str] = []
     seen: set[str] = set()
     for step_classes, country, name in stage1_plan(
             classes, tuple(countries) + tuple(history)):
-        rows = _stage1_rows(client, step_classes, country, extra, kind, name, say, lost)
+        rows = _stage1_rows(client, step_classes, country, extra, kind, name, say, lost,
+                            need_coord=need_coord)
         fresh = 0
         for row in rows:
             qid = _qid(_val(row, "item"))
@@ -598,7 +718,8 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
                 qids.append(qid)
                 fresh += 1
         if rows:
-            say(f"    {name}: {len(rows)} с координатой, новых {fresh}")
+            what = "с координатой" if need_coord else "объектов"
+            say(f"    {name}: {len(rows)} {what}, новых {fresh}")
         elif country is None:
             # Пустая страна — обычное дело и молчания стоит. Пустой класс —
             # нет: он объявлен в .rq директивой @qid, и если он не даёт
@@ -616,18 +737,50 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
         return []
 
     records: list[ContextRecord] = []
+    asked = 0
+    located: set[str] = set()
     for start in range(0, len(qids), chunk_size):
         chunk = qids[start:start + chunk_size]
         try:
-            rows = client.query(details_query(chunk, kind, with_owner=with_owner))
+            rows = client.query(details_query(chunk, kind, with_owner=with_owner,
+                                              place=place, labels=labels))
         except SparqlError as exc:
             say(f"    подробности {start}–{start + len(chunk)}: ОШИБКА — {exc}")
             lost.append(f"вторая ступень, объекты {start}–{start + len(chunk)}: {exc}")
             continue
+        asked += len(chunk)
+        located.update(_val(row, "item") or "" for row in rows if _val(row, "coord"))
+        if place:
+            rows = sort_by_place(rows, place)
         records.extend(rows_to_records(rows, spec, require_bbox=require_bbox, kind=kind))
         say(f"    подробности {start + len(chunk)}/{len(qids)}")
 
-    return dedupe(records)
+    records = dedupe(records)
+    if place and kind != "event":
+        # Без координаты объект на карту не встанет, и в выгрузке его не
+        # будет. Это не потеря сбора — у прихода просто нет ни точки, ни
+        # храма, ни населённого пункта с точкой, — но число должно быть видно.
+        say(f"  без координаты — ни своей, ни заимствованной: {asked - len(located)} "
+            f"из {asked}")
+    return records
+
+
+def sort_by_place(rows: list[dict], place: tuple[str, ...]) -> list[dict]:
+    """Строки ответа в порядке, при котором `dedupe` оставляет лучшую точку.
+
+    Сервис не обещает порядка строк, а у прихода бывает три храма и у
+    каждого своя координата. Без сортировки на карту шла бы первая
+    попавшаяся, и от сбора к сбору точка — а с ней `uid` — гуляла бы.
+    Порядок: объект, затем путь из `@place` (своя точка первой), затем сама
+    координата строкой — чтобы из трёх храмов брался всегда один и тот же.
+    """
+    rank = {"own": 0, **{token: n for n, token in enumerate(place, start=1)}}
+
+    def key(row: dict) -> tuple:
+        return (_val(row, "item") or "",
+                rank.get(_val(row, "coordSource") or "", len(rank)),
+                _val(row, "coord") or "")
+    return sorted(rows, key=key)
 
 
 def rows_to_records(rows: list[dict], spec: LayerSpec, *,
@@ -645,9 +798,12 @@ def rows_to_records(rows: list[dict], spec: LayerSpec, *,
     и заканчивается; дотягивать его до 1960 года нельзя, иначе холера 1848
     года окажется «подходящей» к факту 1950 года.
 
-    `?coordSource` приходит только у событий (см. `details_query`). Значение
-    `place` означает, что координата взята у места события, а не у самого
-    события: запись помечается `place_level` и остаётся в слое.
+    `?coordSource` приходит у событий и у слоёв с директивой `@place` (см.
+    `details_query`). Всё, кроме `own`, означает, что координата не своя —
+    места события, храма прихода, его населённого пункта: запись помечается
+    `place_level` и остаётся в слое, а у путей `@place` метка пути ложится
+    ещё и в `extra["coord_via"]`. Столбцы `?x_<ключ>` (директива `@label`)
+    ложатся в `extra[<ключ>]`.
     """
     is_event = kind == "event"
     out: list[ContextRecord] = []
@@ -682,7 +838,15 @@ def rows_to_records(rows: list[dict], spec: LayerSpec, *,
             precision = "year" if is_event else PRECISION_OPEN
 
         qid = _qid(_val(row, "item"))
-        borrowed = _val(row, "coordSource") == "place"
+        source = _val(row, "coordSource")
+        # «place» — точка места события; остальные метки, кроме «own», —
+        # пути директивы `@place` у зданий (храм прихода, его населённый
+        # пункт). И то и другое — не своя точка объекта.
+        borrowed = source not in (None, "own")
+        extra = {key[2:]: value for key in row
+                 if key.startswith("x_") and (value := clean_text(_val(row, key)))}
+        if borrowed and source != "place":
+            extra["coord_via"] = source
         out.append(spec.new_record(
             confidence="place_level" if borrowed else "ok",
             title=clean_text(_val(row, "itemLabel")) or qid or "Без названия",
@@ -704,6 +868,7 @@ def rows_to_records(rows: list[dict], spec: LayerSpec, *,
                  or (f"https://www.wikidata.org/wiki/{qid}" if qid else None)),
             image_url=clean_text(_val(row, "image")),
             source_id=qid,
+            extra=extra,
         ))
     return out
 

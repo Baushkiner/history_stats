@@ -18,11 +18,13 @@ import argparse
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Iterator, Optional
 
 from _paths import ROOT
 
+from histctx.frame import Frame
 from histctx.io_formats import write_geojson, write_jsonl, write_xlsx
 from histctx.registry import BY_SLUG
 from histctx.schema import LayerSpec
@@ -49,6 +51,11 @@ PROBE_OBJECTS = 1000
 # бы молча. Так она доходит до проверки заголовка пустой строкой и там же
 # получает жалобу.
 _RE_META = re.compile(r"^#\s*@(\w+)\s*(.*)$")
+# Путь `@place`: прямое свойство (P131) или обратное (^P5607).
+_RE_PLACE = re.compile(r"^\^?P\d+$")
+
+# Полигоны рамки `@frame 1897`: губернии 1897 года и границы государств.
+BOUNDARIES_DIR = ROOT / "data" / "out" / "boundaries"
 
 
 def parse_query(path: Path) -> dict:
@@ -71,9 +78,22 @@ def parse_query(path: Path) -> dict:
                можно повторять. Только при `@scope country` и `@scope class`;
       @owner   `P127` — добавить владельца в поле «действующее лицо».
                Только при `@scope country`, см. пояснение в
-               `sources/wikidata.py` и в `queries/estates.rq`.
+               `sources/wikidata.py` и в `queries/estates.rq`;
+      @place   пути к заимствованной координате по порядку, через пробел:
+               `^P5607` — что-то с точкой ссылается на объект (храм на
+               приход), `P131` — населённый пункт, на который ссылается
+               объект. Первая ступень тогда координаты не требует, запись
+               с чужой точкой помечается `place_level`. Только у зданий
+               при двухступенчатом сборе, см. `queries/parishes.rq`;
+      @label   `P708 diocese` — подписи значений свойства в `extra` записи
+               под этим ключом, можно повторять. Только при двухступенчатом
+               сборе;
+      @frame   `1897` — рамка не прямоугольником `geo.BBOX_RU`, а полигонами
+               губерний 1897 года и России (СССР) 1886–1991 годов: что вне
+               их, остаётся в выгрузке с пометкой `outside_bbox`, губерния
+               ложится в `region`. См. `histctx/frame.py`.
     """
-    meta: dict = {"qids": [], "filters": [], "path": path}
+    meta: dict = {"qids": [], "filters": [], "labels": [], "path": path}
     body: list[str] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         m = _RE_META.match(line)
@@ -84,6 +104,9 @@ def parse_query(path: Path) -> dict:
                 meta["qids"].append((qid.strip(), label.strip()))
             elif key == "filter":
                 meta["filters"].append(value)
+            elif key == "label":
+                prop, _, name = value.partition(" ")
+                meta["labels"].append((prop.strip(), name.strip()))
             else:
                 meta[key] = value
         elif not line.startswith("#"):
@@ -172,7 +195,32 @@ def check_directives(meta: dict) -> list[str]:
             # запрос ничего не добавляет: директива не сработала бы.
             bad.append(f"  [НЕ ТАМ]   @owner работает только при @scope country"
                        f"  ({meta['layer']})")
+    place = meta.get("place")
+    if place is not None:
+        tokens = place.split()
+        if not tokens or not all(_RE_PLACE.match(t) for t in tokens):
+            bad.append(f"  [НЕ ТО]    @place ждёт свойства через пробел (P131, ^P5607), "
+                       f"а не «{place}»  ({meta['layer']})")
+        elif meta["scope"] not in TWO_STAGE or meta["kind"] == "event":
+            bad.append(f"  [НЕ ТАМ]   @place работает только у зданий при @scope "
+                       f"country или class  ({meta['layer']})")
+    for prop, name in meta.get("labels", ()):
+        if not re.fullmatch(r"P\d+", prop) or not re.fullmatch(r"[a-z_]+", name):
+            bad.append(f"  [НЕ ТО]    @label ждёт «P708 diocese», а не «{prop} {name}»"
+                       f"  ({meta['layer']})")
+        elif meta["scope"] not in TWO_STAGE:
+            bad.append(f"  [НЕ ТАМ]   @label работает только при двухступенчатом сборе"
+                       f"  ({meta['layer']})")
+    frame = meta.get("frame")
+    if frame is not None and frame != "1897":
+        bad.append(f"  [НЕ ТО]    @frame понимает только 1897, а не «{frame}»"
+                   f"  ({meta['layer']})")
     return bad
+
+
+def place_tokens(meta: dict) -> tuple:
+    """Пути `@place` кортежем; пусто, если директивы нет."""
+    return tuple((meta.get("place") or "").split())
 
 
 def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
@@ -193,13 +241,22 @@ def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
             raise SparqlError(
                 f"{meta['layer']}: при @scope {meta['scope']} нужен хотя бы один "
                 "@qid — именно эти классы и собираются")
-        return collect_layer(
+        records = collect_layer(
             client, classes, spec,
             kind=meta["kind"], countries=layer_countries(meta, countries),
             history=history,
             extra=meta["filters"], with_owner=bool(meta.get("owner")),
+            place=place_tokens(meta), labels=tuple(meta.get("labels", ())),
+            require_bbox=not meta.get("frame"),
             max_objects=max_objects, failures=failures, progress=print,
         )
+        if meta.get("frame"):
+            # Прямоугольник отключён выше, рамку держат полигоны: что вне
+            # их, помечается и остаётся, а не пропадает молча.
+            counts = Frame.load(BOUNDARIES_DIR).mark(records)
+            for what, n in counts.most_common():
+                print(f"  {what}: {n}")
+        return records
 
     if max_objects is not None:
         # Проба на непереведённом слое. Тело такого файла отбирает объекты
@@ -252,7 +309,13 @@ def probe(client: SparqlClient, meta: dict, spec: LayerSpec) -> int:
     # Сколько записей встало на карту по координате места события, а не по
     # собственной: у слоёв событий это и есть разница между слоем и пустотой.
     borrowed = sum(1 for r in records if r.confidence == "place_level")
-    if borrowed:
+    if borrowed and meta.get("place"):
+        # У зданий с `@place` точка чужая по-разному: храма, села, города.
+        via = Counter(r.extra.get("coord_via") for r in records
+                      if r.confidence == "place_level")
+        print(f"  координата заимствована (@place): {borrowed} — "
+              + ", ".join(f"{k} {n}" for k, n in via.most_common()))
+    elif borrowed:
         print(f"  координата взята у места события (P276): {borrowed}")
     print("\n  примеры:")
     for rec in records[:5]:
@@ -310,7 +373,11 @@ def harvest(client: SparqlClient, meta: dict, spec: LayerSpec, out_dir: Path,
     records = collect(client, meta, spec, paged=paged, page_size=page_size,
                       history=HISTORICAL_COUNTRIES if meta["kind"] == "event" else (),
                       failures=failures)
-    print(f"  с координатами в границах РИ/СССР: {len(records)}")
+    if meta.get("frame"):
+        # Рамка по полигонам уже напечатала, что в ней и что за ней.
+        print(f"  с координатами: {len(records)}")
+    else:
+        print(f"  с координатами в границах РИ/СССР: {len(records)}")
     dated = sum(1 for r in records if r.has_time)
     print(f"  с датировкой: {dated}")
 

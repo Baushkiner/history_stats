@@ -797,12 +797,27 @@ def _genitive(province: str) -> str:
 
 # --- сверка с границами 1897 года ------------------------------------------
 
+def district_key(name: Optional[str]) -> Optional[str]:
+    """Ключ уезда: `region_key` плюс номер, если он есть в названии.
+
+    `region_key` номеров не видит, и «Донской 1-й» с «Донским 2-м» дают у него
+    один ключ — а в справочнике это два округа с разными `Distr_ID`.
+    """
+    key = region_key(name)
+    numbers = re.findall(r"\d+", str(name or ""))
+    return f"{key} {'-'.join(numbers)}" if key and numbers else key
+
+
 class DistrictIndex:
-    """Уезды RISTAT 1897 года по ключу (губерния, уезд) → RISTAT_ID.
+    """Уезды RISTAT 1897 года по ключу (губерния, уезд) → Distr_ID.
 
     Строится из `data/out/boundaries/districts_1897.geojson`; ключи считает
     `histctx.geo.region_key`, поэтому «Елецкий уезд» и «Елецкий» — одно и то
     же, а «Слободской» и «Слободский» — тоже.
+
+    Уезд опознаётся по `Distr_ID`, а не по `RISTAT_ID`: в этом справочнике
+    `RISTAT_ID` один на всю губернию (у всех девяти уездов Архангельской —
+    «1897_04») и уезда не различает.
     """
 
     def __init__(self, feats: Iterable[dict]) -> None:
@@ -813,8 +828,9 @@ class DistrictIndex:
             province, name = props.get("prov_RU"), props.get("Name_RU")
             if not province or not name:
                 continue
-            key = (region_key(province), region_key(name))
-            self.by_key.setdefault(key, str(props.get("RISTAT_ID") or ""))
+            key = (region_key(province), district_key(name))
+            distr_id = props.get("Distr_ID")
+            self.by_key.setdefault(key, "" if distr_id is None else str(distr_id))
             self.names.setdefault(province, []).append(name)
 
     @classmethod
@@ -826,7 +842,7 @@ class DistrictIndex:
         return len(self.by_key)
 
     def find(self, province: Optional[str], district: Optional[str]) -> Optional[str]:
-        """RISTAT_ID уезда внутри своей губернии или None."""
+        """Distr_ID уезда внутри своей губернии или None."""
         if not province or not district:
             return None
         adjective = district
@@ -836,7 +852,7 @@ class DistrictIndex:
         provinces = [province, RISTAT_PROVINCE_SPELLING.get(province)]
         for prov in filter(None, provinces):
             for name in filter(None, candidates):
-                hit = self.by_key.get((region_key(prov), region_key(name)))
+                hit = self.by_key.get((region_key(prov), district_key(name)))
                 if hit:
                     return hit
         return None
@@ -880,7 +896,7 @@ class Place:
     district: Optional[str]
     place_text: Optional[str]
     head: str                  # «Елецкий уезд Орловской губернии» для заголовка
-    ristat_id: Optional[str]
+    distr_id: Optional[str]
     confidence: str
 
 
@@ -895,8 +911,8 @@ def locate(gub_latin, uezd_latin, index: Optional[DistrictIndex]) -> Place:
     district = district_name(uezd_latin, gub_latin)
     uezd_raw = clean_text(uezd_latin)
     gub_raw = clean_text(gub_latin)
-    ristat_id = index.find(province, district) if index is not None else None
-    confidence = "ok" if (district and (index is None or ristat_id)) else "district_unmatched"
+    distr_id = index.find(province, district) if index is not None else None
+    confidence = "ok" if (district and (index is None or distr_id)) else "district_unmatched"
     place_district = district or (f"{uezd_raw} (уезд, написание набора)" if uezd_raw else None)
     place_province = province or gub_raw
     place_text = ", ".join(p for p in (place_district, place_province) if p) or None
@@ -904,13 +920,13 @@ def locate(gub_latin, uezd_latin, index: Optional[DistrictIndex]) -> Place:
         head = f"{district} {_genitive(province)}"
     else:
         head = place_text or "уезд без названия"
-    return Place(province, district, place_text, head, ristat_id, confidence)
+    return Place(province, district, place_text, head, distr_id, confidence)
 
 
 def _record_extra(row: dict, place: Place) -> dict:
     extra = {"famine": source_columns(row), "citation": CITATION}
-    if place.ristat_id:
-        extra["RISTAT_ID"] = place.ristat_id
+    if place.distr_id:
+        extra["Distr_ID"] = place.distr_id
     return extra
 
 
@@ -1277,7 +1293,7 @@ def boundary_properties(record: ContextRecord) -> dict:
         "ter_id": record.source_id,
         "uezd": record.district,
         "province": record.region,
-        "RISTAT_ID": record.extra.get("RISTAT_ID"),
+        "Distr_ID": record.extra.get("Distr_ID"),
         "category": record.category,
         "relief_share_max_pct": columns.get("onrelief_max.x"),
         "relief_months": columns.get("reliefmonths"),
