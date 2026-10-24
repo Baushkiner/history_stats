@@ -11,9 +11,11 @@ from pathlib import Path
 
 import pytest
 
+from openpyxl import Workbook
+
 from histctx.sources.strikes import (
-    STRIKES, StrikesError, check_columns, conflict_kind, normalize_province,
-    parse_int, parse_provinces, record_years, row_to_record, rows_to_records,
+    STRIKES, StrikesError, check_columns, column_key, conflict_kind, normalize_province,
+    parse_int, parse_provinces, read_rows, record_years, row_to_record, rows_to_records,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -153,3 +155,42 @@ def test_uid_is_stable_between_runs():
     first = row_to_record(ROWS[0]).uid
     second = row_to_record(dict(ROWS[0])).uid
     assert first == second
+
+
+def test_workbook_headers_map_to_the_tsv_names():
+    """Книга с dataverse.nl несёт заголовки с пробелами, разбор писан по TSV."""
+    assert column_key("Begin Year") == "BeginYear"
+    assert column_key("Date 1_ORG") == "Date1ORG"
+    assert column_key("Cause_1") == "Cause1"
+    assert column_key("Police/army") == "Police/army"
+
+
+def test_workbook_is_read_from_the_first_sheet(tmp_path):
+    """Записи — на первом листе; числа приходят числами, пустые строки пропускаются."""
+    book = Workbook()
+    sheet = book.active
+    sheet.append(["Number", "Start month", "Begin Year", "End Year", "Province",
+                  "Location of Factory", "Name of Factory", "The economic sector",
+                  "Type of conflict", "Outcome", "Police/army", "Source References"])
+    sheet.append([1, "1", 1895, "1895", "Пермская",
+                  "Красноуфимский уезд, пос.Михайловский завод",
+                  "Михайловский железоделательный з-д", "8. Metallurgy",
+                  "Strike", "Unknown", "", "1895. Вып.I. 1992. Стр.52."])
+    sheet.append([None] * 12)
+    book.create_sheet("Sheet3").append(["Terr_ID", "Region_name_RUS"])
+    path = tmp_path / "strikes.xlsx"
+    book.save(path)
+
+    rows = read_rows(path)
+    assert len(rows) == 1
+    rec = row_to_record(rows[0])
+    assert (rec.year_from, rec.region, rec.category) == (1895, "Пермская губерния", "Стачка")
+
+
+def test_workbook_without_required_columns_stops_the_build(tmp_path):
+    book = Workbook()
+    book.active.append(["Terr_ID", "Region_name_RUS"])
+    path = tmp_path / "other.xlsx"
+    book.save(path)
+    with pytest.raises(StrikesError):
+        read_rows(path)

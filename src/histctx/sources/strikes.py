@@ -36,13 +36,23 @@ import urllib.request
 from pathlib import Path
 from typing import Iterable, Optional
 
+from openpyxl import load_workbook
+
 from ..geo import extract_district
 from ..net import USER_AGENT
 from ..schema import SCOPE_REGION, ContextRecord, LayerSpec, clean_text
 
-# Карточка набора в репозитории IISH и прямая ссылка на ингестированный TSV.
-DATASET_URL = "https://datasets.iisg.amsterdam/dataset.xhtml?persistentId=hdl:10622/LSCGBO"
-DATA_URL = "https://datasets.iisg.amsterdam/api/access/datafile/9769"
+# Карточка набора и прямая ссылка на книгу Excel. Осенью 2026 года коллекция
+# IISH переехала с datasets.iisg.amsterdam на dataverse.nl (KNAW HuC):
+# прежний handle hdl:10622/LSCGBO ведёт на этот DOI, а ингестированного TSV
+# на новом месте нет — свод лежит книгой Micro_Russia_1895-1904.xlsx.
+DOI = "doi:10.34894/DTH1FO"
+DATASET_URL = f"https://dataverse.nl/dataset.xhtml?persistentId={DOI}"
+DATA_URL = "https://dataverse.nl/api/access/datafile/576267"
+
+# Книга xlsx — это zip-архив. Страница-заглушка или переадресация на витрину
+# с этих байтов не начинается и в кэш не попадает.
+XLSX_MAGIC = b"PK\x03\x04"
 
 
 # Свод охватывает десятилетие между двумя фабричными законами. Всё, что
@@ -126,9 +136,9 @@ class StrikesError(RuntimeError):
 
 
 def fetch(cache_dir: Path) -> Path:
-    """Скачивает TSV набора в кэш и возвращает путь. Уже скачанное не трогает."""
+    """Скачивает книгу набора в кэш и возвращает путь. Уже скачанное не трогает."""
     cache_dir.mkdir(parents=True, exist_ok=True)
-    path = cache_dir / "strikes_1895_1904.tsv"
+    path = cache_dir / "strikes_1895_1904.xlsx"
     if path.exists() and path.stat().st_size > 0:
         return path
     req = urllib.request.Request(DATA_URL, headers={"User-Agent": USER_AGENT})
@@ -137,7 +147,12 @@ def fetch(cache_dir: Path) -> Path:
             data = resp.read()
     except (urllib.error.URLError, TimeoutError) as exc:
         raise StrikesError(f"не удалось скачать набор: {exc}") from exc
-    if len(data) < 100_000:
+    if not data.startswith(XLSX_MAGIC):
+        raise StrikesError(
+            f"вместо книги xlsx пришло другое ({data[:40]!r}…) — "
+            "вероятно, набор снова переехал"
+        )
+    if len(data) < 1_000_000:
         raise StrikesError(f"набор подозрительно мал: {len(data)} байт")
     path.write_bytes(data)
     return path
@@ -154,12 +169,44 @@ def check_columns(header: Iterable[str]) -> None:
         )
 
 
+def column_key(name) -> str:
+    """Заголовок книги → имя колонки, под которое написан разбор.
+
+    Разбор писался по TSV, который Dataverse делал из книги при ингесте и
+    по дороге выбрасывал из заголовков пробелы и подчёркивания: «Begin Year»
+    становилась «BeginYear», «Cause_1» — «Cause1». Книга отдаёт заголовки
+    как есть, и здесь они сводятся к тем же именам.
+    """
+    return re.sub(r"[\s_]+", "", str(name or ""))
+
+
 def read_rows(path: Path) -> list[dict]:
-    """Читает TSV набора и проверяет колонки."""
-    with open(path, encoding="utf-8", errors="replace", newline="") as fh:
-        reader = csv.DictReader(fh, delimiter="\t")
-        check_columns(reader.fieldnames or [])
-        return list(reader)
+    """Читает свод — книгу xlsx или старый TSV — и проверяет колонки.
+
+    В книге записи лежат на первом листе; остальные листы — служебные
+    (справочник территорий RISTAT и пустой лист) и в слой не идут.
+    """
+    if path.suffix.lower() != ".xlsx":
+        with open(path, encoding="utf-8", errors="replace", newline="") as fh:
+            reader = csv.DictReader(fh, delimiter="\t")
+            check_columns(reader.fieldnames or [])
+            return list(reader)
+    try:
+        book = load_workbook(path, read_only=True, data_only=True)
+    except Exception as exc:  # openpyxl бросает разное на битом файле
+        raise StrikesError(f"книга не читается: {exc}") from exc
+    try:
+        rows = book.worksheets[0].iter_rows(values_only=True)
+        header = [column_key(h) for h in next(rows, ())]
+        check_columns(header)
+        out = []
+        for values in rows:
+            if not any(v not in (None, "") for v in values):
+                continue
+            out.append({k: v for k, v in zip(header, values) if k})
+        return out
+    finally:
+        book.close()
 
 
 def parse_int(value) -> Optional[int]:

@@ -14,6 +14,9 @@
     data/out/geojson/<слой>.geojson   — по файлу на слой для карты
     data/out/jsonl/<слой>.jsonl       — слой целиком, включая записи без точки
     data/out/territorial_events.json  — события без точки: губернии и государство
+    data/out/<слой>.json              — записи слоя, не попавшие ни на карту, ни
+                                        в события без точки (нет координаты,
+                                        воинская часть вместо события)
     data/out/all_layers.xlsx          — все слои, по вкладке на слой
     data/out/context.jsonl            — общий массив для загрузки в базу
     data/out/report.md                — отчёт о качестве всей выгрузки
@@ -120,7 +123,21 @@ def main() -> int:
         write_jsonl(records, args.out / "jsonl" / f"{slug}.jsonl")
         # На карту отдаём только то, что реально можно показать.
         mappable = [r for r in records if r.has_point and r.confidence != "not_an_event"]
-        territorial += [r for r in records if not r.has_point and r.is_territorial]
+        own_territorial = [r for r in records if not r.has_point and r.is_territorial]
+        territorial += own_territorial
+        # Что не встало ни на карту, ни в ленту событий без точки — запись без
+        # координаты или воинская часть вместо события, — лежит файлом
+        # `<слой>.json`. Без него эти записи жили бы только в `jsonl/`,
+        # который в репозиторий не идёт, и после `git clone` их бы не было.
+        placed = {id(r) for r in mappable + own_territorial}
+        off_map = [r for r in records if id(r) not in placed]
+        off_map_path = args.out / f"{slug}.json"
+        if off_map:
+            write_records_json(off_map, off_map_path,
+                               title=f"{specs[slug].title}: записи вне карты")
+            print(f"  {slug}.json: {len(off_map)} записей вне карты")
+        else:
+            off_map_path.unlink(missing_ok=True)
         if not mappable:
             continue
         n = write_geojson(mappable, geo_dir / f"{slug}.geojson", layer_title=specs[slug].title)

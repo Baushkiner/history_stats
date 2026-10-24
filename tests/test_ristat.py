@@ -27,7 +27,7 @@ def test_collection_carries_the_licence_and_the_source():
     assert out["name"] == "districts_1897"
     assert "CC0" in out["license"]
     assert "ristat.org" in out["citation"]
-    assert out["url"].startswith("https://datasets.iisg.amsterdam/")
+    assert out["url"].startswith("https://dataverse.nl/")
     assert len(out["features"]) == 2
 
 
@@ -40,7 +40,7 @@ def test_unnamed_units_are_counted_not_hidden():
 def test_both_files_of_the_set_are_described():
     assert [b.key for b in FILES] == ["provinces_1897", "districts_1897"]
     assert PROVINCES.name_field == "prov_RU" and DISTRICTS.name_field == "Name_RU"
-    assert {b.file_id for b in FILES} == {10335, 10336}
+    assert {b.file_id for b in FILES} == {578935, 578936}
 
 
 def test_citation_names_the_authors():

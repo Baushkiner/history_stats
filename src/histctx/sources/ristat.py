@@ -5,9 +5,10 @@
 в уезде лежит фонд консистории, по уезду ищется приход. Здесь уезды есть:
 824 полигона на 1897 год плюс 103 губернии, все в WGS 84.
 
-Права. Карточка набора в Dataverse IISH: **CC0** — общественное достояние.
-Авторы отдельно просят ссылаться на «Electronic Repository of Russian
-Historical Statistics», и это просьба, а не условие лицензии; ссылка всё
+Права. Карточка набора в Dataverse IISH (с 2026 года — dataverse.nl):
+**CC0** — общественное достояние. Авторы отдельно просят ссылаться на
+«Electronic Repository of Russian Historical Statistics», и это просьба,
+а не условие лицензии; ссылка всё
 равно проставляется — по условию 4 «Каталога открыт» (проверяемость)
 она нужна нам самим.
 
@@ -26,15 +27,23 @@ from ..net import fetch_bytes
 from ..schema import LayerSpec
 from .geopackage import GeoPackageError, read_features
 
-HANDLE = "hdl:10622/DN9QDM"
-DATASET_URL = f"https://datasets.iisg.amsterdam/dataset.xhtml?persistentId={HANDLE}"
-FILE_URL = "https://datasets.iisg.amsterdam/api/access/datafile/{file_id}"
+# Осенью 2026 года коллекция IISH переехала с datasets.iisg.amsterdam на
+# dataverse.nl (KNAW HuC): старый адрес отвечает переадресацией на витрину,
+# а прежний handle hdl:10622/DN9QDM ведёт на этот DOI. Идентификаторы
+# файлов при переезде сменились.
+DOI = "doi:10.34894/NQOASN"
+DATASET_URL = f"https://dataverse.nl/dataset.xhtml?persistentId={DOI}"
+FILE_URL = "https://dataverse.nl/api/access/datafile/{file_id}"
+
+# Так начинается любой GeoPackage: это файл SQLite. Страница-заглушка или
+# переадресация на витрину с этого не начинается и в кэш не попадает.
+GPKG_MAGIC = b"SQLite format 3\x00"
 
 
 CITATION = (
     "Kessler, Gijs; Markevich, Andrei. Electronic Repository of Russian Historical "
     "Statistics, 18th–21st centuries, https://ristat.org/, Version I (2020): "
-    f"Russian Empire Historical GIS Maps (1897). IISH Dataverse, {HANDLE}. CC0"
+    f"Russian Empire Historical GIS Maps (1897). IISH Dataverse, {DOI}. CC0"
 )
 
 RISTAT_BOUNDARIES = LayerSpec(
@@ -67,8 +76,8 @@ class Boundaries:
     title: str
 
 
-DISTRICTS = Boundaries("districts_1897", 10336, "districts_1897.gpkg", "Name_RU", "уезды")
-PROVINCES = Boundaries("provinces_1897", 10335, "provinces_1897.gpkg", "prov_RU", "губернии")
+DISTRICTS = Boundaries("districts_1897", 578935, "districts_1897.gpkg", "Name_RU", "уезды")
+PROVINCES = Boundaries("provinces_1897", 578936, "provinces_1897.gpkg", "prov_RU", "губернии")
 
 FILES = (PROVINCES, DISTRICTS)
 
@@ -87,8 +96,14 @@ def load(boundaries: Boundaries, cache_dir) -> list[dict]:
     """Полигоны одного файла набора; скачанное остаётся в кэше."""
     path = cache_dir / boundaries.filename
     if not path.exists():
+        data = download(boundaries.file_id)
+        if not data.startswith(GPKG_MAGIC):
+            raise RistatError(
+                f"{boundaries.filename}: вместо GeoPackage пришло другое "
+                f"({data[:40]!r}…) — вероятно, набор снова переехал"
+            )
         cache_dir.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(download(boundaries.file_id))
+        path.write_bytes(data)
     try:
         return read_features(path, boundaries.key)
     except GeoPackageError as exc:

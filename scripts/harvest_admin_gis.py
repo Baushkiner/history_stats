@@ -24,8 +24,9 @@ CC0 не требует ничего, но авторы просят ссыла�
   губернии и уезды RISTAT. Всё это подложка карты и к схеме контекста не
   приводится (`docs/HARVEST.md`, раздел «Границы»), поэтому лежит отдельным
   каталогом, а не рядом со слоями в `geojson/`;
-* `jsonl/admin_1897_gis.jsonl` — записи схемы с охватом «губерния»: итоги
-  переписи для подбора контекста по названию губернии и году.
+* `admin_1897_gis.json` (в репозитории) и `jsonl/admin_1897_gis.jsonl` —
+  записи схемы с охватом «губерния»: итоги переписи для подбора контекста
+  по названию губернии и году.
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ from pathlib import Path
 
 from _paths import ROOT
 
-from histctx.io_formats import write_feature_collection, write_jsonl
+from histctx.io_formats import write_feature_collection, write_jsonl, write_records_json
 from histctx.sources.admin_gis import (
     ADMIN_GIS, CENSUSES, HeiDataError, boundaries_geojson, build_summary,
     census_records, load_census, unit_name,
@@ -99,8 +100,11 @@ def build(out_dir: Path, cache_dir: Path) -> int:
     if not records:
         print("Записи не собраны.", file=sys.stderr)
         return 1
+    # В репозиторий записи идут файлом `<слой>.json`: `jsonl/` в `.gitignore`.
+    write_records_json(records, out_dir / f"{ADMIN_GIS.slug}.json", title=ADMIN_GIS.title)
     write_jsonl(records, out_dir / "jsonl" / f"{ADMIN_GIS.slug}.jsonl")
-    print(f"Записей схемы: {len(records)} (охват «губерния», без точки).")
+    print(f"Записей схемы: {len(records)} (охват «губерния», без точки) → "
+          f"{ADMIN_GIS.slug}.json и jsonl/{ADMIN_GIS.slug}.jsonl.")
     print(f"«{RISTAT_BOUNDARIES.title}» записей схемы не дают: это подложка карты.")
     return 0
 
