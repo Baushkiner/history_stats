@@ -69,6 +69,7 @@ from .sources.geonames import SETTLEMENTS
 from .sources.gulag import GULAG_CAMPS
 from .sources.huri import ADMIN_UKRAINE, CENSUS_1926, PODILLYA
 from .sources.occupation import OCCUPATION_CITIES
+from .sources.mapofmemory import BURIAL_SITES_TERROR
 from .sources.pastvu import PASTVU_PHOTOS
 from .sources.ristat import RISTAT_BOUNDARIES
 from .sources.strikes import STRIKES
@@ -94,7 +95,8 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      FAMINE_1933, MORTALITY_1871_1914,
                      PEASANT_UNREST, REFORMS_UEZD, MOBILIZATION_1914, CITY_POPULATION,
                      OCCUPATION_CITIES,
-                     BURNED_VILLAGES]
+                     BURNED_VILLAGES,
+                     BURIAL_SITES_TERROR]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых

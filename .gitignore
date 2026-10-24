@@ -47,6 +47,11 @@ data/raw/city_population/
 # не ложится) и кэш разобранных карточек НАРБ. Пересобираются командой
 # scripts/harvest_burned_villages.py --check / --narb-all.
 data/raw/burned_villages_by/
+# Главная и 411 карточек «Некрополя террора и ГУЛАГа» (en.mapofmemory.org):
+# в карточках справки и подписи к снимкам, права на которые не выяснены, —
+# в репозиторий идёт только слой. Пересобираются одной командой
+# (scripts/harvest_burial_sites_terror.py --fetch), около 70 минут.
+data/raw/mapofmemory/
 
 # Крупные выгрузки пересобираются скриптами; в репозиторий идут
 # только отчёт и небольшие GeoJSON-слои.
