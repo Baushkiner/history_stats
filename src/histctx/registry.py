@@ -59,6 +59,7 @@ from .adapters.prokudin_gorsky import PROKUDIN
 from .adapters.state_events import STATE_EVENTS
 from .sources.admin_gis import ADMIN_GIS
 from .sources.burned_villages import BURNED_VILLAGES
+from .sources.cliopatria import STATE_BORDERS_EARLY
 from .sources.cshapes import STATE_BORDERS
 from .sources.drought import DROUGHT_ATLAS
 from .sources.drought_geda import DROUGHT_ATLAS_GEDA
@@ -82,8 +83,9 @@ CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
 # Слои, собранные своим сборщиком из внешнего набора и лежащие в data/out.
 # От CURATED отличаются происхождением: их не ведут вручную, их пересобирают
-# командой. `admin_boundaries_1897`, `state_borders` и `admin_ussr_ukraine`
-# (районы УССР 1922–1937 годов) — единственные здесь, кто не даёт записей
+# командой. `admin_boundaries_1897`, `state_borders`, `state_borders_early`
+# (государства 1600–1885 годов) и `admin_ussr_ukraine` (районы УССР
+# 1922–1937 годов) — единственные здесь, кто не даёт записей
 # схемы: это полигоны для подложки карты, они лежат в data/out/boundaries.
 # PastVu и погода пришли сюда из EXTERNAL: разбор сверен с живым сервисом.
 # Слои из Викиданных собраны тоже, но объявлены ниже, своим списком:
@@ -96,7 +98,8 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      PEASANT_UNREST, REFORMS_UEZD, MOBILIZATION_1914, CITY_POPULATION,
                      OCCUPATION_CITIES,
                      BURNED_VILLAGES,
-                     BURIAL_SITES_TERROR]
+                     BURIAL_SITES_TERROR,
+                     STATE_BORDERS_EARLY]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых

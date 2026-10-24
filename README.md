@@ -109,7 +109,7 @@
 **Источники помимо Викиданных.** Викиданные удобны — CC0 и машинный ответ, —
 но самое ценное собрано людьми в других проектах, и каталог перекосило в их
 сторону. Раздел 3 в `docs/CATALOG.md` и список `EXTERNAL` в `registry.py`
-исправляют это. Шесть источников уже собраны:
+исправляют это. Семь источников уже собраны:
 
 - **[Карта ГУЛАГа](https://gulagmap.ru/)** — 1530 записей: лагерное
   управление, координата, годы работы, вид работ, учтённая численность по
@@ -125,6 +125,11 @@
   изменения. Отвечает уровнем выше губернии: гражданином какой страны предок
   был. Вильно за одну жизнь успевает побывать российским, литовским, польским
   и советским, и от этого зависит, в архиве какой страны искать;
+- **[Cliopatria](https://doi.org/10.5281/zenodo.23128623)** (Seshat Global
+  History Databank, CC BY 4.0) — тот же вопрос до 1886 года, где CShapes ещё
+  нет: 1 187 строк 121 политии 1600–1885 годов, границы по годам, у каждой
+  строки ссылки на Википедию и Викиданные. Вильно до 1795 года — Речь
+  Посполитая, Крым до 1783-го — ханство, Финляндия до 1809-го — Швеция;
 - **[Свод стачек 1895–1904 годов (IISH)](https://dataverse.nl/dataset.xhtml?persistentId=doi:10.34894/DTH1FO)**
   (CC0) — 7886 стачек, волнений и сходок по отчётам фабричных инспекторов:
   губерния, уезд, завод, даты, число бастовавших, требования, исход и вызов
@@ -222,9 +227,11 @@ python3 scripts/harvest_gulag.py --build
 python3 scripts/harvest_admin_gis.py --check
 python3 scripts/harvest_admin_gis.py --build
 
-# 9. Границы государств 1886-1960 (CShapes 2.0)
+# 9. Границы государств 1886-1960 (CShapes 2.0) и до них, 1600-1885 (Cliopatria)
 python3 scripts/harvest_cshapes.py --check
 python3 scripts/harvest_cshapes.py --build
+python3 scripts/harvest_cliopatria.py --check
+python3 scripts/harvest_cliopatria.py --build
 
 # 10. Погода: месячные ряды GHCN с NOAA -> слой аномалий (см. docs/HARVEST.md).
 #     После границ: губерния станции берётся из полигонов 1897 года.
@@ -339,7 +346,9 @@ ruff check .
 Отдельно от записей лежат границы: 824 уезда и 103 губернии 1897 года
 (RISTAT, CC0), 166 полигонов переписей 1897 и 1926 годов с их числами
 (heiDATA, CC BY 4.0), 151 период 46 государств 1886–1960 годов с границами
-и столицами по датам их изменения (CShapes 2.0, CC BY-NC-SA 4.0), 216
+и столицами по датам их изменения (CShapes 2.0, CC BY-NC-SA 4.0), до
+них — 1 187 строк 121 политии 1600–1885 годов по годам (Cliopatria,
+CC BY 4.0), 216
 уездов голода 1891–1892 годов с числами помощи (набор В. Чарныш, CC0 1.0),
 3 571 полигон губерний, повитов, округов и районов УССР по восьми срезам
 1922–1937 годов с датами начала и конца (HURI MAPA, права не выяснены) и
@@ -447,7 +456,8 @@ src/histctx/
                   admin_gis.py, ristat.py, cshapes.py, errhs.py, strikes.py,
                   famine_1891.py, famine_1933.py, drought_geda.py, huri.py,
                   reforms_1851.py, mobilization_1914.py, city_population.py,
-                  occupation.py, burned_villages.py, mapofmemory.py;
+                  occupation.py, burned_villages.py, mapofmemory.py,
+                  cliopatria.py;
                   dataverse.py — файлы Harvard Dataverse, uezd_names.py —
                   сведение уездов с RISTAT, rserial.py — чтение .Rdata;
                   shapefile.py и geopackage.py — чтение границ без geopandas
