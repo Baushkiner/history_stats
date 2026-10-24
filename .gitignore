@@ -51,3 +51,9 @@ data/out/xlsx/
 data/out/boundaries/state_borders_world.geojson
 
 .DS_Store
+
+# Пакет Маркевича, Науменко, Цянь с Zenodo (v3.zip, 12,8 МБ) и main_data.Rdata
+# набора Rozenas, Zhukov (5 МБ): пересобираются одной командой
+# (scripts/harvest_famine_1933.py --check), в репозиторий идут только записи
+# и полигоны районов УССР.
+data/raw/famine_1933/
