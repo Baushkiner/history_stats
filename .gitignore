@@ -41,3 +41,9 @@ data/out/xlsx/
 data/out/boundaries/state_borders_world.geojson
 
 .DS_Store
+
+# Страницы справочника «Освобождение городов» с soldat.ru и набор Grunewald
+# для сверки дат: около девятисот килобайт, скачиваются заново одной
+# командой (scripts/harvest_occupation.py --check); в репозиторий идут
+# только записи слоя.
+data/raw/occupation_cities/
