@@ -168,6 +168,9 @@ CC BY 4.0 и CC0. Сбор — `python3 scripts/harvest_gulag.py --build` и
   или город, они остались в данных с `confidence="province_unparsed"`.
 - Сбор: `python3 scripts/harvest_strikes.py --probe`, затем `--build`.
   Разбор — `src/histctx/sources/strikes.py`, тесты — `tests/test_strikes.py`.
+  Выгрузка — `data/out/labour_conflicts.json`, в репозитории.
+- Набор с осени 2026 года лежит на [dataverse.nl](https://dataverse.nl/dataset.xhtml?persistentId=doi:10.34894/DTH1FO)
+  (прежний handle hdl:10622/LSCGBO ведёт туда же) книгой xlsx вместо TSV.
 
 ---
 
@@ -688,7 +691,7 @@ Old World Drought Atlas обрывается на 44.75° в. д. — на се�
 | Набор | Что даёт | Права |
 |---|---|---|
 | [heiDATA «Transcultural Empire»](https://heidata.uni-heidelberg.de/dataset.xhtml?persistentId=doi:10.11588/DATA/10064) | 99 губерний 1897 года и 67 союзных единиц 1926-го **с итогами переписи**: язык, вера, сословие, народность. Уездов нет | CC BY 4.0 |
-| [RISTAT, Russian Empire Historical GIS Maps](https://datasets.iisg.amsterdam/dataset.xhtml?persistentId=hdl%3A10622%2FDN9QDM) | 824 уезда и 103 губернии 1897 года **без чисел**, зато до уезда | CC0 |
+| [RISTAT, Russian Empire Historical GIS Maps](https://dataverse.nl/dataset.xhtml?persistentId=doi:10.34894/NQOASN) | 824 уезда и 103 губернии 1897 года **без чисел**, зато до уезда | CC0 |
 | [CShapes 2.0](https://icr.ethz.ch/data/cshapes/) | 151 период 46 государств, 1886–1960: границы и столицы **по датам их изменения**, а не по годам | CC BY-NC-SA 4.0 — некоммерческая; проект некоммерческий, поэтому годится |
 
 Обещание каталога «полигоны губерний и уездов, порядок 800» держится только

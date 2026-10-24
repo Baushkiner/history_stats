@@ -185,7 +185,10 @@ Cron у рутин считается в UTC — местное время пе�
 сборщика. В окружении этого репозитория на 23.08.2026 отвечали
 `query.wikidata.org`, `api.pastvu.com`, `meteo.ru`, `www.ncei.noaa.gov`,
 `datasets.iisg.amsterdam`, `heidata.uni-heidelberg.de`, `gulagmap.ru` и
-`dataverse.harvard.edu` — то есть сбор идёт целиком.
+`dataverse.harvard.edu` — то есть сбор идёт целиком. С осени 2026 года
+наборы IISH лежат на `dataverse.nl` (файлы отдаёт `objectstore.surf.nl`):
+`datasets.iisg.amsterdam` отвечает переадресацией, и проверять надо новый
+адрес.
 
 ## Что считается удачным проходом
 

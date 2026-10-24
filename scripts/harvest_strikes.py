@@ -23,7 +23,7 @@ from pathlib import Path
 
 from _paths import ROOT
 
-from histctx.io_formats import write_jsonl
+from histctx.io_formats import write_jsonl, write_records_json
 from histctx.sources.strikes import (
     STRIKES, StrikesError, fetch, read_rows, rows_to_records,
 )
@@ -82,6 +82,10 @@ def build(rows: list, out_dir: Path) -> int:
         return 1
 
     out_dir.mkdir(parents=True, exist_ok=True)
+    # Записи территориальные, GeoJSON у них не бывает. В репозиторий слой
+    # идёт файлом `<слой>.json` рядом с ценами и погодой по губерниям:
+    # `jsonl/` в `.gitignore`, и без этого после `git clone` слоя нет.
+    write_records_json(records, out_dir / f"{STRIKES.slug}.json", title=STRIKES.title)
     write_jsonl(records, out_dir / "jsonl" / f"{STRIKES.slug}.jsonl")
     police = sum(1 for r in records if r.extra.get("police_or_army"))
     unparsed = sum(1 for r in records if r.confidence == "province_unparsed")
@@ -89,7 +93,8 @@ def build(rows: list, out_dir: Path) -> int:
           f"годны для подбора {len(usable)}.")
     print(f"  с вызовом полиции или войск: {police}")
     print(f"  с неразобранной губернией (остались в данных): {unparsed}")
-    print(f"  файл: {(out_dir / 'jsonl' / (STRIKES.slug + '.jsonl')).relative_to(ROOT)}")
+    for name in (f"{STRIKES.slug}.json", f"jsonl/{STRIKES.slug}.jsonl"):
+        print(f"  файл: {(out_dir / name).relative_to(ROOT)}")
     return 0
 
 
@@ -99,7 +104,7 @@ def main() -> int:
     ap.add_argument("--probe", action="store_true", help="показать колонки набора и разбор")
     ap.add_argument("--build", action="store_true", help="собрать слой в файлы")
     ap.add_argument("--from-file", type=Path, default=None,
-                    help="взять TSV из файла, а не из сети")
+                    help="взять свод из файла (xlsx или старый TSV), а не из сети")
     ap.add_argument("--out", type=Path, default=ROOT / "data" / "out")
     ap.add_argument("--cache", type=Path, default=CACHE)
     args = ap.parse_args()
