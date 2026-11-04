@@ -49,6 +49,7 @@ from typing import Iterable, Optional
 
 from .geo import in_bbox
 from .schema import ContextRecord
+from .sources.cshapes import touches_region
 from .sources.ghcn import Provinces
 
 PROVINCES_FILE = "provinces_1897.geojson"
@@ -120,11 +121,20 @@ def _rings(geometry: dict) -> list:
 
 
 def load_states(path: Path) -> list[tuple[bool, Banded]]:
-    """Все государства CShapes: (входит ли в рамку, фигура)."""
+    """Государства CShapes, заходящие в охват РИ/СССР: (входит ли в рамку, фигура).
+
+    С ноября 2026 года `state_borders.geojson` держит весь мир — 591 период
+    вместо 151. Рамке нужны только те, что заходят в прямоугольник охвата:
+    точку вне его `Frame.place` отсекает раньше, чем спрашивает государства,
+    а остальные 440 фигур только удлинили бы загрузку. Отбор — тот же
+    `cshapes.touches_region`, которым слой отбирался прежде, поэтому рамка
+    видит ровно те фигуры, что и до расширения слоя.
+    """
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     shapes = [((f.get("properties") or {}).get("state") in FRAME_STATES,
                Banded(_rings(f.get("geometry") or {})))
-              for f in payload.get("features", [])]
+              for f in payload.get("features", [])
+              if touches_region(f.get("geometry"))]
     if not any(framed for framed, _ in shapes):
         raise ValueError(f"{path}: нет ни одной фигуры «{RUSSIA}»")
     return shapes

@@ -63,9 +63,11 @@ data/out/xlsx/
 # Рабочие копии параллельных агентов: временные worktree самого репозитория,
 # живут только на время задачи и убираются сами.
 .claude/worktrees/
-# Мировая выборка границ (harvest_cshapes.py --world) — вспомогательная,
-# вчетверо больше слоя и в репозиторий не идёт
-data/out/boundaries/state_borders_world.geojson
+# Выборка границ государств только по охвату РИ/СССР (`--region` у
+# harvest_cshapes.py и harvest_cliopatria.py) — вспомогательная: с ноября
+# 2026 года слоем стал весь мир, а прежняя выборка — его часть
+data/out/boundaries/state_borders_region.geojson
+data/out/boundaries/state_borders_early_region.geojson
 
 .DS_Store
 
@@ -79,3 +81,8 @@ data/raw/famine_1933/
 # командой (scripts/harvest_occupation.py --check); в репозиторий идут
 # только записи слоя.
 data/raw/occupation_cities/
+# Архив GeoPolHist с Zenodo (1,3 МБ, снимок репозитория médialab вместе с
+# исходниками визуализации): скачивается заново командой
+# scripts/harvest_geopolhist.py --check (размер и md5 сверяются); в
+# репозиторий идут только записи слоя.
+data/raw/geopolhist/

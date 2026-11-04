@@ -3,25 +3,28 @@
 Сети в тестах нет. Набор — GeoJSON во вложенном zip, поэтому образец
 собирается здесь же, в том виде, в каком его отдаёт Zenodo.
 
-Проверяется то, на чём сбор держится: сверка перечня архива с размером и
-CRC32 из кода, отбор строк по рамке лет и по охвату РИ/СССР, передача
-границы CShapes с 1886 года без обрезки годов и ссылки, по которым запись
-проверяется.
+Проверяется то, на чём сбор держится: сверка оглавления архива с размером и
+CRC32 из кода, извлечение набора из архива по Range, отбор строк по рамке
+лет — по всему миру и по охвату РИ/СССР, — передача границы CShapes с 1886
+года без обрезки годов и ссылки, по которым запись проверяется.
 """
 
 import json
+import re
 import zipfile
 import zlib
+from collections import Counter
 from io import BytesIO
 
 import pytest
 
+from histctx import net
 from histctx.registry import BY_SLUG
 from histctx.sources import cliopatria
 from histctx.sources.cliopatria import (
     MEMBER, MEMBER_CRC, MEMBER_SIZE, NAMES_RU, STATE_BORDERS_EARLY, CliopatriaError,
-    boundary, check_fields, check_listing, collection, overlaps, read_member,
-    rounded_geometry, select, states, untranslated,
+    boundary, check_fields, check_listing, collection, listing, open_archive, overlaps,
+    read_member, rounded_geometry, select, states, untranslated,
 )
 
 # Квадрат в охвате РИ/СССР (`geo.BBOX_RU`) и квадрат в Южной Америке.
@@ -89,19 +92,63 @@ def test_listing_is_checked_against_the_code():
     assert "other/cliopatria.geojson.zip" in check_listing(moved)[0]
 
 
+class _Response:
+    def __init__(self, body, headers):
+        self.status, self.body, self.headers = 206, body, headers
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self):
+        return self.body
+
+
+def zenodo_archive(payload: bytes) -> bytes:
+    """Архив записи, как на Zenodo: набор вложен рядом со «сканами карт»."""
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("Seshat-Global-History-Databank-cliopatria-5f43337/README.md",
+                         "# Cliopatria")
+        archive.writestr(MEMBER, payload)
+        archive.writestr("Seshat-Global-History-Databank-cliopatria-5f43337/"
+                         "original_images/map.png", b"\x89PNG" * 1000)
+    return buffer.getvalue()
+
+
+def serve(monkeypatch, archive: bytes, calls: list) -> None:
+    """Подменяет Zenodo: архив отдаётся только кусками, по заголовку Range."""
+    def urlopen(request, timeout=None):
+        value = request.get_header("Range")
+        calls.append(value)
+        start, stop = re.match(r"bytes=(\d*)-(\d*)", value).groups()
+        if not start:
+            start, stop = max(0, len(archive) - int(stop)), len(archive) - 1
+        start, stop = int(start), min(int(stop), len(archive) - 1)
+        return _Response(archive[start:stop + 1],
+                         {"Content-Range": f"bytes {start}-{stop}/{len(archive)}"})
+    monkeypatch.setattr(net.urllib.request, "urlopen", urlopen)
+
+
+def test_listing_is_read_from_the_archive_index(monkeypatch):
+    """Оглавление — тот же перечень, что отдавал `/container`, и той же сверкой."""
+    payload = b"geojson zip bytes" * 100
+    calls = []
+    serve(monkeypatch, zenodo_archive(payload), calls)
+    entries = {e["key"]: e for e in listing(open_archive())["entries"]}
+    assert entries[MEMBER]["size"] == len(payload)
+    assert entries[MEMBER]["crc"] == zlib.crc32(payload)
+    assert calls == ["bytes=-131072"]      # одно обращение к хвосту архива
+    assert check_listing({"entries": [{"key": MEMBER, "size": MEMBER_SIZE,
+                                       "crc": MEMBER_CRC}]}) == []
+
+
 def test_download_keeps_nothing_that_does_not_match(tmp_path, monkeypatch):
-    """Оборванный или подменённый файл не должен лечь в кэш."""
+    """Набор не той версии не должен лечь в кэш."""
     payload = b"x" * 10
-
-    class Response(BytesIO):
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *exc):
-            return False
-
-    monkeypatch.setattr(cliopatria.urllib.request, "urlopen",
-                        lambda *a, **k: Response(payload))
+    serve(monkeypatch, zenodo_archive(payload), [])
     dest = tmp_path / "member.zip"
     with pytest.raises(CliopatriaError, match="ожидалось"):
         cliopatria.download(dest)
@@ -110,6 +157,16 @@ def test_download_keeps_nothing_that_does_not_match(tmp_path, monkeypatch):
     monkeypatch.setattr(cliopatria, "MEMBER_SIZE", len(payload))
     monkeypatch.setattr(cliopatria, "MEMBER_CRC", zlib.crc32(payload))
     assert cliopatria.download(dest).read_bytes() == payload
+
+
+def test_archive_without_the_member_stops_the_harvest(tmp_path, monkeypatch):
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("other/cliopatria.geojson.zip", b"moved")
+    serve(monkeypatch, buffer.getvalue(), [])
+    with pytest.raises(CliopatriaError, match="в архиве нет"):
+        cliopatria.download(tmp_path / "member.zip")
+    assert not (tmp_path / "member.zip.part").exists()
 
 
 def test_row_is_matched_against_the_layer_window():
@@ -121,11 +178,17 @@ def test_row_is_matched_against_the_layer_window():
     assert not overlaps({"FromYear": "1600", "ToYear": 1601})
 
 
-def test_polity_outside_the_frame_is_dropped(tmp_path):
+def test_whole_world_is_the_layer(tmp_path):
+    """С ноября 2026 года слой — весь мир: Бразилия в нём наравне с Россией."""
     picked = select(read_member(build_member(tmp_path)))
+    assert len(picked) == 4
+    assert "Бразильская империя" in states(picked)
+
+
+def test_region_selection_keeps_the_former_layer(tmp_path):
+    picked = select(read_member(build_member(tmp_path)), region_only=True)
     assert states(picked) == ["(Габсбургская монархия)", "Российская империя",
                               "Русское царство"]
-    assert len(select(read_member(build_member(tmp_path)), region_only=False)) == 4
 
 
 def test_years_are_kept_and_the_handover_is_marked():
@@ -156,9 +219,11 @@ def test_relation_rows_are_kept_and_labelled():
 
 
 def test_unknown_name_goes_as_is():
-    props = boundary(row("Empire of Brazil", 1822, 1889))["properties"]
-    assert props["state"] == props["state_en"] == "Empire of Brazil"
-    assert untranslated([{"properties": props}]) == ["Empire of Brazil"]
+    props = boundary(row("Empire of Atlantis", 1822, 1889))["properties"]
+    assert props["state"] == props["state_en"] == "Empire of Atlantis"
+    assert untranslated([{"properties": props}]) == ["Empire of Atlantis"]
+    assert boundary(row("Empire of Brazil", 1822, 1889))["properties"]["state"] \
+        == "Бразильская империя"
 
 
 def test_coordinates_are_rounded_without_losing_rings():
@@ -178,6 +243,7 @@ def test_collection_carries_rights_and_citation(tmp_path):
     coll = collection(select(read_member(build_member(tmp_path))))
     assert coll["name"] == "state_borders_early"
     assert coll["period"] == "1600–1885" and coll["continues_in"] == "state_borders"
+    assert coll["coverage"] == "весь мир"
     assert "CC BY 4.0" in coll["license"] and "CC BY 4.0" in coll["citation"]
     assert coll["url"].startswith("https://doi.org/10.5281/zenodo.")
 
@@ -192,3 +258,9 @@ def test_dictionary_has_no_untranslated_duplicates():
     """Ключ словаря — английское название набора, значение — русское."""
     for en, ru in NAMES_RU.items():
         assert ru and ru != en, en
+
+
+def test_two_polities_never_share_a_russian_name():
+    """Два разных названия набора с одной подписью слились бы на карте в одно."""
+    clashes = [ru for ru, n in Counter(NAMES_RU.values()).items() if n > 1]
+    assert clashes == []

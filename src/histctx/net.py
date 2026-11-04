@@ -12,13 +12,20 @@
 наборов, которые лежат файлом по постоянному адресу — heiDATA, RISTAT,
 атласы засух NOAA, — оно было написано трижды слово в слово. Клиенты со
 своей логикой повторов это не касается: у них она и есть суть.
+
+И чтение файла кусками по заголовку Range (`RangeFile`): когда нужный набор
+лежит внутри большого zip-архива на репозитории данных, из архива берётся
+только оглавление и сам набор, а не весь архив.
 """
 
 from __future__ import annotations
 
+import io
+import re
 import time
 import urllib.error
 import urllib.request
+from typing import Optional
 
 from . import __version__
 
@@ -64,3 +71,90 @@ def fetch_bytes(url: str, *, error: type[Exception], timeout: int = 300) -> byte
         raise error(f"{url}: HTTP {exc.code}") from exc
     except urllib.error.URLError as exc:
         raise error(f"{url}: сеть недоступна ({exc.reason})") from exc
+
+
+_CONTENT_RANGE = re.compile(r"bytes (\d+)-(\d+)/(\d+)")
+
+
+class RangeFile(io.RawIOBase):
+    """Файл на сервере, который читается кусками по заголовку Range.
+
+    Нужен, чтобы достать один файл из zip-архива, не скачивая архив целиком:
+    `zipfile.ZipFile(RangeFile(url))` сам найдёт оглавление в конце архива,
+    а `open()` прочитает только нужный файл. Так собирается Cliopatria: на
+    Zenodo набор в 46 МБ лежит внутри архива на 299 МБ, и с ноября 2026 года
+    выдачу отдельного файла из архива (`…/container/<путь>`) Zenodo закрыл
+    ответом 403, а частичное чтение самого архива (`…/content`) отдаёт.
+
+    Читается вперёд кусками по `chunk` байт: оглавление архива помещается в
+    первый же запрос к его хвосту, сам набор — в три-четыре, а не в тысячи
+    мелких, которыми `zipfile` иначе спрашивал бы сервер. Каждый ответ
+    проверяется: сервер, не умеющий Range, отдаёт весь файл с кодом 200, и
+    его надо остановить сразу, а не принять за кусок.
+    """
+
+    def __init__(self, url: str, *, error: type[Exception], chunk: int = 16 << 20,
+                 tail: int = 1 << 17, timeout: int = 300) -> None:
+        super().__init__()
+        self.url, self.error, self.chunk, self.timeout = url, error, chunk, timeout
+        self.pos = 0
+        self.requests = 0
+        self.size: Optional[int] = None
+        self._start, self._buf = 0, b""
+        # Первый запрос — хвост файла: он же сообщает размер, а в хвосте у
+        # zip-архива лежит оглавление.
+        data = self._get(f"bytes=-{tail}")
+        self._start, self._buf = self.size - len(data), data
+
+    def _get(self, value: str) -> bytes:
+        request = urllib.request.Request(
+            self.url, headers={"User-Agent": USER_AGENT, "Range": value})
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                self.requests += 1
+                match = _CONTENT_RANGE.match(response.headers.get("Content-Range") or "")
+                if response.status != 206 or not match:
+                    raise self.error(f"{self.url}: сервер не отдаёт файл кусками "
+                                     f"(HTTP {response.status}, Range не поддержан)")
+                self.size = int(match.group(3))
+                return response.read()
+        except urllib.error.HTTPError as exc:
+            raise self.error(f"{self.url}: HTTP {exc.code}") from exc
+        except urllib.error.URLError as exc:
+            raise self.error(f"{self.url}: сеть недоступна ({exc.reason})") from exc
+
+    def readable(self) -> bool:
+        return True
+
+    def seekable(self) -> bool:
+        return True
+
+    def tell(self) -> int:
+        return self.pos
+
+    def seek(self, offset: int, whence: int = io.SEEK_SET) -> int:
+        if whence == io.SEEK_SET:
+            self.pos = offset
+        elif whence == io.SEEK_CUR:
+            self.pos += offset
+        elif whence == io.SEEK_END:
+            self.pos = self.size + offset
+        else:
+            raise ValueError(f"whence={whence}")
+        return self.pos
+
+    def readinto(self, buffer) -> int:
+        view = memoryview(buffer).cast("B")
+        done = 0
+        while done < len(view) and self.pos < self.size:
+            if not self._start <= self.pos < self._start + len(self._buf):
+                stop = min(self.size, self.pos + max(len(view) - done, self.chunk))
+                self._buf, self._start = self._get(f"bytes={self.pos}-{stop - 1}"), self.pos
+                if not self._buf:
+                    break
+            offset = self.pos - self._start
+            piece = self._buf[offset:offset + len(view) - done]
+            view[done:done + len(piece)] = piece
+            done += len(piece)
+            self.pos += len(piece)
+        return done

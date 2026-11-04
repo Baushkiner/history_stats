@@ -23,19 +23,26 @@ Zenodo. Полигоны выгружаются целиком; цитата и 
 
 Скачивание. Запись на Zenodo — архив репозитория на 299 МБ, из которых
 сам набор — один вложенный zip на 46 МБ, остальное — сканы исходных карт.
-Zenodo отдаёт файл из архива по отдельности (`…/container/<путь>`), а в
-перечне содержимого пишет его размер и CRC32: сбор берёт только его и
-сверяет обе величины. Оба адреса лежат под `/api/records/*/files`, который
-robots.txt Zenodo открывает явно; карточку записи сбор не запрашивает,
-лицензия сверена по ней руками.
+До ноября 2026 года Zenodo отдавал файл из архива по отдельности
+(`…/container/<путь>`); теперь этот адрес отвечает 403, а сам архив
+(`…/content`) по-прежнему отдаётся кусками по заголовку Range. Сбор читает
+по Range оглавление архива — оно в последних 128 КБ, один запрос, — сверяет
+по нему размер и CRC32 набора с записанными в коде и забирает только его:
+ещё три запроса по 16 МБ вместо 299 МБ целиком (`net.RangeFile`). Адрес
+лежит под `/api/records/*/files`, который robots.txt Zenodo открывает явно;
+карточку записи сбор не запрашивает, лицензия сверена по ней руками.
 
-Что отбирается. Строки, пересекающиеся с рамкой 1600–1885 годов, у которых
-полигон хоть одной вершиной заходит в охват РИ/СССР (`cshapes.touches_region`,
-та же проверка, что у CShapes). Полигоны не обрезаются — по той же причине,
-что и у CShapes: обрезанная граница государства врала бы на карте. Годы
-строки сохраняются как есть: у Российской империи последняя строка —
-1885–1894, и она остаётся такой, а пометка `continues_in` говорит, что
-с 1886 года та же граница есть в `state_borders` по дням.
+Что отбирается. Строки, пересекающиеся с рамкой 1600–1885 годов, — по всему
+миру: 3 620 строк 424 политий. Первая редакция брала только те, чей полигон
+хоть одной вершиной заходит в охват РИ/СССР, — 1 187 строк 121 политии; этот
+отбор остался проверкой (`select(..., region_only=True)`, у сборщика —
+`--region`). Мир нужен по той же причине, что у CShapes: родословная не
+кончается на границе империи, а Cliopatria отвечает «чья земля» и для
+Пенсильвании 1700 года, и для Бенгалии, и для Капской колонии. Полигоны не
+обрезаются: обрезанная граница государства врала бы на карте. Годы строки
+сохраняются как есть: у Российской империи последняя строка — 1885–1894, и
+она остаётся такой, а пометка `continues_in` говорит, что с 1886 года та же
+граница есть в `state_borders` по дням.
 
 На выходе — GeoJSON в `data/out/boundaries/`: подложка карты, к схеме
 контекста не приводится (`docs/HARVEST.md`, раздел «Границы»). Записей слой
@@ -45,16 +52,14 @@ robots.txt Zenodo открывает явно; карточку записи с�
 from __future__ import annotations
 
 import json
-import urllib.error
 import urllib.parse
-import urllib.request
 import zipfile
 import zlib
 from pathlib import Path
 from typing import Iterable, Optional
 
 from ..io_formats import feature_collection, write_feature_collection
-from ..net import USER_AGENT, fetch_bytes
+from ..net import RangeFile
 from ..schema import LayerSpec
 from .cshapes import STATE_BORDERS, touches_region
 
@@ -68,10 +73,11 @@ DOI_URL = f"https://doi.org/{DOI}"
 REPO_URL = "https://github.com/Seshat-Global-History-Databank/cliopatria"
 ARCHIVE_KEY = "Seshat-Global-History-Databank/cliopatria-v0.2.1.zip"
 FILES_API = f"https://zenodo.org/api/records/{RECORD_ID}/files"
-CONTAINER_API = f"{FILES_API}/{ARCHIVE_KEY}/container"
+# Сам архив: отдаётся кусками по Range, из него читаются оглавление и набор.
+ARCHIVE_URL = f"{FILES_API}/{ARCHIVE_KEY}/content"
 MEMBER = "Seshat-Global-History-Databank-cliopatria-5f43337/cliopatria.geojson.zip"
-MEMBER_URL = f"{CONTAINER_API}/{MEMBER}"
-# Сверено с перечнем содержимого архива 24.10.2026.
+# Сверено с перечнем содержимого архива 24.10.2026 и с оглавлением самого
+# архива 04.11.2026 — числа те же.
 MEMBER_SIZE = 46_005_176
 MEMBER_CRC = 3_845_452_743
 CACHE_NAME = "cliopatria-v0.2.1.geojson.zip"
@@ -107,148 +113,458 @@ STATE_BORDERS_EARLY = LayerSpec(
         "можно всё, со ссылкой — цитата и ссылка в выходном файле"
     ),
     description=(
-        "Государственные границы по годам до начала CShapes: 1 187 строк "
-        "121 политии, заходящих территорией в охват РИ/СССР, — Московское "
-        "царство и империя, Речь Посполитая, Крымское ханство, Швеция, Порта, "
-        "грузинские царства, казахские жузы и среднеазиатские ханства. "
-        "Отвечает, в каком государстве лежал приход в год ревизии или записи "
-        "до 1886 года; точность — год, а не день."
+        "Государственные границы по годам до начала CShapes, по всему миру: "
+        "3 620 строк 424 политий — Московское царство и империя, Речь "
+        "Посполитая, Крымское ханство, Швеция, Порта, грузинские царства, "
+        "казахские жузы и среднеазиатские ханства, а с ними германские "
+        "княжества, колониальные владения в Америке, Африке и Азии, Цин, "
+        "Великие Моголы и сёгунат. Отвечает, в каком государстве лежал приход "
+        "в год ревизии или записи до 1886 года; точность — год, а не день."
     ),
     url=DOI_URL,
     status="harvested",
-    expected_rows=1187,
+    expected_rows=3620,
     gives_records=False,
 )
 
 # Названия в наборе английские. Словарь покрывает всё, что попадает в отбор
-# версии v0.2.1; незнакомое название идёт как есть. Переводится то, что
-# написано, а не то, что имелось в виду: «First Hellenic Republic» у
-# Cliopatria тянется до 1907 года, но называть её «Греческим королевством»
-# значило бы править источник подписью.
+# версии v0.2.1 по всему миру, — 424 политии; незнакомое название идёт как
+# есть. Переводится то, что написано, а не то, что имелось в виду: «First
+# Hellenic Republic» у Cliopatria тянется до 1907 года, но называть её
+# «Греческим королевством» значило бы править источник подписью; так же
+# «Kingdom of Monaco» остаётся королевством. Пояснение в скобках добавлено
+# там, где голое название ничего не скажет русскому читателю, — так уже были
+# «Польские повстанцы» вместо «Poles»: «Хауденосауни (Лига ирокезов)»,
+# «Южно-Африканская Республика (Трансвааль)»; «Kamerun» — германская колония,
+# и перевод это держит, как у CShapes.
 NAMES_RU = {
+    "(Allegiance of Kingdom of Hawaï'i to British Empire)":
+        "(Присяга Гавайского королевства Британской империи)",
     "(Alliance between Papal States and Spanish Empire)":
         "(Союз Папской области и Испанской империи)",
+    "(Batavian Republic)": "(Батавская республика)",
     "(Bourbon Kingdom of France)": "(Французское королевство Бурбонов)",
     "(British Empire)": "(Британская империя)",
+    "(Dutch Republic)": "(Голландская республика)",
     "(First French Empire)": "(Первая Французская империя)",
+    "(French Consulate)": "(Французская республика времён Консульства)",
     "(French Directory)": "(Французская республика времён Директории)",
+    "(French First Republic)": "(Первая французская республика)",
+    "(French Second Republic)": "(Вторая французская республика)",
     "(French Third Republic)": "(Третья французская республика)",
     "(Habsburg Monarchy)": "(Габсбургская монархия)",
     "(Holy Roman Empire)": "(Священная Римская империя)",
+    "(Kingdom of England)": "(Королевство Англия)",
+    "(Kingdom of France)": "(Королевство Франция)",
+    "(Netherlands)": "(Нидерланды)",
+    "(Portuguese Empire)": "(Португальская империя)",
     "(Second French Empire)": "(Вторая Французская империя)",
     "(Spanish Empire)": "(Испанская империя)",
     "Afsharid Iran": "Иран Афшаридов",
+    "Ahmadnagar Sultanate": "Ахмаднагарский султанат",
+    "Argentine Confederation": "Аргентинская конфедерация",
+    "Ashanti Empire": "Империя Ашанти",
     "Astrakhan Khanate": "Астраханское ханство",
     "Austria-Hungary": "Австро-Венгрия",
     "Austrian Empire": "Австрийская империя",
+    "Ayutthaya Kingdom": "Королевство Аюттхая",
+    "Bahrain": "Бахрейн",
+    "Bali": "Бали",
+    "Balinese Kingdom": "Балийское королевство",
+    "Bamana Empire": "Империя Бамана",
+    "Batavian Republic": "Батавская республика",
     "Bessarabia": "Бессарабия",
+    "Beylik of Tunis": "Тунисский бейлик",
+    "Bidar Sultanate": "Бидарский султанат",
+    "Bijapur Sultanate": "Биджапурский султанат",
+    "Blambangan Kingdom": "Королевство Бламбанган",
+    "Bolivia": "Боливия",
+    "Bornu Empire": "Империя Борну",
     "Bourbon Kingdom of France": "Французское королевство Бурбонов",
     "Brandenburg-Prussia": "Бранденбург-Пруссия",
+    "British Africa": "Британская Африка",
+    "British Cape Colony": "Британская Капская колония",
+    "British Ceylon": "Британский Цейлон",
     "British Colonial Empire": "Британская колониальная империя",
     "British Empire": "Британская империя",
+    "British Gold Coast": "Британский Золотой Берег",
     "British Raj": "Британская Индия",
+    "Burma": "Бирма",
+    "California Republic": "Калифорнийская республика",
+    "Cambodia": "Камбоджа",
+    "Carnatic Sultanate": "Султанат Карнатик",
+    "Catalonia": "Каталония",
     "Caucasian Imamate": "Северо-Кавказский имамат",
+    "Centralist Mexico": "Централистская Мексика",
+    "Chiangmai": "Чиангмай",
+    "Chámpa": "Тямпа",
+    "Cisalpine Republic": "Цизальпинская республика",
+    "Cispadane Republic": "Циспаданская республика",
+    "Commonwealth of England": "Английская республика (Содружество Англии)",
+    "Comtat Venaissin": "Конта-Венессен",
+    "Confederate States of America": "Конфедеративные Штаты Америки",
     "Confederation of the Rhine": "Рейнский союз",
+    "Corsican Republic": "Корсиканская республика",
+    "County of Urgell": "Графство Урхель",
     "Crimean Khanate": "Крымское ханство",
+    "Cundinamarca": "Кундинамарка",
+    "Danish Gold Coast": "Датский Золотой Берег",
+    "Danish India": "Датская Индия",
     "Denmark-Norway": "Дания-Норвегия",
+    "Dominican Republic": "Доминиканская Республика",
     "Don Cossacks": "Войско Донское",
+    "Duchy of Anhalt": "Герцогство Ангальт",
+    "Duchy of Bavaria": "Герцогство Бавария",
+    "Duchy of Brunswick": "Герцогство Брауншвейг",
     "Duchy of Courland": "Курляндское герцогство",
+    "Duchy of Holstein": "Герцогство Гольштейн",
+    "Duchy of Lorraine": "Герцогство Лотарингия",
+    "Duchy of Mecklenburg": "Герцогство Мекленбург",
+    "Duchy of Modena and Reggio": "Герцогство Модена и Реджо",
+    "Duchy of Nassau": "Герцогство Нассау",
+    "Duchy of Oldenburg": "Герцогство Ольденбург",
+    "Duchy of Parma and Piacenza": "Герцогство Парма и Пьяченца",
     "Duchy of Prussia": "Прусское герцогство",
     "Duchy of Warsaw": "Варшавское герцогство",
     "Durrani Dynasty": "Дуррани",
     "Durrani Empire": "Дурранийская держава",
+    "Dutch Cape Colony": "Голландская Капская колония",
+    "Dutch Ceylon": "Голландский Цейлон",
+    "Dutch East Indies": "Нидерландская Ост-Индия",
+    "Dutch Gold Coast": "Голландский Золотой Берег",
+    "Dutch Republic": "Голландская республика",
     "Dzungar Khanate": "Джунгарское ханство",
     "Eastern Moghulistan": "Восточный Могулистан",
+    "Electorate of Baden": "Курфюршество Баден",
+    "Electorate of Brandenburg": "Курфюршество Бранденбург",
+    "Electorate of Hanover": "Курфюршество Ганновер",
+    "Electorate of Hesse": "Курфюршество Гессен",
+    "Electorate of Salzburg": "Курфюршество Зальцбург",
+    "Electorate of Saxony": "Курфюршество Саксония",
+    "Electorate of Trier": "Курфюршество Трир",
+    "Electorate of Württemberg": "Курфюршество Вюртемберг",
     "Emirate of Afghanistan": "Афганский эмират",
     "Emirate of Bukhara": "Бухарский эмират",
+    "Emirate of Diriyah": "Дирийский эмират",
+    "Emirate of Jabal Shammar": "Эмират Джебель-Шаммар",
+    "Emirate of Nejd": "Неджедский эмират",
+    "Empire of Brazil": "Бразильская империя",
+    "Empire of Haiti": "Гаитянская империя",
     "Empire of Japan": "Японская империя",
+    "English Colonial Empire": "Английская колониальная империя",
+    "Ethiopian Empire": "Эфиопская империя",
+    "Federal League": "Федеральная лига",
+    "Federated Republic of Mexico": "Федеративная республика Мексика",
     "First French Empire": "Первая Французская империя",
+    "First French colonial empire": "Первая французская колониальная империя",
     "First Hellenic Republic": "Первая Греческая республика",
+    "First Mexican Empire": "Первая Мексиканская империя",
+    "First Spanish Republic": "Первая Испанская республика",
+    "First Toungoo Empire": "Первая империя Таунгу",
+    "Free City of Bremen": "Бремен, вольный город",
     "Free City of Danzig": "Данциг, вольный город",
+    "Free City of Frankfurt": "Франкфурт, вольный город",
+    "Free City of Hamburg": "Гамбург, вольный город",
     "Free City of Krakow": "Краков, вольный город",
+    "Free City of Lübeck": "Любек, вольный город",
+    "Free Orange State": "Оранжевое Свободное государство",
+    "Freetown Colony": "Колония Фритаун",
+    "French Africa": "Французская Африка",
+    "French Algeria": "Французский Алжир",
+    "French Colony of Guiana": "Французская колония Гвиана",
+    "French Consulate": "Французская республика времён Консульства",
     "French Directory": "Французская республика времён Директории",
+    "French First Republic": "Первая французская республика",
+    "French India": "Французская Индия",
     "French Indochina": "Французский Индокитай",
+    "French Louisiana": "Французская Луизиана",
+    "French Second Republic": "Вторая французская республика",
+    "French Third Republic": "Третья французская республика",
+    "Funj Sultanate": "Султанат Фунг",
+    "German Africa": "Германская Африка",
     "German Confederation": "Германский союз",
     "German Empire": "Германская империя",
+    "Golconda Sultanate": "Голкондский султанат",
     "Golden Horde": "Золотая Орда",
+    "Gorkha Kingdom": "Королевство Горкха",
+    "Gran Colombia": "Великая Колумбия",
+    "Granadine Confederation": "Гранадская конфедерация",
+    "Grand Duchy of Baden": "Великое герцогство Баден",
+    "Grand Duchy of Berg": "Великое герцогство Берг",
+    "Grand Duchy of Hesse": "Великое герцогство Гессен",
+    "Grand Duchy of Saxe-Weimar-Eisenach": "Великое герцогство Саксен-Веймар-Эйзенах",
+    "Grand Duchy of Tuscany": "Великое герцогство Тосканское",
+    "Grand Duchy of Würzburg": "Великое герцогство Вюрцбург",
+    "Greenland": "Гренландия",
+    "Guatemala": "Гватемала",
+    "Guayaquil Junta": "Гуаякильская хунта",
     "Habsburg Monarchy": "Габсбургская монархия",
+    "Haiti": "Гаити",
+    "Haudenosaunee": "Хауденосауни (Лига ирокезов)",
+    "Helvetic Republic": "Гельветическая республика",
     "Holy Roman Empire": "Священная Римская империя",
     "Holy Roman Empire Minor States": "Малые государства Священной Римской империи",
+    "Honduras": "Гондурас",
     "Hotaki Dynasty": "Хотаки",
+    "House of Khalifa": "Дом Аль Халифа",
+    "House of Savoy": "Савойский дом",
+    "Huguenots": "Гугеноты",
     "Hungarian Nationalists": "Венгерские повстанцы",
+    "Hyderabad State": "Княжество Хайдарабад",
     "Iberian Union": "Иберийская уния",
+    "Imamate of Yemen": "Йеменский имамат",
+    "Irish Catholic Confederation": "Ирландская католическая конфедерация",
+    "Italian Nationalists": "Итальянские повстанцы",
+    "Italian Republic": "Итальянская республика",
+    "Itza Mayans": "Майя-ица",
+    "Jesuit Reducciones": "Иезуитские редукции",
     "Joseon": "Чосон",
     "Kalmyk Khanate": "Калмыцкое ханство",
+    "Kamerun": "Германский Камерун",
+    "Karamanli Dynasty": "Караманли",
     "Kashmir and Jammu": "Джамму и Кашмир",
+    "Kathmandu": "Катманду",
     "Kazakh Khanate": "Казахское ханство",
+    "Kedah-Perlis District": "Кедах-Перлис",
+    "Kelantan": "Келантан",
     "Khanate of Bukhara": "Бухарское ханство",
     "Khanate of Khiva": "Хивинское ханство",
     "Khanate of Kokand": "Кокандское ханство",
     "Khanates of the Caucasus": "Закавказские ханства",
+    "Khedivate of Egypt": "Египетский хедиват",
+    "Khmer Empire": "Кхмерская империя",
     "Khoshut Khanate": "Хошутское ханство",
+    "Kingdom of Bavaria": "Королевство Бавария",
+    "Kingdom of Belgium": "Королевство Бельгия",
+    "Kingdom of Bhutan": "Королевство Бутан",
+    "Kingdom of Bulungan": "Королевство Булунган",
+    "Kingdom of Champasak": "Королевство Тямпасак",
+    "Kingdom of England": "Королевство Англия",
+    "Kingdom of Etruria": "Королевство Этрурия",
+    "Kingdom of Fiji": "Королевство Фиджи",
+    "Kingdom of France": "Королевство Франция",
     "Kingdom of Georgia": "Грузинское царство",
     "Kingdom of Great Britain": "Королевство Великобритания",
+    "Kingdom of Hanover": "Королевство Ганновер",
+    "Kingdom of Hawaï'i": "Гавайское королевство",
     "Kingdom of Imereti": "Имеретинское царство",
     "Kingdom of Italy": "Королевство Италия",
     "Kingdom of Kakheti": "Кахетинское царство",
     "Kingdom of Kartli": "Картлийское царство",
+    "Kingdom of Kongo": "Королевство Конго",
+    "Kingdom of Luang Phrabang": "Королевство Луангпхабанг",
+    "Kingdom of Lunda": "Королевство Лунда",
+    "Kingdom of Monaco": "Королевство Монако",
+    "Kingdom of Mrauk U": "Королевство Мраук-У",
+    "Kingdom of Mysore": "Королевство Майсур",
     "Kingdom of Naples (Napoleonic)": "Неаполитанское королевство (наполеоновское)",
     "Kingdom of Norway": "Королевство Норвегия",
+    "Kingdom of Portugal": "Королевство Португалия",
     "Kingdom of Prussia": "Королевство Пруссия",
+    "Kingdom of Sarawak": "Королевство Саравак",
     "Kingdom of Sardinia": "Сардинское королевство",
+    "Kingdom of Saxony": "Королевство Саксония",
+    "Kingdom of Scotland": "Королевство Шотландия",
     "Kingdom of Serbia": "Королевство Сербия",
     "Kingdom of Spain": "Королевство Испания",
     "Kingdom of Sweden": "Королевство Швеция",
+    "Kingdom of Westphalia": "Королевство Вестфалия",
+    "Kingdom of Württemberg": "Королевство Вюртемберг",
     "Kingdom of the Two Sicilies": "Королевство Обеих Сицилий",
+    "Konbaung Dynasty": "Конбаун",
+    "Kutai Kingdom": "Королевство Кутай",
+    "Kuwait": "Кувейт",
+    "Lan Na": "Ланна",
+    "Lan Xang": "Лансанг",
     "Later Jin Dynasty": "Поздняя Цзинь",
     "Li Zicheng": "Ли Цзычэн",
+    "Ligurian Republic": "Лигурийская республика",
+    "Los Altos": "Лос-Альтос",
+    "Majeerteen Sultanate": "Султанат Маджиртин",
+    "Mali Empire": "Империя Мали",
+    "Maratha Empire": "Империя маратхов",
+    "Massina Empire": "Империя Масина",
+    "Mataram Sultanate": "Султанат Матарам",
+    "Merina Kingdom": "Королевство Мерина",
+    "Mexican Monarchists": "Мексиканские монархисты",
+    "Mexicans": "Мексиканские повстанцы",
+    "Mexico": "Мексика",
     "Ming Dynasty": "Империя Мин",
     "Mongol Khanate": "Монгольское ханство",
     "Montenegro": "Черногория",
+    "Morocco": "Марокко",
+    "Mosquito Kingdom": "Москитское королевство",
     "Mughal Empire": "Империя Великих Моголов",
     "Muhammad Ali dynasty": "Египет при династии Мухаммеда Али",
+    "Napoleonic Batavia Republic": "Батавская республика (наполеоновская)",
+    "Natalia Republic": "Республика Наталь",
+    "Nawab of Awadh": "Наваб Ауда",
+    "Nawabs of Bengal": "Навабы Бенгалии",
+    "Nayaks of Madurai": "Наяки Мадурая",
+    "Nayaks of Thanjavur": "Наяки Танджавура",
+    "Negeri Sembilan": "Негери-Сембилан",
+    "Nepal": "Непал",
+    "Netherlands": "Нидерланды",
+    "Netherlands Antilles": "Нидерландские Антильские острова",
+    "New Caledonia": "Новая Каледония",
+    "New France": "Новая Франция",
+    "New Granada": "Новая Гранада",
+    "New Netherland": "Новые Нидерланды",
+    "New Sweden": "Новая Швеция",
+    "Nguyễn dynasty": "Династия Нгуен",
+    "Nguyễn lords": "Сеньоры Нгуен",
+    "Nieuwe Republiek": "Новая Республика",
     "North German Confederation": "Северогерманский союз",
     "Oirat Confederation": "Ойратский союз",
+    "Omani Slave Coast": "Оманский Невольничий берег",
+    "Oriental Republic of Uruguay": "Восточная Республика Уругвай",
     "Ottoman Empire": "Османская империя",
+    "Ottoman Tripolitania": "Османская Триполитания",
+    "Oyo Empire": "Империя Ойо",
+    "Pahang Sultanate": "Султанат Паханг",
+    "Panthay Rebellion": "Пантайское восстание",
+    "Papal States": "Папская область",
+    "Paraguay": "Парагвай",
+    "Patani Kingdom": "Королевство Паттани",
+    "People's Republic of Zanzibar": "Народная Республика Занзибар",
+    "Peru-Bolivian Confederation": "Перуано-боливийская конфедерация",
     "Poles": "Польские повстанцы",
     "Polish-Lithuanian Commonwealth": "Речь Посполитая",
+    "Pontianak Kadriyah Sultanate": "Султанат Понтианак",
+    "Portuguese Ceylon": "Португальский Цейлон",
+    "Portuguese Colonies": "Португальские колонии",
+    "Portuguese Empire": "Португальская империя",
     "Principality of Abkhazia": "Абхазское княжество",
+    "Principality of Andorra": "Княжество Андорра",
     "Principality of Bulgaria": "Княжество Болгария",
     "Principality of Guria": "Гурийское княжество",
+    "Principality of Hohenzollern-Sigmaringen": "Княжество Гогенцоллерн-Зигмаринген",
+    "Principality of Lichtenberg": "Княжество Лихтенберг",
+    "Principality of Liechtenstein": "Княжество Лихтенштейн",
+    "Principality of Lippe": "Княжество Липпе",
     "Principality of Mingrelia": "Мегрельское княжество",
     "Principality of Moldavia": "Молдавское княжество",
+    "Principality of Monaco": "Княжество Монако",
+    "Principality of Regensberg": "Княжество Регенсберг",
+    "Principality of Reuss-Gera": "Княжество Рейсс-Гера",
+    "Principality of Schwarzburg-Sonderhausen": "Княжество Шварцбург-Зондерсгаузен",
     "Principality of Svaneti": "Сванетское княжество",
     "Principality of Transylvania": "Трансильванское княжество",
     "Principality of Upper Hungary": "Княжество Верхняя Венгрия",
+    "Principality of Waldeck and Pyrmont": "Княжество Вальдек-Пирмонт",
     "Principality of Wallachia": "Валашское княжество",
+    "Pro-Habsburg Spain": "Испания сторонников Габсбургов",
     "Pro-Swedish Poland": "Польша сторонников Швеции",
     "Qajar Dynasty": "Каджарский Иран",
+    "Qasimids": "Касимиды",
+    "Qatar Dynasty": "Катарская династия",
     "Qing Dynasty": "Империя Цин",
+    "Rattanakosin Kingdom": "Королевство Раттанакосин",
+    "Regency of Algiers": "Алжирское регентство",
+    "Republic of Baden": "Баденская республика",
+    "Republic of Baja California": "Республика Нижняя Калифорния",
+    "Republic of Chile": "Республика Чили",
+    "Republic of Colombia": "Республика Колумбия",
+    "Republic of Costa Rica": "Республика Коста-Рика",
+    "Republic of Ecuador": "Республика Эквадор",
+    "Republic of El Salvador": "Республика Сальвадор",
+    "Republic of Florence": "Флорентийская республика",
     "Republic of Genoa": "Генуэзская республика",
+    "Republic of Liberia": "Республика Либерия",
+    "Republic of New Granada": "Республика Новая Гранада",
+    "Republic of Nicaragua": "Республика Никарагуа",
+    "Republic of Peru": "Республика Перу",
     "Republic of Ragusa": "Рагузская республика",
+    "Republic of San Marino": "Республика Сан-Марино",
+    "Republic of Texas": "Республика Техас",
+    "Republic of Venezuela": "Республика Венесуэла",
     "Republic of Venice": "Венецианская республика",
+    "Republic of the Rio Grande": "Республика Рио-Гранде",
+    "Revolutionary Roman Republic": "Римская республика (революционная)",
+    "Riau-Lingga Sultanate": "Султанат Риау-Лингга",
+    "Riograndense Republic": "Риограндийская республика",
     "Russian Empire": "Российская империя",
+    "Río de la Plata": "Рио-де-ла-Плата",
+    "Saadi Sultanate": "Султанат Саадидов",
     "Safavid Dynasty": "Сефевидское государство",
+    "Saxe-Altenburg": "Саксен-Альтенбург",
+    "Saxe-Coburg and Gotha": "Саксен-Кобург-Гота",
+    "Saxe-Meiningen": "Саксен-Мейнинген",
     "Second French Empire": "Вторая Французская империя",
+    "Second Mexican Empire": "Вторая Мексиканская империя",
     "Septinsular Republic": "Республика Семи Островов",
     "Serbs": "Сербские повстанцы",
+    "Sikh Confederacy": "Сикхская конфедерация",
     "Sikh Empire": "Сикхская держава",
+    "Sikhs": "Сикхи",
     "Sloboda Ukraine": "Слободская Украина",
     "Small Horde": "Малый жуз",
+    "Sokoto Caliphate": "Халифат Сокото",
+    "Songhai Empire": "Империя Сонгай",
+    "South African Republic": "Южно-Африканская Республика (Трансвааль)",
+    "Southern Ming": "Южная Мин",
+    "Sovereign Principality of the United Netherlands":
+        "Суверенное княжество Соединённых Нидерландов",
+    "Spanish Empire": "Испанская империя",
+    "State of Buenos Aires": "Государство Буэнос-Айрес",
+    "Sultan of Yogyakarta": "Султанат Джокьякарта",
+    "Sultanate of Aceh": "Султанат Ачех",
+    "Sultanate of Banjar": "Султанат Банджар",
+    "Sultanate of Banten": "Султанат Бантен",
+    "Sultanate of Bima": "Султанат Бима",
+    "Sultanate of Bone": "Султанат Боне",
+    "Sultanate of Brunei": "Султанат Бруней",
+    "Sultanate of Cirebon": "Султанат Черибон",
+    "Sultanate of Darfur": "Султанат Дарфур",
+    "Sultanate of Gowa": "Султанат Гова",
+    "Sultanate of Hobyo": "Султанат Хобьо",
+    "Sultanate of Jambi": "Султанат Джамби",
+    "Sultanate of Johor": "Султанат Джохор",
+    "Sultanate of Kedah": "Султанат Кедах",
+    "Sultanate of Kutai Kartanegara": "Султанат Кутай-Картанегара",
+    "Sultanate of Maguindanao": "Султанат Магинданао",
+    "Sultanate of Malacca": "Малаккский султанат",
+    "Sultanate of Mempawah": "Султанат Мемпава",
+    "Sultanate of Oman": "Оманский султанат",
+    "Sultanate of Palembang": "Султанат Палембанг",
+    "Sultanate of Perak": "Султанат Перак",
+    "Sultanate of Sambaliung": "Султанат Самбалиунг",
+    "Sultanate of Sambas": "Султанат Самбас",
+    "Sultanate of Selangor": "Султанат Селангор",
+    "Sultanate of Sukadana": "Султанат Сукадана",
+    "Sultanate of Sulu": "Султанат Сулу",
+    "Sultanate of Terengganu": "Султанат Тренгану",
+    "Surakarta Sunanate": "Сунанат Суракарта",
+    "Swaziland": "Свазиленд",
     "Swedish Empire": "Шведская держава",
+    "Swiss Confederation": "Швейцарская конфедерация",
+    "Taiping Heavenly Kingdom": "Тайпинское Небесное государство",
     "Talpur Dynasty": "Талпуры",
+    "Thanjavur Maratha Kingdom": "Маратхское королевство Танджавур",
+    "Thonburi Kingdom": "Королевство Тхонбури",
     "Tibet": "Тибет",
     "Tokugawa Shogunate": "Сёгунат Токугава",
+    "Trucial States": "Договорный Оман",
+    "Trịnh lords": "Сеньоры Чинь",
     "Tsardom of Russia": "Русское царство",
+    "Tây Sơn dynasty": "Династия Тэйшон",
     "Tümed": "Тумэты",
     "United Kingdoms of Sweden and Norway": "Шведско-норвежская уния",
-    "United Principalities of Moldavia and Wallachia":
-        "Соединённое княжество Молдавии и Валахии",
+    "United Principalities of Moldavia and Wallachia": "Соединённое княжество Молдавии и Валахии",
+    "United Provinces of Central America": "Соединённые провинции Центральной Америки",
     "United States of America": "Соединённые Штаты Америки",
+    "United States of Colombia": "Соединённые Штаты Колумбии",
+    "Venezuela": "Венесуэла",
+    "Vermont Republic": "Республика Вермонт",
+    "Vientiane": "Вьентьян",
+    "Wadai Empire": "Империя Вадаи",
     "Warring States Japan": "Япония периода Сэнгоку",
     "Western Moghulistan": "Западный Могулистан",
+    "Yarubid dynasty": "Яарибиды",
     "Zand Dynasty": "Иран Зендов",
     "Zaporozhian Cossacks": "Войско Запорожское",
+    "Zululand": "Зулуленд",
+    "Đại Việt": "Дайвьет",
 }
 
 # Названия, по которым отчёт о сборе показывает хронологию русской границы.
@@ -263,13 +579,30 @@ class CliopatriaError(RuntimeError):
 
 # --- запись на Zenodo ------------------------------------------------------
 
-def fetch_listing(*, timeout: int = 60) -> dict:
-    """Перечень содержимого архива: имена, размеры, CRC32 вложенных файлов."""
-    raw = fetch_bytes(CONTAINER_API, error=CliopatriaError, timeout=timeout)
+def open_archive(*, url: str = ARCHIVE_URL, timeout: int = 300) -> zipfile.ZipFile:
+    """Архив записи на Zenodo, открытый для чтения кусками по Range.
+
+    Открытие стоит одного запроса: оглавление архива на 522 файла лежит в
+    его последних 128 КБ. Набор потом читается из того же объекта, поэтому
+    `--check` сверяет и скачивает без второго захода за оглавлением.
+    """
     try:
-        return json.loads(raw)
-    except ValueError as exc:
-        raise CliopatriaError(f"перечень архива на Zenodo не разбирается: {exc}") from exc
+        return zipfile.ZipFile(RangeFile(url, error=CliopatriaError, timeout=timeout))
+    except zipfile.BadZipFile as exc:
+        raise CliopatriaError(f"{url}: архив не разбирается как zip ({exc})") from exc
+
+
+def listing(archive: zipfile.ZipFile) -> dict:
+    """Оглавление архива в том виде, в каком его отдавал Zenodo до ноября 2026
+    года: имя, размер, CRC32. Числа те же — Zenodo брал их из того же
+    оглавления, — поэтому и сверка с кодом осталась прежней."""
+    return {"entries": [{"key": info.filename, "size": info.file_size, "crc": info.CRC}
+                        for info in archive.infolist()]}
+
+
+def fetch_listing(*, timeout: int = 300) -> dict:
+    """Перечень содержимого архива: имена, размеры, CRC32 вложенных файлов."""
+    return listing(open_archive(timeout=timeout))
 
 
 def check_listing(listing: dict) -> list[str]:
@@ -287,29 +620,39 @@ def check_listing(listing: dict) -> list[str]:
     return problems
 
 
-def download(dest: Path, *, url: str = MEMBER_URL, timeout: int = 600) -> Path:
-    """Скачивает вложенный zip кусками, сверяя размер и CRC32. Не сошлось — файла нет."""
+def download(dest: Path, *, archive: Optional[zipfile.ZipFile] = None,
+             timeout: int = 600) -> Path:
+    """Достаёт набор из архива на Zenodo, сверяя размер и CRC32. Не сошлось — файла нет.
+
+    Читается только сам набор: `zipfile` находит его по оглавлению и тянет
+    его сжатые байты, а `RangeFile` — кусками по 16 МБ. Свою сверку размера
+    и CRC32 с кодом сбор делает сам, не полагаясь на ту, что делает `zipfile`
+    при чтении: она проверяет архив против его же оглавления, а не против
+    версии, записанной здесь.
+    """
     dest = Path(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
     partial = dest.with_suffix(dest.suffix + ".part")
     crc, size = 0, 0
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response, \
-                partial.open("wb") as fh:
+        archive = archive or open_archive(timeout=timeout)
+        with archive.open(MEMBER) as src, partial.open("wb") as fh:
             while True:
-                chunk = response.read(1 << 20)
+                chunk = src.read(1 << 20)
                 if not chunk:
                     break
                 fh.write(chunk)
                 crc = zlib.crc32(chunk, crc)
                 size += len(chunk)
-    except urllib.error.HTTPError as exc:
+    except KeyError as exc:
         partial.unlink(missing_ok=True)
-        raise CliopatriaError(f"{url}: HTTP {exc.code}") from exc
-    except (urllib.error.URLError, OSError) as exc:
+        raise CliopatriaError(f"в архиве нет {MEMBER}") from exc
+    except (zipfile.BadZipFile, EOFError, OSError) as exc:
         partial.unlink(missing_ok=True)
-        raise CliopatriaError(f"{url}: сеть недоступна ({getattr(exc, 'reason', exc)})") from exc
+        raise CliopatriaError(f"набор из архива не читается: {exc}") from exc
+    except CliopatriaError:
+        partial.unlink(missing_ok=True)
+        raise
     if size != MEMBER_SIZE or crc != MEMBER_CRC:
         partial.unlink(missing_ok=True)
         raise CliopatriaError(f"скачано {size} байт, CRC32 {crc}; ожидалось "
@@ -318,12 +661,12 @@ def download(dest: Path, *, url: str = MEMBER_URL, timeout: int = 600) -> Path:
     return dest
 
 
-def cached(cache_dir: Path) -> Path:
+def cached(cache_dir: Path, *, archive: Optional[zipfile.ZipFile] = None) -> Path:
     """Файл из кэша; нет его или он другого размера — скачивается заново."""
     path = Path(cache_dir) / CACHE_NAME
     if path.exists() and path.stat().st_size == MEMBER_SIZE:
         return path
-    return download(path)
+    return download(path, archive=archive)
 
 
 # --- чтение набора ---------------------------------------------------------
@@ -370,8 +713,12 @@ def overlaps(props: dict, year_min: int = YEAR_MIN, year_max: int = YEAR_MAX) ->
 
 
 def select(feats: Iterable[dict], *, year_min: int = YEAR_MIN,
-           year_max: int = YEAR_MAX, region_only: bool = True) -> list[dict]:
-    """Строки в рамке слоя, приведённые к подписям, понятным читателю файла."""
+           year_max: int = YEAR_MAX, region_only: bool = False) -> list[dict]:
+    """Строки в рамке слоя, приведённые к подписям, понятным читателю файла.
+
+    По умолчанию — весь мир; `region_only` оставляет прежний отбор по охвату
+    РИ/СССР.
+    """
     out = []
     for feature in feats:
         props = feature.get("properties") or {}
@@ -484,11 +831,11 @@ def collection(feats: list[dict], *, year_min: int = YEAR_MIN,
         STATE_BORDERS_EARLY.slug, feats,
         license=STATE_BORDERS_EARLY.license, source=STATE_BORDERS_EARLY.source,
         citation=CITATION, url=DOI_URL,
-        extra={"period": f"{year_min}–{year_max}", "version": VERSION,
-               "continues_in": STATE_BORDERS.slug},
+        extra={"period": f"{year_min}–{year_max}", "coverage": "весь мир",
+               "version": VERSION, "continues_in": STATE_BORDERS.slug},
     )
 
 
 def write(collection_dict: dict, path) -> int:
-    """Пишет коллекцию сжатым JSON: у 680 тысяч вершин пробелы — это мегабайт."""
+    """Пишет коллекцию сжатым JSON: у 1,4 млн вершин пробелы — это мегабайты."""
     return write_feature_collection(collection_dict, path, compact=True)

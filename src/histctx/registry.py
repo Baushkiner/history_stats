@@ -67,6 +67,7 @@ from .sources.errhs import HARVEST_PRICES
 from .sources.famine_1891 import FAMINE_1891
 from .sources.famine_1933 import FAMINE_1933, MORTALITY_1871_1914
 from .sources.geonames import SETTLEMENTS
+from .sources.geopolhist import TERRITORY_STATUS
 from .sources.gulag import GULAG_CAMPS
 from .sources.huri import ADMIN_UKRAINE, CENSUS_1926, PODILLYA
 from .sources.occupation import OCCUPATION_CITIES
@@ -99,7 +100,8 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      OCCUPATION_CITIES,
                      BURNED_VILLAGES,
                      BURIAL_SITES_TERROR,
-                     STATE_BORDERS_EARLY]
+                     STATE_BORDERS_EARLY,
+                     TERRITORY_STATUS]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых

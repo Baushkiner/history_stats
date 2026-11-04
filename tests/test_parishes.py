@@ -23,7 +23,7 @@ import importlib.util
 import json
 from pathlib import Path
 
-from histctx.frame import OUTSIDE, Banded, Frame
+from histctx.frame import OUTSIDE, Banded, Frame, load_states
 from histctx.registry import BY_SLUG
 from histctx.sources.wikidata import (
     OPEN_END_YEAR, SETTLEMENT, dedupe, details_query, ids_query, rows_to_records,
@@ -259,6 +259,23 @@ def test_frame_follows_provinces_not_the_rectangle(tmp_path):
     assert coast.region == "Нюландская губерния" and coast.extra["frame"] == "по берегу"
     assert counts["вне рамки РИ/СССР"] == 1
     assert counts["в губерниях 1897 года"] == 3
+
+
+def test_frame_skips_states_far_from_the_rectangle(tmp_path):
+    """`state_borders.geojson` держит весь мир, а рамке нужны только соседи:
+    Бразилия в загрузку не идёт, Россия и Австро-Венгрия — идут."""
+    states = {"type": "FeatureCollection", "features": [
+        {"type": "Feature", "properties": {"state": "Россия (Советский Союз)"},
+         "geometry": {"type": "Polygon", "coordinates": _square(30.0, 50.0, 40.0, 60.0)}},
+        {"type": "Feature", "properties": {"state": "Австро-Венгрия"},
+         "geometry": {"type": "Polygon", "coordinates": _square(15.0, 45.0, 25.0, 50.0)}},
+        {"type": "Feature", "properties": {"state": "Бразилия"},
+         "geometry": {"type": "Polygon", "coordinates": _square(-50.0, -20.0, -40.0, -10.0)}},
+    ]}
+    path = tmp_path / "state_borders.geojson"
+    path.write_text(json.dumps(states), encoding="utf-8")
+    shapes = load_states(path)
+    assert [framed for framed, _ in shapes] == [True, False]
 
 
 def test_banded_ring_respects_holes():
