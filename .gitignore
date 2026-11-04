@@ -81,3 +81,8 @@ data/raw/famine_1933/
 # командой (scripts/harvest_occupation.py --check); в репозиторий идут
 # только записи слоя.
 data/raw/occupation_cities/
+# Архив GeoPolHist с Zenodo (1,3 МБ, снимок репозитория médialab вместе с
+# исходниками визуализации): скачивается заново командой
+# scripts/harvest_geopolhist.py --check (размер и md5 сверяются); в
+# репозиторий идут только записи слоя.
+data/raw/geopolhist/
