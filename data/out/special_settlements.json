@@ -1,0 +1,292 @@
+{
+ "name": "Спецпоселенцы по районам вселения, 1946 и 1951 годы: без точки",
+ "count": 7,
+ "records": [
+  {
+   "uid": "special_settlements:3acbc6cad5ca",
+   "layer": "special_settlements",
+   "layer_title": "Спецпоселенцы по районам вселения, 1946 и 1951 годы",
+   "group": "hardship",
+   "title": "Спецпоселенцы: Халдыванбекский район, Андижанская область, 1946",
+   "category": "спецпоселенцы по району вселения",
+   "scope": "region",
+   "place_text": "Халдыванбекский район, Андижанская область, Узбекская ССР",
+   "region": "Андижанская область",
+   "regions": [
+    "Андижанская область"
+   ],
+   "district": "Халдыванбекский район",
+   "year_from": 1946,
+   "year_to": 1946,
+   "date_precision": "year",
+   "date_approx": false,
+   "period_raw": "1946 (по набору авторов; даты документов в таблицах нет)",
+   "summary": "В 1946 году (по набору авторов) в районе учтено 340 спецпоселенцев: все — выселенные из Крыма.",
+   "url": "https://zenodo.org/records/7955244",
+   "source": "Zenodo, пакет воспроизведения A. Miho, A. Jarotschkin, E. Zhuravskaya к статье «Diffusion of Gender Norms: Evidence from Stalin's Ethnic Deportations» (JEEA); листы «Дислокации спецпоселенцев» из ГАРФ, ф. Р-9479",
+   "source_id": "1946:55",
+   "license": "CC BY 4.0 (карточка записи на Zenodo, DataCite): брать можно всё со ссылкой на авторов и запись — ссылка в каждой записи слоя; числа — факты из листов ГАРФ, ф. Р-9479",
+   "confidence": "no_coords",
+   "extra": {
+    "contingents": {
+     "выселенные из Крыма": 340
+    },
+    "total": 340,
+    "id_distr": [
+     55
+    ],
+    "raion_source": "Халдыванбекский район",
+    "oblast_source": "Андижанская",
+    "country_source": "uzbekistan",
+    "dataset": "1946 (deports1946_union.dta)",
+    "archive": "ГАРФ, ф. Р-9479: сведения о расселении спецпоселенцев 1946 года (по набору авторов; даты документов в таблицах не указаны)",
+    "citation": "Miho A., Jarotschkin A., Zhuravskaya E. Replication Data for: «Diffusion of Gender Norms: Evidence from Stalin's Ethnic Deportations» (JEEA 11805). Zenodo, 2023, doi:10.5281/zenodo.7955244. CC BY 4.0"
+   }
+  },
+  {
+   "uid": "special_settlements:1bdd28b5ceaf",
+   "layer": "special_settlements",
+   "layer_title": "Спецпоселенцы по районам вселения, 1946 и 1951 годы",
+   "group": "hardship",
+   "title": "Спецпоселенцы: Управление перевал базы Дальстроя, Дальстрой (Дальний Север), 1946",
+   "category": "спецпоселенцы по району вселения",
+   "scope": "region",
+   "place_text": "Управление перевал базы Дальстроя, Дальстрой (Дальний Север), РСФСР",
+   "region": "Дальстрой (Дальний Север)",
+   "regions": [
+    "Дальстрой (Дальний Север)"
+   ],
+   "district": "Управление перевал базы Дальстроя",
+   "year_from": 1946,
+   "year_to": 1946,
+   "date_precision": "year",
+   "date_approx": false,
+   "period_raw": "1946 (по набору авторов; даты документов в таблицах нет)",
+   "summary": "В 1946 году (по набору авторов) в районе учтено 391 спецпоселенец: все — власовцы.",
+   "url": "https://zenodo.org/records/7955244",
+   "source": "Zenodo, пакет воспроизведения A. Miho, A. Jarotschkin, E. Zhuravskaya к статье «Diffusion of Gender Norms: Evidence from Stalin's Ethnic Deportations» (JEEA); листы «Дислокации спецпоселенцев» из ГАРФ, ф. Р-9479",
+   "source_id": "1946:772",
+   "license": "CC BY 4.0 (карточка записи на Zenodo, DataCite): брать можно всё со ссылкой на авторов и запись — ссылка в каждой записи слоя; числа — факты из листов ГАРФ, ф. Р-9479",
+   "confidence": "no_coords",
+   "extra": {
+    "contingents": {
+     "власовцы": 391
+    },
+    "total": 391,
+    "id_distr": [
+     772
+    ],
+    "raion_source": "Управление перевал базы Дальстроя",
+    "oblast_source": "Дальний Север (Магадан тут",
+    "country_source": "russia",
+    "dataset": "1946 (deports1946_union.dta)",
+    "archive": "ГАРФ, ф. Р-9479: сведения о расселении спецпоселенцев 1946 года (по набору авторов; даты документов в таблицах не указаны)",
+    "citation": "Miho A., Jarotschkin A., Zhuravskaya E. Replication Data for: «Diffusion of Gender Norms: Evidence from Stalin's Ethnic Deportations» (JEEA 11805). Zenodo, 2023, doi:10.5281/zenodo.7955244. CC BY 4.0"
+   }
+  },
+  {
+   "uid": "special_settlements:5a5927092630",
+   "layer": "special_settlements",
+   "layer_title": "Спецпоселенцы по районам вселения, 1946 и 1951 годы",
+   "group": "hardship",
+   "title": "Спецпоселенцы: Бурят-Монгольская АССР, Бурят-Монгольская АССР, 1946",
+   "category": "спецпоселенцы по району вселения",
+   "scope": "region",
+   "place_text": "Бурят-Монгольская АССР, Бурят-Монгольская АССР, РСФСР",
+   "region": "Бурят-Монгольская АССР",
+   "regions": [
+    "Бурят-Монгольская АССР"
+   ],
+   "district": "Бурят-Монгольская АССР",
+   "year_from": 1946,
+   "year_to": 1946,
+   "date_precision": "year",
+   "date_approx": false,
+   "period_raw": "1946 (по набору авторов; даты документов в таблицах нет)",
+   "summary": "В 1946 году (по набору авторов) в районе учтено 1 457 спецпоселенцев: все — немцы.",
+   "url": "https://zenodo.org/records/7955244",
+   "source": "Zenodo, пакет воспроизведения A. Miho, A. Jarotschkin, E. Zhuravskaya к статье «Diffusion of Gender Norms: Evidence from Stalin's Ethnic Deportations» (JEEA); листы «Дислокации спецпоселенцев» из ГАРФ, ф. Р-9479",
+   "source_id": "1946:row585",
+   "license": "CC BY 4.0 (карточка записи на Zenodo, DataCite): брать можно всё со ссылкой на авторов и запись — ссылка в каждой записи слоя; числа — факты из листов ГАРФ, ф. Р-9479",
+   "confidence": "no_coords",
+   "extra": {
+    "contingents": {
+     "немцы": 1457
+    },
+    "total": 1457,
+    "raion_source": "Бурят-Монгольская АССР",
+    "oblast_source": "Бурят-Монгольская АССР",
+    "country_source": "russia",
+    "dataset": "1946 (deports1946_union.dta)",
+    "archive": "ГАРФ, ф. Р-9479: сведения о расселении спецпоселенцев 1946 года (по набору авторов; даты документов в таблицах не указаны)",
+    "citation": "Miho A., Jarotschkin A., Zhuravskaya E. Replication Data for: «Diffusion of Gender Norms: Evidence from Stalin's Ethnic Deportations» (JEEA 11805). Zenodo, 2023, doi:10.5281/zenodo.7955244. CC BY 4.0"
+   }
+  },
+  {
+   "uid": "special_settlements:77e4981e37c2",
+   "layer": "special_settlements",
+   "layer_title": "Спецпоселенцы по районам вселения, 1946 и 1951 годы",
+   "group": "hardship",
+   "title": "Спецпоселенцы: район им. П.Осипенко, Хабаровский край, 1946",
+   "category": "спецпоселенцы по району вселения",
+   "scope": "region",
+   "place_text": "район им. П.Осипенко, Хабаровский край, РСФСР",
+   "region": "Хабаровский край",
+   "regions": [
+    "Хабаровский край"
+   ],
+   "district": "район им. П.Осипенко",
+   "year_from": 1946,
+   "year_to": 1946,
+   "date_precision": "year",
+   "date_approx": false,
+   "period_raw": "1946 (по набору авторов; даты документов в таблицах нет)",
+   "summary": "В 1946 году (по набору авторов) в районе учтено 1 652 спецпоселенца; больше всего: бывшие кулаки — 1 473, власовцы — 179.",
+   "url": "https://zenodo.org/records/7955244",
+   "source": "Zenodo, пакет воспроизведения A. Miho, A. Jarotschkin, E. Zhuravskaya к статье «Diffusion of Gender Norms: Evidence from Stalin's Ethnic Deportations» (JEEA); листы «Дислокации спецпоселенцев» из ГАРФ, ф. Р-9479",
+   "source_id": "1946:898",
+   "license": "CC BY 4.0 (карточка записи на Zenodo, DataCite): брать можно всё со ссылкой на авторов и запись — ссылка в каждой записи слоя; числа — факты из листов ГАРФ, ф. Р-9479",
+   "confidence": "no_coords",
+   "extra": {
+    "contingents": {
+     "бывшие кулаки": 1473,
+     "власовцы": 179
+    },
+    "total": 1652,
+    "id_distr": [
+     898
+    ],
+    "raion_source": "район им. П.Осипенко",
+    "oblast_source": "Ново-Амурская область",
+    "country_source": "russia",
+    "dataset": "1946 (deports1946_union.dta)",
+    "archive": "ГАРФ, ф. Р-9479: сведения о расселении спецпоселенцев 1946 года (по набору авторов; даты документов в таблицах не указаны)",
+    "citation": "Miho A., Jarotschkin A., Zhuravskaya E. Replication Data for: «Diffusion of Gender Norms: Evidence from Stalin's Ethnic Deportations» (JEEA 11805). Zenodo, 2023, doi:10.5281/zenodo.7955244. CC BY 4.0"
+   }
+  },
+  {
+   "uid": "special_settlements:6baa9f1a8f66",
+   "layer": "special_settlements",
+   "layer_title": "Спецпоселенцы по районам вселения, 1946 и 1951 годы",
+   "group": "hardship",
+   "title": "Спецпоселенцы: Трех\" Руткинская, Марийская АССР, 1946",
+   "category": "спецпоселенцы по району вселения",
+   "scope": "region",
+   "place_text": "Трех\" Руткинская, Марийская АССР, РСФСР",
+   "region": "Марийская АССР",
+   "regions": [
+    "Марийская АССР"
+   ],
+   "district": "Трех\" Руткинская",
+   "year_from": 1946,
+   "year_to": 1946,
+   "date_precision": "year",
+   "date_approx": false,
+   "period_raw": "1946 (по набору авторов; даты документов в таблицах нет)",
+   "summary": "В 1946 году (по набору авторов) в районе учтено 561 спецпоселенец; больше всего: выселенные из Крыма — 383, немцы — 178.",
+   "url": "https://zenodo.org/records/7955244",
+   "source": "Zenodo, пакет воспроизведения A. Miho, A. Jarotschkin, E. Zhuravskaya к статье «Diffusion of Gender Norms: Evidence from Stalin's Ethnic Deportations» (JEEA); листы «Дислокации спецпоселенцев» из ГАРФ, ф. Р-9479",
+   "source_id": "1946:1109",
+   "license": "CC BY 4.0 (карточка записи на Zenodo, DataCite): брать можно всё со ссылкой на авторов и запись — ссылка в каждой записи слоя; числа — факты из листов ГАРФ, ф. Р-9479",
+   "confidence": "no_coords",
+   "extra": {
+    "contingents": {
+     "выселенные из Крыма": 383,
+     "немцы": 178
+    },
+    "total": 561,
+    "id_distr": [
+     1109
+    ],
+    "raion_source": "Трех\" Руткинская",
+    "oblast_source": "Марийская АССР",
+    "country_source": "russia",
+    "dataset": "1946 (deports1946_union.dta)",
+    "archive": "ГАРФ, ф. Р-9479: сведения о расселении спецпоселенцев 1946 года (по набору авторов; даты документов в таблицах не указаны)",
+    "citation": "Miho A., Jarotschkin A., Zhuravskaya E. Replication Data for: «Diffusion of Gender Norms: Evidence from Stalin's Ethnic Deportations» (JEEA 11805). Zenodo, 2023, doi:10.5281/zenodo.7955244. CC BY 4.0"
+   }
+  },
+  {
+   "uid": "special_settlements:31003d4bf4f2",
+   "layer": "special_settlements",
+   "layer_title": "Спецпоселенцы по районам вселения, 1946 и 1951 годы",
+   "group": "hardship",
+   "title": "Спецпоселенцы: Мезянский район, Кировская область, 1946",
+   "category": "спецпоселенцы по району вселения",
+   "scope": "region",
+   "place_text": "Мезянский район, Кировская область, РСФСР",
+   "region": "Кировская область",
+   "regions": [
+    "Кировская область"
+   ],
+   "district": "Мезянский район",
+   "year_from": 1946,
+   "year_to": 1946,
+   "date_precision": "year",
+   "date_approx": false,
+   "period_raw": "1946 (по набору авторов; даты документов в таблицах нет)",
+   "summary": "В 1946 году (по набору авторов) в районе учтено 327 спецпоселенцев: все — болгары.",
+   "url": "https://zenodo.org/records/7955244",
+   "source": "Zenodo, пакет воспроизведения A. Miho, A. Jarotschkin, E. Zhuravskaya к статье «Diffusion of Gender Norms: Evidence from Stalin's Ethnic Deportations» (JEEA); листы «Дислокации спецпоселенцев» из ГАРФ, ф. Р-9479",
+   "source_id": "1946:1438",
+   "license": "CC BY 4.0 (карточка записи на Zenodo, DataCite): брать можно всё со ссылкой на авторов и запись — ссылка в каждой записи слоя; числа — факты из листов ГАРФ, ф. Р-9479",
+   "confidence": "no_coords",
+   "extra": {
+    "contingents": {
+     "болгары": 327
+    },
+    "total": 327,
+    "id_distr": [
+     1438
+    ],
+    "raion_source": "Мезянский р-н",
+    "oblast_source": "Кировская",
+    "country_source": "russia",
+    "dataset": "1946 (deports1946_union.dta)",
+    "archive": "ГАРФ, ф. Р-9479: сведения о расселении спецпоселенцев 1946 года (по набору авторов; даты документов в таблицах не указаны)",
+    "citation": "Miho A., Jarotschkin A., Zhuravskaya E. Replication Data for: «Diffusion of Gender Norms: Evidence from Stalin's Ethnic Deportations» (JEEA 11805). Zenodo, 2023, doi:10.5281/zenodo.7955244. CC BY 4.0"
+   }
+  },
+  {
+   "uid": "special_settlements:94712ffc1e47",
+   "layer": "special_settlements",
+   "layer_title": "Спецпоселенцы по районам вселения, 1946 и 1951 годы",
+   "group": "hardship",
+   "title": "Спецпоселенцы: В разных р-нах Чкаловской области, Чкаловская область, 1946",
+   "category": "спецпоселенцы по району вселения",
+   "scope": "region",
+   "place_text": "В разных р-нах Чкаловской области, Чкаловская область, РСФСР",
+   "region": "Чкаловская область",
+   "regions": [
+    "Чкаловская область"
+   ],
+   "district": "В разных р-нах Чкаловской области",
+   "year_from": 1946,
+   "year_to": 1946,
+   "date_precision": "year",
+   "date_approx": false,
+   "period_raw": "1946 (по набору авторов; даты документов в таблицах нет)",
+   "summary": "В 1946 году (по набору авторов) в районе учтено 85 спецпоселенцев: все — немцы.",
+   "url": "https://zenodo.org/records/7955244",
+   "source": "Zenodo, пакет воспроизведения A. Miho, A. Jarotschkin, E. Zhuravskaya к статье «Diffusion of Gender Norms: Evidence from Stalin's Ethnic Deportations» (JEEA); листы «Дислокации спецпоселенцев» из ГАРФ, ф. Р-9479",
+   "source_id": "1946:1499",
+   "license": "CC BY 4.0 (карточка записи на Zenodo, DataCite): брать можно всё со ссылкой на авторов и запись — ссылка в каждой записи слоя; числа — факты из листов ГАРФ, ф. Р-9479",
+   "confidence": "no_coords",
+   "extra": {
+    "contingents": {
+     "немцы": 85
+    },
+    "total": 85,
+    "id_distr": [
+     1499
+    ],
+    "raion_source": "В разных р-нах Чкаловской области",
+    "oblast_source": "Чкаловская область",
+    "country_source": "russia",
+    "dataset": "1946 (deports1946_union.dta)",
+    "archive": "ГАРФ, ф. Р-9479: сведения о расселении спецпоселенцев 1946 года (по набору авторов; даты документов в таблицах не указаны)",
+    "citation": "Miho A., Jarotschkin A., Zhuravskaya E. Replication Data for: «Diffusion of Gender Norms: Evidence from Stalin's Ethnic Deportations» (JEEA 11805). Zenodo, 2023, doi:10.5281/zenodo.7955244. CC BY 4.0"
+   }
+  }
+ ]
+}

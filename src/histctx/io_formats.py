@@ -50,15 +50,20 @@ def write_geojson(records: Iterable[ContextRecord], path: Path, *, layer_title: 
 
 def _shared_properties(feats: Sequence[dict]) -> dict:
     """Свойства из HOISTABLE, значение которых одинаково во всех записях."""
-    if not feats:
+    return _shared_values([f["properties"] for f in feats])
+
+
+def _shared_values(rows: Sequence[dict]) -> dict:
+    """Ключи из HOISTABLE, значение которых одинаково во всех словарях."""
+    if not rows:
         return {}
-    first = feats[0]["properties"]
+    first = rows[0]
     out = {}
     for key in HOISTABLE:
         if key not in first:
             continue
         value = first[key]
-        if all(f["properties"].get(key, _MISSING) == value for f in feats):
+        if all(r.get(key, _MISSING) == value for r in rows):
             out[key] = value
     return out
 
@@ -106,12 +111,19 @@ def write_feature_collection(collection: dict, path: Path, *, compact: bool = Fa
     return len(collection.get("features") or [])
 
 
-def write_records_json(records: Iterable[ContextRecord], path: Path, *, title: str = "") -> int:
+def write_records_json(records: Iterable[ContextRecord], path: Path, *, title: str = "",
+                       hoist_shared: bool = False, compact: bool = False) -> int:
     """Пишет записи без геометрии одним JSON-массивом.
 
     Нужен для событий, у которых нет точки: голод по губерниям, ревизия,
     воинская повинность. В GeoJSON их не положить, а карте они нужны —
     лентой времени рядом с фактом.
+
+    `hoist_shared` и `compact` — для больших слоёв, как у `write_geojson`:
+    свойства, одинаковые у всех записей, выносятся один раз в поле `layer`
+    файла, а отступы не пишутся. У описей метрических книг Украины это 30 МБ
+    вместо 42. По умолчанию оба выключены: формат уже отданных файлов молча
+    не меняется, а `read_records_json` читает оба вида.
     """
     rows = []
     for rec in records:
@@ -123,10 +135,20 @@ def write_records_json(records: Iterable[ContextRecord], path: Path, *, title: s
         if rec.extra:
             row["extra"] = rec.extra
         rows.append(row)
+    shared = _shared_values(rows) if hoist_shared else {}
+    for row in rows:
+        for key in shared:
+            row.pop(key, None)
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"name": title or path.stem, "count": len(rows), "records": rows}
+    payload = {"name": title or path.stem, "count": len(rows)}
+    if shared:
+        payload["layer"] = shared
+    payload["records"] = rows
     with path.open("w", encoding="utf-8") as fh:
-        json.dump(payload, fh, ensure_ascii=False, indent=1)
+        if compact:
+            json.dump(payload, fh, ensure_ascii=False, separators=(",", ":"))
+        else:
+            json.dump(payload, fh, ensure_ascii=False, indent=1)
     return len(rows)
 
 
@@ -270,8 +292,11 @@ def read_records_json(path: Path) -> list[ContextRecord]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or not isinstance(payload.get("records"), list):
         return []
-    return [record_from_row(row) for row in payload["records"]
-            if isinstance(row, dict) and "layer" in row]
+    # `write_records_json(hoist_shared=True)` вынес общие свойства в `layer`:
+    # без обратной склейки у записей не было бы даже имени слоя.
+    shared = payload.get("layer") if isinstance(payload.get("layer"), dict) else {}
+    rows = ({**shared, **row} for row in payload["records"] if isinstance(row, dict))
+    return [record_from_row(row) for row in rows if "layer" in row]
 
 
 def read_geojson(path: Path) -> list[ContextRecord]:

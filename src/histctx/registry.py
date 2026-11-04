@@ -79,6 +79,14 @@ from .sources.weather import WEATHER_REGIONS, WEATHER_STATIONS
 from .sources.reforms_1851 import PEASANT_UNREST, REFORMS_UEZD
 from .sources.mobilization_1914 import MOBILIZATION_1914
 from .sources.city_population import CITY_POPULATION
+from .sources.suomen_kylat import VILLAGES_FI
+from .sources.geo_ecclesiae import CHURCHES_PL_1772, CHURCHES_PL_1938
+from .sources.deportations import CENSUS_1939, SPECIAL_SETTLEMENTS
+from .sources.maaamet import MANORS_EE, PARISH_BOUNDARIES_EE
+from .sources.rahvusarhiiv import PARISH_REGISTERS_EE
+from .sources.wikisource_arkhiv import METRIC_BOOKS_UA
+from .sources.archives_by import METRIC_BOOKS_BY
+from .sources.ghettos_camps import GHETTOS_CAMPS
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -101,7 +109,12 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      BURNED_VILLAGES,
                      BURIAL_SITES_TERROR,
                      STATE_BORDERS_EARLY,
-                     TERRITORY_STATUS]
+                     TERRITORY_STATUS,
+                     VILLAGES_FI, CHURCHES_PL_1772, CHURCHES_PL_1938,
+                     SPECIAL_SETTLEMENTS, CENSUS_1939,
+                     PARISH_BOUNDARIES_EE, PARISH_REGISTERS_EE, MANORS_EE,
+                     METRIC_BOOKS_UA, METRIC_BOOKS_BY,
+                     GHETTOS_CAMPS]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых

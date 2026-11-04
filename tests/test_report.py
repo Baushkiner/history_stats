@@ -100,3 +100,24 @@ def test_boundary_layers_are_not_reported_as_missing():
     assert "admin_boundaries_1897" not in gaps
     assert "state_borders" not in gaps
     assert "labour_conflicts" in gaps
+
+
+def test_records_json_hoisted_and_compact_reads_back(tmp_path):
+    """Вынесенные в `layer` свойства склеиваются обратно при чтении."""
+    recs = [
+        ContextRecord(layer="metric_books_ua", title=f"Церковь {i}", layer_title="Описи",
+                      group="faith", source="Викитека", license="CC BY-SA 4.0",
+                      scope="region", regions=["Волынская губерния"],
+                      year_from=1840, year_to=1865 + i, date_precision="year",
+                      extra={"cases": [i]})
+        for i in range(3)
+    ]
+    path = tmp_path / "metric_books_ua.json"
+    write_records_json(recs, path, hoist_shared=True, compact=True)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["layer"]["license"] == "CC BY-SA 4.0"
+    assert "license" not in payload["records"][0]
+    assert "\n" not in path.read_text(encoding="utf-8")
+    back = read_records_json(path)
+    assert [r.to_row() for r in back] == [r.to_row() for r in recs]
+    assert back[2].extra == {"cases": [2]} and back[0].regions == ["Волынская губерния"]

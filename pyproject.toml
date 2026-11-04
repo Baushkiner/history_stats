@@ -23,6 +23,10 @@ dev = ["pytest>=7.0", "rdflib>=6.0"]
 # лежит на Zenodo одним NetCDF4, а это HDF5, и без библиотеки его не прочесть.
 # Остальной проект и тесты без неё работают.
 geda = ["h5py>=3.0"]
+# pypdf — только сборщику гетто и лагерей (`scripts/harvest_ghettos_camps.py`):
+# перечень гетто ZRBG лежит одним PDF. Вместо него годится системный
+# `pdftotext` (poppler-utils); без обоих сборщик останавливается с объяснением.
+zrbg = ["pypdf>=4"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
