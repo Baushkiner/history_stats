@@ -4,13 +4,20 @@
 образец собирается здесь же — как в `test_shapefile.py`, откуда и берутся
 сборщики .shp и .dbf: дублировать спецификацию ESRI второй раз незачем.
 
-Проверяется три вещи, на которых сбор держится: отбор периодов по рамке слоя,
-отбор государств по охвату РИ/СССР и повтор оборванного скачивания — без
+Проверяется то, на чём сбор держится: отбор периодов по рамке слоя — весь
+мир и прежняя выборка по охвату РИ/СССР, — статус и владелец из R-пакета
+набора, сшитые с периодами шейпфайла, и повтор оборванного скачивания — без
 последнего сбор с `icr.ethz.ch` не доходит до конца.
 """
 
+import hashlib
+import io
+import json
+import lzma
+import tarfile
 import urllib.error
 import zipfile
+from collections import Counter
 from io import BytesIO
 from pathlib import Path
 
@@ -18,9 +25,10 @@ import pytest
 
 from histctx.sources import cshapes
 from histctx.sources.cshapes import (
-    ARCHIVE_MEMBERS, STATE_BORDERS, CShapesError, boundary, check_fields,
-    collection, download, overlaps, read_archive, rings, select, states,
-    touches_region,
+    ARCHIVE_MEMBERS, NAMES_RU, PACKAGE_MEMBER, STATE_BORDERS, CShapesError,
+    boundary, check_fields, check_package, collection, download, overlaps,
+    owner_index, owner_name, read_archive, read_attributes, rings, select, states,
+    touches_region, unmatched, untranslated,
 )
 
 from test_shapefile import build_dbf, build_shp
@@ -103,17 +111,18 @@ def test_period_is_matched_against_the_layer_window():
     assert not overlaps({"gwsyear": None, "gweyear": 1918})
 
 
-def test_state_outside_the_frame_is_dropped():
-    """Бразилия во времена империи существовала — к её карте отношения не имеет."""
+def test_whole_world_is_the_layer():
+    """С ноября 2026 года слой — весь мир: уезжали и в Бразилию."""
     picked = select(read_archive(build_archive()))
+    assert len(picked) == 4
+    assert "Бразилия" in states(picked)
+
+
+def test_region_selection_keeps_the_former_layer():
+    """Прежний отбор по охвату РИ/СССР остался — им пользуется сито рамки."""
+    picked = select(read_archive(build_archive()), region_only=True)
     assert states(picked) == ["Данциг, вольный город", "Россия (Советский Союз)"]
     assert len(picked) == 3
-    assert "Бразилия" not in states(picked)
-
-
-def test_whole_world_is_kept_on_demand():
-    picked = select(read_archive(build_archive()), region_only=False)
-    assert len(picked) == 4
 
 
 def test_polygon_is_not_clipped_by_the_frame():
@@ -158,8 +167,11 @@ def test_unknown_state_keeps_its_english_name():
     props = boundary({"geometry": None, "properties": {
         "cntry_name": "Tannu Tuva", "gwsyear": 1921, "gweyear": 1944}})["properties"]
     assert props["state"] == "Tannu Tuva"
+    assert untranslated([{"properties": props}]) == ["Tannu Tuva"]
     # Дат у этого периода нет, и пустых полей в файл не идёт.
     assert "date_from" not in props and "date_to" not in props
+    # Статуса без R-пакета нет — и в файле его тоже нет, а не «независимое».
+    assert "status" not in props and "owner" not in props
 
 
 def test_collection_carries_the_licence_and_the_citation():
@@ -169,7 +181,9 @@ def test_collection_carries_the_licence_and_the_citation():
     assert "CC BY-NC-SA 4.0" in payload["license"]
     assert "Schvitz" in payload["citation"]
     assert payload["period"] == "1886–1960"
+    assert payload["coverage"] == "весь мир"
     assert payload["url"].startswith("https://icr.ethz.ch/")
+    assert payload["status_source"].endswith("cshapes_2.0.tar.gz")
 
 
 class _Response:
@@ -252,3 +266,121 @@ def test_layer_is_described_in_registry():
 
     assert STATE_BORDERS.slug in BY_SLUG
     assert BY_SLUG[STATE_BORDERS.slug].status == "harvested"
+
+
+# --- статус и владелец из R-пакета ------------------------------------------
+
+def package(props: list[dict]) -> bytes:
+    """R-пакет в том виде, в каком его отдаёт ETH: tar.gz с TopoJSON в xz."""
+    topo = {"type": "Topology", "arcs": [], "objects": {"cshapes_2_gw": {
+        "type": "GeometryCollection",
+        "geometries": [{"type": None, "properties": p} for p in props]}}}
+    member = lzma.compress(json.dumps(topo).encode())
+    buffer = BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
+        info = tarfile.TarInfo(PACKAGE_MEMBER)
+        info.size = len(member)
+        archive.addfile(info, io.BytesIO(member))
+    return buffer.getvalue()
+
+
+# Статусы к четырём периодам `ROWS`: Россия независима, Бразилия тоже,
+# Данциг — под мандатом Лиги Наций (владелец 0) с непроведённой границей.
+PACKAGE_PROPS = [
+    {"gwcode": 365, "country_name": "Russia (Soviet Union)", "start": "1886-01-01",
+     "end": "1918-03-02", "status": "independent", "owner": "365", "b_def": 1},
+    {"gwcode": 365, "country_name": "Russia (Soviet Union)", "start": "1918-03-11",
+     "end": "1918-11-10", "status": "independent", "owner": "365", "b_def": 1},
+    {"gwcode": 140, "country_name": "Brazil", "start": "1886-01-01",
+     "end": "2019-12-31", "status": "independent", "owner": "140", "b_def": 1},
+    {"gwcode": 999, "country_name": "Danzig", "start": "1945-08-15",
+     "end": "2019-12-31", "status": "mandate", "owner": "0", "b_def": 0},
+]
+
+
+def test_status_and_owner_are_read_from_the_package():
+    attrs = read_attributes(package(PACKAGE_PROPS))
+    assert attrs[(999, "19450815", "20191231")] == {"status": "mandate", "owner": 0,
+                                                   "b_def": 0}
+    assert attrs[(365, "18860101", "19180302")]["status"] == "independent"
+    assert unmatched(read_archive(build_archive()), attrs) == []
+
+
+def test_period_without_status_is_reported():
+    """Наборы разошлись — сборщик должен это увидеть, а не промолчать."""
+    attrs = read_attributes(package(PACKAGE_PROPS[:3]))
+    assert unmatched(read_archive(build_archive()), attrs) == [(999, "19450815", "20191231")]
+
+
+def test_broken_package_stops_the_harvest():
+    with pytest.raises(CShapesError, match="не разбирается"):
+        read_attributes(b"not a tarball")
+    empty = BytesIO()
+    with tarfile.open(fileobj=empty, mode="w:gz"):
+        pass
+    with pytest.raises(CShapesError, match="нет cshapes/inst"):
+        read_attributes(empty.getvalue())
+    with pytest.raises(CShapesError, match="status и owner"):
+        read_attributes(package([{"gwcode": 365, "start": "1886-01-01",
+                                  "end": "1918-03-02"}]))
+
+
+def test_package_of_another_version_is_refused():
+    with pytest.raises(CShapesError, match="SHA-256"):
+        check_package(package(PACKAGE_PROPS))
+
+
+def test_package_is_cached_only_after_the_check(tmp_path, monkeypatch):
+    data = package(PACKAGE_PROPS)
+    monkeypatch.setattr(cshapes, "download", lambda url, **kw: data)
+    with pytest.raises(CShapesError, match="SHA-256"):
+        cshapes.load_attributes(tmp_path)
+    assert not (tmp_path / "cshapes_2.0.tar.gz").exists()
+
+    monkeypatch.setattr(cshapes, "PACKAGE_SIZE", len(data))
+    monkeypatch.setattr(cshapes, "PACKAGE_SHA256", hashlib.sha256(data).hexdigest())
+    assert len(cshapes.load_attributes(tmp_path)) == 4
+    assert (tmp_path / "cshapes_2.0.tar.gz").exists()
+    # Второй запуск берёт пакет из кэша и в сеть не ходит.
+    monkeypatch.setattr(cshapes, "download", None)
+    assert len(cshapes.load_attributes(tmp_path)) == 4
+
+
+def test_dependency_gets_its_status_and_owner():
+    """Колония набора названа преемником — без владельца подпись врала бы."""
+    attrs = read_attributes(package(PACKAGE_PROPS))
+    picked = {f["properties"]["state_en"]: f["properties"]
+              for f in select(read_archive(build_archive()), attrs=attrs)}
+    danzig = picked["Danzig"]
+    assert danzig["status"] == "подмандатная территория"
+    assert danzig["status_en"] == "mandate"
+    assert danzig["owner"] == "Лига Наций" and danzig["owner_gwcode"] == 0
+    assert danzig["border_defined"] is False
+    # У независимого государства владелец — оно само, и в файл это не пишется.
+    brazil = picked["Brazil"]
+    assert brazil["status"] == "независимое государство"
+    assert "owner" not in brazil and brazil["border_defined"] is True
+
+
+def test_owner_is_named_as_it_was_on_the_date():
+    """Название у номера меняется: владелец ищется на дату начала колонии."""
+    feats = [{"properties": {"cntry_name": "Austria-Hungary", "gwcode": 300,
+                             "gwsdate": "18860101", "gwedate": "19181111"}},
+             {"properties": {"cntry_name": "Austria", "gwcode": 300,
+                             "gwsdate": "19181112", "gwedate": "19380312"}}]
+    index = owner_index(feats)
+    assert owner_name(300, "19000101", index) == "Австро-Венгрия"
+    assert owner_name(300, "19300101", index) == "Австрия"
+    assert owner_name(300, "18000101", index) == "Австро-Венгрия"   # вне всех дат
+    assert owner_name(0, "19200101", index) == "Лига Наций"
+    assert owner_name(777, "19200101", index) is None
+    assert owner_name(None, "19200101", index) is None
+
+
+def test_dictionary_translates_and_never_merges_two_states():
+    for en, ru in NAMES_RU.items():
+        assert ru and ru != en, en
+    clashes = [ru for ru, n in Counter(NAMES_RU.values()).items() if n > 1]
+    assert clashes == []
+    # Германская колония и Камерун после 1919 года — разные подписи.
+    assert NAMES_RU["Kamerun"] != NAMES_RU["Cameroon"]

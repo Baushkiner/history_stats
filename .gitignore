@@ -63,9 +63,11 @@ data/out/xlsx/
 # Рабочие копии параллельных агентов: временные worktree самого репозитория,
 # живут только на время задачи и убираются сами.
 .claude/worktrees/
-# Мировая выборка границ (harvest_cshapes.py --world) — вспомогательная,
-# вчетверо больше слоя и в репозиторий не идёт
-data/out/boundaries/state_borders_world.geojson
+# Выборка границ государств только по охвату РИ/СССР (`--region` у
+# harvest_cshapes.py и harvest_cliopatria.py) — вспомогательная: с ноября
+# 2026 года слоем стал весь мир, а прежняя выборка — его часть
+data/out/boundaries/state_borders_region.geojson
+data/out/boundaries/state_borders_early_region.geojson
 
 .DS_Store
 
