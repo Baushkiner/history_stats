@@ -86,3 +86,9 @@ data/raw/occupation_cities/
 # scripts/harvest_geopolhist.py --check (размер и md5 сверяются); в
 # репозиторий идут только записи слоя.
 data/raw/geopolhist/
+data/raw/suomen_kylat/
+data/raw/geo_ecclesiae/
+data/raw/deportations/
+data/raw/maaamet/
+data/raw/rahvusarhiiv/
+data/raw/wikisource_arkhiv/

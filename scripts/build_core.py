@@ -249,6 +249,7 @@ BLOCKERS = {
     "outside_bbox": "координаты вне территории РИ/СССР — вероятно, не наш контекст",
     "not_an_event": "это воинская часть или корабль, а не событие на местности",
     "no_period": "не разобрана датировка — запись не участвует в подборе по времени",
+    "after_1960": "впервые упомянута позже 1960 года — в рамку лет проекта не попадает",
 }
 
 # Оговорки: запись показывается, но чем-то ненадёжна. Формулировки — из
@@ -270,7 +271,12 @@ MARKS = {
     "registration_gap": "меньше пяти умерших на тысячу за год: учёт смертей, вероятно, неполон",
     "name_uncertain": "в наборе нет названия города, а ближайшее место GeoNames дальше 3 км "
                       "или его нет: название в заголовок не поставлено",
+    "multiple_points": "у объекта в наборе несколько точек: запись стоит в первой, все — в extra",
 }
+
+# Пометки, с которыми запись в «годно для подбора» не считается: не событие,
+# не та территория или не те годы. Сама запись при этом остаётся в выгрузке.
+NOT_USABLE = {"not_an_event", "outside_bbox", "after_1960"}
 
 PRECISION_RU = {
     "day": "до дня", "month": "до месяца", "season": "до сезона", "year": "до года",
@@ -301,7 +307,7 @@ def build_report(layers: dict, specs: dict) -> str:
             pts = sum(1 for r in records if r.has_point)
             tm = sum(1 for r in records if r.has_time)
             ok = sum(1 for r in records
-                     if r.usable and r.confidence not in {"not_an_event", "outside_bbox"})
+                     if r.usable and r.confidence not in NOT_USABLE)
             grand["n"] += n
             grand["pts"] += pts
             grand["tm"] += tm
