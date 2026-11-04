@@ -89,6 +89,10 @@ data/raw/geopolhist/
 data/raw/suomen_kylat/
 data/raw/geo_ecclesiae/
 data/raw/deportations/
+# Слои WFS Maa- ja Ruumiamet (около 25 МБ GML) и описи Rahvusarhiiv: листинг
+# каталога, шапки 4 034 фондов и файлы 322 приходов (около 65 МБ).
+# Пересобираются командой scripts/harvest_estonia.py --fetch; в репозиторий
+# идут подложка кирхшпилей и два слоя.
 data/raw/maaamet/
 data/raw/rahvusarhiiv/
 data/raw/wikisource_arkhiv/
