@@ -81,6 +81,7 @@ from .sources.mobilization_1914 import MOBILIZATION_1914
 from .sources.city_population import CITY_POPULATION
 from .sources.suomen_kylat import VILLAGES_FI
 from .sources.geo_ecclesiae import CHURCHES_PL_1772, CHURCHES_PL_1938
+from .sources.deportations import CENSUS_1939, SPECIAL_SETTLEMENTS
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -104,7 +105,8 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      BURIAL_SITES_TERROR,
                      STATE_BORDERS_EARLY,
                      TERRITORY_STATUS,
-                     VILLAGES_FI, CHURCHES_PL_1772, CHURCHES_PL_1938]
+                     VILLAGES_FI, CHURCHES_PL_1772, CHURCHES_PL_1938,
+                     SPECIAL_SETTLEMENTS, CENSUS_1939]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
