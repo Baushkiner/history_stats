@@ -94,6 +94,7 @@ from .sources.town_plans import TOWN_PLANS
 from .sources.execution_sites import EXECUTION_SITES
 from .sources.pogroms_1903 import POGROMS_1903
 from .sources.jewish_cemeteries import JEWISH_CEMETERIES
+from .sources.pow_camps import POW_CAMPS
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -128,7 +129,8 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      EXECUTION_SITES, POGROMS_1903,
                      # Собран неполным — 40 карточек из 4 276: сайт ESJF отвечает
                      # сборщику страницей защиты (docs/DISCOVERY.md, 22.11.2026).
-                     JEWISH_CEMETERIES]
+                     JEWISH_CEMETERIES,
+                     POW_CAMPS]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых

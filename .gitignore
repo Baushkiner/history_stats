@@ -129,3 +129,7 @@ data/raw/military_hospitals/
 # Таблица погромов 1903–1906 годов (перепечатка) и текстовый слой скана AJYB,
 # т. 8: пересобираются командой scripts/harvest_pogroms_1903.py --check.
 data/raw/pogroms_1903/
+# Главная страница карты dekoder (около 2 МБ: в ней точки всех слоёв карты) и
+# sitemap-map.xml: пересобираются командой scripts/harvest_pow_camps.py
+# --check --refresh; в репозиторий идут только записи слоя.
+data/raw/pow_camps/
