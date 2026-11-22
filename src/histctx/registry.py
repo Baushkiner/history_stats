@@ -88,6 +88,10 @@ from .sources.wikisource_arkhiv import METRIC_BOOKS_UA
 from .sources.archives_by import METRIC_BOOKS_BY
 from .sources.ghettos_camps import GHETTOS_CAMPS
 from .sources.imperiia import POST_STATIONS
+from .sources.atlas_1820 import (
+    ADMIN_BOUNDARIES_1820, ECONOMY_1820, FAITH_1820, FORTIFICATIONS_1820, ROADS_1820,
+    SETTLEMENTS_1820,
+)
 from .sources.ice import ICE_PHENOLOGY
 from .sources.hyde import POPULATION_HYDE
 from .sources.eclipses import SOLAR_ECLIPSES
@@ -119,7 +123,9 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      PARISH_BOUNDARIES_EE, PARISH_REGISTERS_EE, MANORS_EE,
                      METRIC_BOOKS_UA, METRIC_BOOKS_BY,
                      GHETTOS_CAMPS,
-                     POST_STATIONS, ICE_PHENOLOGY, POPULATION_HYDE, SOLAR_ECLIPSES]
+                     POST_STATIONS, ICE_PHENOLOGY, POPULATION_HYDE, SOLAR_ECLIPSES,
+                     SETTLEMENTS_1820, FORTIFICATIONS_1820, FAITH_1820, ECONOMY_1820,
+                     ROADS_1820, ADMIN_BOUNDARIES_1820]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
