@@ -98,3 +98,12 @@ data/raw/rahvusarhiiv/
 data/raw/wikisource_arkhiv/
 data/raw/ghettos_camps/
 data/raw/archives_by/
+# Каталоги землетрясений: ответы NOAA NCEI (по странице на запрос, около 1 МБ),
+# архивы EMCA (0,4 МБ) и GEM (18 МБ, весь мир с 1900 года). Пересобираются
+# командой scripts/harvest_earthquakes.py --check (размеры и md5 сверяются);
+# в репозиторий идёт только слой.
+data/raw/earthquakes/
+# Страницы API каталога Imperiia «PSZ Town Plans» (2,7 МБ JSON):
+# пересобираются командой scripts/harvest_town_plans.py --check; в репозиторий
+# идут только записи слоя.
+data/raw/town_plans/
