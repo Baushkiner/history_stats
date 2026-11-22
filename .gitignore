@@ -98,3 +98,10 @@ data/raw/rahvusarhiiv/
 data/raw/wikisource_arkhiv/
 data/raw/ghettos_camps/
 data/raw/archives_by/
+# Справочник госпиталей РККА с soldat.ru: каждый ответ формы поиска (по 20
+# записей на страницу, несколько тысяч страниц) и сводка records.json.
+# Пересобираются командой scripts/harvest_military_hospitals.py --fetch.
+data/raw/military_hospitals/
+# Таблица погромов 1903–1906 годов (перепечатка) и текстовый слой скана AJYB,
+# т. 8: пересобираются командой scripts/harvest_pogroms_1903.py --check.
+data/raw/pogroms_1903/
