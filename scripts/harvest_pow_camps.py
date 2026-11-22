@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import json
 import sys
 import time
 from pathlib import Path
@@ -41,13 +42,14 @@ from histctx.frame import Frame
 from histctx.io_formats import write_geojson, write_jsonl, write_records_json
 from histctx.sources.pow_camps import (
     LAYER_ID, MAP_URL, POW_CAMPS, SITEMAP_URL, DekoderError, card_urls, fetch_page,
-    layer_block, payload_text, records,
+    layer_block, link_ushmm, payload_text, records, ushmm_keys,
 )
 from histctx.sources.russian_names import RussianNames
 
 CACHE = ROOT / "data" / "raw" / "pow_camps"
 BOUNDARIES = ROOT / "data" / "out" / "boundaries"
 VARIANTS = ROOT / "data" / "out" / "name_variants.json"
+USHMM = ROOT / "data" / "out" / "geojson" / "ghettos_camps.geojson"
 
 # Лагеря, по которым видно, ради чего слой собран: номера из карточек
 # советских военнопленных и лагеря в Восточной Пруссии.
@@ -83,8 +85,16 @@ def collect(cache: Path, refresh: bool) -> tuple[list, dict]:
               file=sys.stderr)
     recs = records(features, urls=urls, names=names, sheet=sheet)
     counts = Frame.load(BOUNDARIES).mark(recs)
+    linked = 0
+    if USHMM.exists():
+        payload = json.loads(USHMM.read_text(encoding="utf-8"))
+        linked = link_ushmm(recs, ushmm_keys(payload.get("features", [])))
+    else:
+        print(f"  {USHMM.relative_to(ROOT)} нет — связи с энциклопедией USHMM не будет. "
+              "Соберите слой: python3 scripts/harvest_ghettos_camps.py --build",
+              file=sys.stderr)
     return recs, {"features": len(features), "urls": len(urls), "sheet": sheet,
-                  "frame": counts}
+                  "frame": counts, "ushmm": linked}
 
 
 def report(recs: list, meta: dict) -> None:
@@ -94,6 +104,8 @@ def report(recs: list, meta: dict) -> None:
     print(f"  записей {len(recs)}, с точкой {len(with_point)}, без точки "
           f"{len(recs) - len(with_point)}")
     print(f"  с карточкой dekoder: {sum(1 for r in recs if '/pow_camps/' in (r.url or ''))}")
+    print(f"  тот же лагерь (тип и номер) в энциклопедии USHMM, слой ghettos_camps: "
+          f"{meta['ushmm']}")
     for what, n in meta["frame"].most_common():
         print(f"  {what}: {n}")
     print("  типы:")

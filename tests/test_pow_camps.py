@@ -18,8 +18,9 @@ import pytest
 
 from histctx.registry import BY_SLUG
 from histctx.sources.pow_camps import (
-    CARD_PREFIX, LAYER_ID, MAP_URL, POW_CAMPS, DekoderError, camp_number, card_urls,
-    description_fields, layer_block, parse_time, payload_text, records, title_for, war_frame,
+    CARD_PREFIX, LAYER_ID, MAP_URL, POW_CAMPS, DekoderError, camp_key, camp_number, card_urls,
+    description_fields, layer_block, link_ushmm, parse_time, payload_text, records, title_for,
+    ushmm_keys, war_frame,
 )
 
 DESC_352 = ("![]()\n\n**Lager Nr.:** Stalag 352\n\n**District:** Reichskommissariat "
@@ -188,3 +189,36 @@ def test_camp_without_point_and_time_stays_with_war_frame():
     assert rec.extra["date_source"] == "рамка войны"
     assert rec.url == MAP_URL, "нет карточки — ссылка на саму карту"
     assert "время в перечне не указано" in rec.summary
+
+
+USHMM_FEATURES = [
+    {"type": "Feature", "id": "ghettos_camps:aaa",
+     "properties": {"uid": "ghettos_camps:aaa", "title": "MANNSCHAFTSSTAMMLAGER (STALAG) 352"},
+     "geometry": {"type": "Point", "coordinates": [27.48, 53.86]}},
+    {"type": "Feature", "id": "ghettos_camps:bbb",
+     "properties": {"uid": "ghettos_camps:bbb", "title": "DURCHGANGSLAGER (DULAG) 131"},
+     "geometry": {"type": "Point", "coordinates": [10.0, 50.0]}},    # далеко: не тот лагерь
+    {"type": "Feature", "id": "ghettos_camps:ccc",
+     "properties": {"uid": "ghettos_camps:ccc", "title": "Bolgrad / LPRS No. 8"},
+     "geometry": {"type": "Point", "coordinates": [28.6, 45.7]}},
+]
+
+
+def test_camp_key_ignores_spaces_in_roman_numbers():
+    assert camp_key("Stalag", "I B") == camp_key("Stalag", "IB") == ("Stalag", "IB")
+    assert camp_key(None, "352") is None and camp_key("Stalag", None) is None
+
+
+def test_ushmm_keys_read_type_and_number_from_titles():
+    keys = ushmm_keys(USHMM_FEATURES)
+    assert set(keys) == {("Stalag", "352"), ("Dulag", "131")}
+    assert keys[("Stalag", "352")][0][0] == "ghettos_camps:aaa"
+
+
+def test_link_ushmm_needs_same_number_and_nearby_point():
+    feats, _ = layer_block(payload_text(_page()))
+    recs = records(feats)
+    assert link_ushmm(recs, ushmm_keys(USHMM_FEATURES)) == 1
+    by_id = {r.extra["dekoder_id"]: r for r in recs}
+    assert by_id[7].extra["ghettos_camps"] == "ghettos_camps:aaa"
+    assert "ghettos_camps" not in by_id[8].extra, "Дулаг 131 USHMM — за 300 км: связи нет"

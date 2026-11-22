@@ -243,6 +243,68 @@ def war_frame() -> Dating:
     return Dating(a, b, "era", True, f"время не указано — рамка войны: {a}–{b}", "рамка войны")
 
 
+# --- связь с энциклопедией USHMM в слое ghettos_camps ----------------------
+#
+# Том IV энциклопедии лагерей и гетто USHMM — лагеря вермахта, и они уже лежат
+# в слое `ghettos_camps` (около 545 записей): «MANNSCHAFTSSTAMMLAGER (STALAG)
+# 352», «DURCHGANGSLAGER (DULAG) 131». Даты у них — рамка оккупации города или
+# тома, а не время самого лагеря; у этого слоя время своё, по перечню.
+# Один и тот же лагерь не должен выглядеть двумя, поэтому запись с тем же
+# типом и номером получает ссылку на запись USHMM (`extra.ghettos_camps`).
+
+_USHMM_TYPES = {
+    "STALAG": "Stalag", "DULAG": "Dulag", "OFLAG": "Oflag", "FRONTSTALAG": "Frontstalag",
+    "HEILAG": "Heilag",
+}
+_RE_USHMM = re.compile(r"\((STALAG|DULAG|OFLAG|FRONTSTALAG|HEILAG)\)\s+([0-9IVXL]+(?:\s?[A-Z])?)\b")
+# Лагеря переезжали за фронтом, а точка USHMM — одно место из нескольких:
+# ссылка ставится по номеру и типу, если точки не дальше этого.
+USHMM_LINK_KM = 300.0
+
+
+def camp_key(category: Optional[str], number: Optional[str]) -> Optional[tuple[str, str]]:
+    """(тип, номер) для сверки: «Stalag», «352»; «I B» и «IB» — одно и то же."""
+    if not category or not number:
+        return None
+    return category, re.sub(r"\s+", "", number.upper())
+
+
+def ushmm_keys(features: Iterable[dict]) -> dict[tuple[str, str], list[tuple]]:
+    """Лагеря вермахта из `ghettos_camps.geojson`: (тип, номер) → [(uid, lat, lon)]."""
+    out: dict[tuple[str, str], list[tuple]] = {}
+    for feat in features:
+        props = feat.get("properties") or {}
+        m = _RE_USHMM.search(props.get("title") or "")
+        coords = (feat.get("geometry") or {}).get("coordinates") or []
+        if not m or len(coords) < 2:
+            continue
+        key = camp_key(_USHMM_TYPES[m.group(1)], m.group(2))
+        out.setdefault(key, []).append((props.get("uid") or feat.get("id"), coords[1], coords[0]))
+    return out
+
+
+def link_ushmm(recs: Iterable[ContextRecord], keys: dict) -> int:
+    """Ставит `extra.ghettos_camps` записям, у которых в USHMM тот же лагерь."""
+    from ..geo import haversine_km
+
+    linked = 0
+    for rec in recs:
+        key = camp_key(rec.extra.get("category_de"), camp_number(rec.extra.get("lager_nr")))
+        candidates = keys.get(key) if key else None
+        if not candidates:
+            continue
+        if rec.has_point:
+            near = [(haversine_km(rec.lat, rec.lon, la, lo), uid) for uid, la, lo in candidates]
+            near = [x for x in near if x[0] <= USHMM_LINK_KM]
+            if not near:
+                continue
+            rec.extra["ghettos_camps"] = min(near)[1]
+        else:
+            rec.extra["ghettos_camps"] = candidates[0][0]
+        linked += 1
+    return linked
+
+
 # --- записи ----------------------------------------------------------------
 
 def point(feature: dict) -> tuple[Optional[float], Optional[float]]:
