@@ -88,6 +88,7 @@ from .sources.wikisource_arkhiv import METRIC_BOOKS_UA
 from .sources.archives_by import METRIC_BOOKS_BY
 from .sources.ghettos_camps import GHETTOS_CAMPS
 from .sources.execution_sites import EXECUTION_SITES
+from .sources.jewish_cemeteries import JEWISH_CEMETERIES
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -116,7 +117,10 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      PARISH_BOUNDARIES_EE, PARISH_REGISTERS_EE, MANORS_EE,
                      METRIC_BOOKS_UA, METRIC_BOOKS_BY,
                      GHETTOS_CAMPS,
-                     EXECUTION_SITES]
+                     EXECUTION_SITES,
+                     # Собран неполным — 40 карточек из 4 276: сайт ESJF отвечает
+                     # сборщику страницей защиты (docs/DISCOVERY.md, 22.11.2026).
+                     JEWISH_CEMETERIES]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
