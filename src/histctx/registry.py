@@ -92,6 +92,7 @@ from .sources.topo_maps import TOPO_MAPS
 from .sources.earthquakes import EARTHQUAKES
 from .sources.town_plans import TOWN_PLANS
 from .sources.execution_sites import EXECUTION_SITES
+from .sources.military_hospitals import MILITARY_HOSPITALS
 from .sources.pogroms_1903 import POGROMS_1903
 from .sources.jewish_cemeteries import JEWISH_CEMETERIES
 from .sources.pow_camps import POW_CAMPS
@@ -126,7 +127,7 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      # Проход 22.11.2026 по новым темам
                      GERMAN_COLONIES, TOPO_MAPS,
                      EARTHQUAKES, TOWN_PLANS,
-                     EXECUTION_SITES, POGROMS_1903,
+                     EXECUTION_SITES, POGROMS_1903, MILITARY_HOSPITALS,
                      # Собран неполным — 40 карточек из 4 276: сайт ESJF отвечает
                      # сборщику страницей защиты (docs/DISCOVERY.md, 22.11.2026).
                      JEWISH_CEMETERIES,
