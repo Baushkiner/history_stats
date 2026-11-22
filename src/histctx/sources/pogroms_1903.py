@@ -726,9 +726,11 @@ def table_record(row: Row, place: Placement, spec: LayerSpec = POGROMS_1903) -> 
         bits.append(f"ранено {wounded}")
     summary = ", ".join(bits)
     if row.population:
+        # Разряды — пробелом; заменять запятые во всей строке нельзя: вместе с
+        # разделителем тысяч пропала бы и запятая перед «евреев».
         summary += f"; население города {row.population:,}".replace(",", " ")
         if row.jewish_population:
-            summary += f", евреев {row.jewish_population:,}".replace(",", " ")
+            summary += ", евреев " + f"{row.jewish_population:,}".replace(",", " ")
     summary += f". Таблица American Jewish Year Book, т. 8, строка № {row.number}"
     cand = place.place
     extra = {

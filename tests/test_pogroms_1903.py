@@ -210,6 +210,8 @@ def test_table_record(rows):
     assert rec.extra["killed"] == 47 and rec.extra["wounded"] == 424
     assert rec.extra["table_number"] == 1 and rec.extra["town_1906"] == "KISHINEFF"
     assert "убито 47, ранено 424" in rec.summary
+    # Разряды — пробелом, а запятая перед «евреев» остаётся запятой.
+    assert "население города 147 962, евреев 50 000" in rec.summary
     assert rec.license == POGROMS_1903.license
 
     lost = table_record(rows[1], Placement(None, "не найден"))
