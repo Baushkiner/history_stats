@@ -27,6 +27,12 @@ geda = ["h5py>=3.0"]
 # перечень гетто ZRBG лежит одним PDF. Вместо него годится системный
 # `pdftotext` (poppler-utils); без обоих сборщик останавливается с объяснением.
 zrbg = ["pypdf>=4"]
+# inflate64 — только сборщику HYDE (`scripts/harvest_hyde.py`): архив набора
+# сжат методом Deflate64, которого нет в стандартной библиотеке.
+hyde = ["inflate64>=1.0"]
+# jplephem — только сборщику затмений (`scripts/harvest_eclipses.py`): читает
+# файл эфемерид JPL DE440, по которому считается полоса затмения.
+eclipses = ["jplephem>=2.20"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

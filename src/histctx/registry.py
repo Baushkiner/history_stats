@@ -87,6 +87,10 @@ from .sources.rahvusarhiiv import PARISH_REGISTERS_EE
 from .sources.wikisource_arkhiv import METRIC_BOOKS_UA
 from .sources.archives_by import METRIC_BOOKS_BY
 from .sources.ghettos_camps import GHETTOS_CAMPS
+from .sources.imperiia import POST_STATIONS
+from .sources.ice import ICE_PHENOLOGY
+from .sources.hyde import POPULATION_HYDE
+from .sources.eclipses import SOLAR_ECLIPSES
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -114,7 +118,8 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      SPECIAL_SETTLEMENTS, CENSUS_1939,
                      PARISH_BOUNDARIES_EE, PARISH_REGISTERS_EE, MANORS_EE,
                      METRIC_BOOKS_UA, METRIC_BOOKS_BY,
-                     GHETTOS_CAMPS]
+                     GHETTOS_CAMPS,
+                     POST_STATIONS, ICE_PHENOLOGY, POPULATION_HYDE, SOLAR_ECLIPSES]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
