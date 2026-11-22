@@ -55,6 +55,8 @@ OPEN_END_YEAR = 1960
 
 _RE_POINT = re.compile(r"Point\(([-\d.eE]+)\s+([-\d.eE]+)\)")
 _RE_QID = re.compile(r"/entity/(Q\d+)$")
+# Сверка заголовков спрашивает и свойства: P-номер директивы `@has`.
+_RE_ENTITY = re.compile(r"/entity/([QP]\d+)$")
 
 
 class SparqlError(RuntimeError):
@@ -175,6 +177,8 @@ def verify_qids(client: SparqlClient, qids: list[str]) -> dict[str, Optional[str
 
     Нужно, чтобы до сбора убедиться: Q-номер в запросе означает то, что мы
     думаем. Отсутствие метки (None) — повод перепроверить запрос вручную.
+    Свойства (P-номера директивы `@has`) сверяются здесь же: метка у них
+    такая же, как у класса.
     """
     if not qids:
         return {}
@@ -190,9 +194,9 @@ def verify_qids(client: SparqlClient, qids: list[str]) -> dict[str, Optional[str
     )
     out: dict[str, Optional[str]] = dict.fromkeys(qids)
     for row in rows:
-        qid = _qid(row.get("item", {}).get("value"))
-        if qid:
-            out[qid] = row.get("itemLabel", {}).get("value")
+        m = _RE_ENTITY.search(row.get("item", {}).get("value") or "")
+        if m:
+            out[m.group(1)] = row.get("itemLabel", {}).get("value")
     return out
 
 
@@ -374,7 +378,7 @@ _OWNERS = """  OPTIONAL {{
 
 def ids_query(classes: list[str], country: Optional[str],
               extra: Optional[list[str]] = None, kind: str = "object",
-              *, need_coord: bool = True) -> str:
+              *, need_coord: bool = True, has: Optional[str] = None) -> str:
     """Ступень 1: Q-номера объектов класса с координатами в одном государстве.
 
     `country` = None — без условия по P17, разом по всему миру (см. `WORLD`).
@@ -389,7 +393,15 @@ def ids_query(classes: list[str], country: Optional[str],
     директивой `@place`: координату они занимают на второй ступени, у храма
     или у населённого пункта, и отсеивать на первой то, чего ещё не искали,
     нельзя. Так собираются приходы: своей `P625` нет у двух из пяти.
+
+    `has` — отбор не по классу, а по свойству (директива `@has`): объект
+    попадает в слой, если у него есть значение этого свойства. Нужен слоям,
+    которые собирают записи реестра, а не класса: код ЕГРОКН (P5381) стоит у
+    зданий, братских могил, мостов и парков, и общего класса, кроме «всего
+    на свете», у них нет. Классы при этом не спрашиваются вовсе.
     """
+    if has:
+        return _has_query(has, country, extra, kind, need_coord=need_coord)
     values = " ".join(f"wd:{c}" for c in classes)
     tail = "".join(f"  {line}\n" for line in (extra or []))
     p17 = f"        wdt:P17 wd:{country} ;\n" if country else ""
@@ -431,8 +443,33 @@ def ids_query(classes: list[str], country: Optional[str],
     )
 
 
+def _has_query(has: str, country: Optional[str], extra: Optional[list[str]],
+               kind: str, *, need_coord: bool) -> str:
+    """Ступень 1 по свойству: объекты, у которых есть значение `has`.
+
+    Опорой планировщику служит само свойство: у реестрового кода объектов
+    десятки тысяч, а не миллионы, как у класса «здание» с подклассами. Замер
+    22.11.2026 на коде ЕГРОКН (P5381): 52 164 объекта с координатой — 10,9 с,
+    с датой не позже 1960 года — 26 256 за 10,3 с. Слоёв событий так не
+    собирают: у события реестрового кода не бывает, а координата события
+    требует своего пути (`_coord_via_place`).
+    """
+    if kind == "event":
+        raise ValueError("@has собирает объекты, а не события")
+    tail = "".join(f"  {line}\n" for line in (extra or []))
+    triples = [f"wdt:{has} []"]
+    if country:
+        triples.append(f"wdt:P17 wd:{country}")
+    if need_coord:
+        triples.append("wdt:P625 ?coord")
+    where = "  ?item " + " ;\n        ".join(triples) + " .\n"
+    head = "SELECT ?item ?coord WHERE {\n" if need_coord else "SELECT ?item WHERE {\n"
+    return f"{head}{where}{tail}}}"
+
+
 def stage1_plan(classes: list[str],
                 countries: tuple[tuple[Optional[str], str], ...],
+                has: Optional[str] = None,
                 ) -> list[tuple[list[str], Optional[str], str]]:
     """Из чего складывается первая ступень: что спрашивать и одним ли запросом.
 
@@ -442,10 +479,15 @@ def stage1_plan(classes: list[str],
     Проверено живьём на слое `admin_units`: девять классов сразу — HTTP 504
     через 65 секунд, тот же отбор по одному классу — 0.6 секунды на класс.
     Поэтому без P17 первая ступень идёт по одному классу за запрос.
+
+    С `has` (директива `@has`) классов нет: по запросу на государство, а без
+    P17 — один запрос на весь слой, его держит само свойство.
     """
     plan: list[tuple[list[str], Optional[str], str]] = []
     for country, name in countries:
-        if country is None:
+        if has:
+            plan.append(([], country, f"{name} {has}" if country is None else name))
+        elif country is None:
             plan.extend(([cls], None, f"{name} {cls}") for cls in classes)
         else:
             plan.append((classes, country, name))
@@ -529,7 +571,8 @@ _LABELS = """  OPTIONAL {{
 def details_query(qids: list[str], kind: str = "object", *,
                   with_owner: bool = False,
                   place: tuple[str, ...] = (),
-                  labels: tuple[tuple[str, str], ...] = ()) -> str:
+                  labels: tuple[tuple[str, str], ...] = (),
+                  ids: tuple[tuple[str, str], ...] = ()) -> str:
     """Ступень 2: подробности к готовому списку Q-номеров.
 
     У события координата берётся из двух мест. Своей `P625` у него часто нет —
@@ -550,11 +593,19 @@ def details_query(qids: list[str], kind: str = "object", *,
     спрашиваются по порядку. `labels` — пары «свойство, ключ» из директив
     `@label`: подписи значений приходят столбцом `?x_<ключ>` и ложатся в
     `extra` записи. Оба пусты по умолчанию, и тогда запрос прежний.
+
+    `ids` — пары «свойство, ключ» из директив `@id`: само значение свойства-
+    идентификатора (номер в реестре, а не подпись элемента) приходит столбцом
+    `?x_<ключ>` и тоже ложится в `extra`. У объекта ЕГРОКН это его номер в
+    реестре — по нему запись сверяется с карточкой Минкультуры. Значение
+    берётся одно, первое: `dedupe` оставляет первую строку объекта.
     """
     values = " ".join(f"wd:{q}" for q in qids)
     dates = _DATES_EVENT if kind == "event" else _DATES_OBJECT
     owner_col = " ?owners" if with_owner else ""
     owners = f"{_OWNERS.format(values=values)}\n" if with_owner else ""
+    owner_col += "".join(f" ?x_{key}" for _, key in ids)
+    owners += "".join(f"  OPTIONAL {{ ?item wdt:{prop} ?x_{key} . }}\n" for prop, key in ids)
     label_cols = "".join(f" ?x_{key}" for _, key in labels)
     owners += "".join(f"{_LABELS.format(values=values, prop=prop, key=key)}\n"
                       for prop, key in labels)
@@ -627,7 +678,7 @@ def dedupe(records: list[ContextRecord]) -> list[ContextRecord]:
 def _stage1_rows(client: SparqlClient, step_classes: list[str], country: Optional[str],
                  extra: Optional[list[str]], kind: str, name: str,
                  say: Callable[[str], None], lost: list[str],
-                 need_coord: bool = True) -> list[dict]:
+                 need_coord: bool = True, has: Optional[str] = None) -> list[dict]:
     """Строки первой ступени. Упавший запрос дробится по одному классу.
 
     Несколько классов в одном `VALUES` — то, что кладёт запрос в лимит
@@ -642,10 +693,11 @@ def _stage1_rows(client: SparqlClient, step_classes: list[str], country: Optiona
     """
     try:
         return client.query(ids_query(step_classes, country, extra, kind,
-                                      need_coord=need_coord))
+                                      need_coord=need_coord, has=has))
     except SparqlError as exc:
         say(f"    {name}: ОШИБКА — {exc}")
-        if len(step_classes) == 1:
+        # Отбор по свойству дробить не на что: класс в нём не спрашивается.
+        if has or len(step_classes) == 1:
             lost.append(f"первая ступень, {name}: {exc}")
             return []
         say(f"    {name}: повторяю по одному классу, запросов {len(step_classes)}")
@@ -673,6 +725,8 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
                   with_owner: bool = False,
                   place: tuple[str, ...] = (),
                   labels: tuple[tuple[str, str], ...] = (),
+                  has: Optional[str] = None,
+                  ids: tuple[tuple[str, str], ...] = (),
                   max_objects: Optional[int] = None,
                   failures: Optional[list[str]] = None,
                   progress: Optional[Callable[[str], None]] = None) -> list[ContextRecord]:
@@ -699,6 +753,9 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
     С `place` первая ступень не требует координаты, а объекты, которым она
     не нашлась ни своя, ни заимствованная, пересчитываются и печатаются:
     на карту они не встанут, но молча пропадать не должны.
+
+    `has` и `ids` — директивы `@has` и `@id`: отбор по свойству вместо класса
+    (`classes` тогда пуст) и значение свойства-идентификатора в `extra`.
     """
     say = progress or (lambda _: None)
     lost = failures if failures is not None else []
@@ -707,9 +764,9 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
     qids: list[str] = []
     seen: set[str] = set()
     for step_classes, country, name in stage1_plan(
-            classes, tuple(countries) + tuple(history)):
+            classes, tuple(countries) + tuple(history), has=has):
         rows = _stage1_rows(client, step_classes, country, extra, kind, name, say, lost,
-                            need_coord=need_coord)
+                            need_coord=need_coord, has=has)
         fresh = 0
         for row in rows:
             qid = _qid(_val(row, "item"))
@@ -743,7 +800,7 @@ def collect_layer(client: SparqlClient, classes: list[str], spec: LayerSpec, *,
         chunk = qids[start:start + chunk_size]
         try:
             rows = client.query(details_query(chunk, kind, with_owner=with_owner,
-                                              place=place, labels=labels))
+                                              place=place, labels=labels, ids=ids))
         except SparqlError as exc:
             say(f"    подробности {start}–{start + len(chunk)}: ОШИБКА — {exc}")
             lost.append(f"вторая ступень, объекты {start}–{start + len(chunk)}: {exc}")

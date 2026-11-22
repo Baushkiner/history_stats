@@ -91,9 +91,19 @@ def parse_query(path: Path) -> dict:
       @frame   `1897` — рамка не прямоугольником `geo.BBOX_RU`, а полигонами
                губерний 1897 года и России (СССР) 1886–1991 годов: что вне
                их, остаётся в выгрузке с пометкой `outside_bbox`, губерния
-               ложится в `region`. См. `histctx/frame.py`.
+               ложится в `region`. См. `histctx/frame.py`;
+      @has     `P5381 код ЕГРОКН` — первая ступень по свойству, а не по
+               классу: в слой идёт всё, у чего есть значение свойства.
+               Свойство и его название сверяются, как Q-номера. Только при
+               двухступенчатом сборе; `@qid` тогда не нужен;
+      @id      `P5381 egrokn` — само значение свойства-идентификатора (номер
+               в реестре) в `extra` записи под этим ключом, можно повторять;
+      @skip    слои через пробел, объекты которых в этот слой не берутся:
+               кто уже собран храмом или станцией, памятником второй раз не
+               встаёт. Сверка — по Q-номеру с их выгрузками в
+               `data/out/geojson/`, отсеянное считается и печатается.
     """
-    meta: dict = {"qids": [], "filters": [], "labels": [], "path": path}
+    meta: dict = {"qids": [], "filters": [], "labels": [], "ids": [], "path": path}
     body: list[str] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         m = _RE_META.match(line)
@@ -107,6 +117,14 @@ def parse_query(path: Path) -> dict:
             elif key == "label":
                 prop, _, name = value.partition(" ")
                 meta["labels"].append((prop.strip(), name.strip()))
+            elif key == "id":
+                prop, _, name = value.partition(" ")
+                meta["ids"].append((prop.strip(), name.strip()))
+            elif key == "has":
+                prop, _, label = value.partition(" ")
+                meta["has"] = (prop.strip(), label.strip())
+            elif key == "skip":
+                meta["skip"] = value.split()
             else:
                 meta[key] = value
         elif not line.startswith("#"):
@@ -128,6 +146,12 @@ def parse_query(path: Path) -> dict:
     return meta
 
 
+def declared_entities(meta: dict) -> list[tuple[str, str]]:
+    """Что сверять с Викиданными: классы `@qid` и свойство `@has`."""
+    has = [meta["has"]] if meta.get("has") else []
+    return list(meta["qids"]) + has
+
+
 def _same(declared: str, actual: str) -> bool:
     def norm(s: str) -> str:
         return re.sub(r"[^а-яa-z]", "", s.lower().replace("ё", "е"))
@@ -136,14 +160,19 @@ def _same(declared: str, actual: str) -> bool:
 
 
 def check_queries(client: SparqlClient, metas: list[dict]) -> bool:
-    """Сверяет объявленные Q-номера с реальными названиями классов."""
-    pairs = [(q, lbl) for m in metas for q, lbl in m["qids"]]
+    """Сверяет объявленные Q-номера с реальными названиями классов.
+
+    Свойство директивы `@has` сверяется тем же запросом: у свойства в
+    Викиданных такая же метка, как у класса, и описка в P-номере собрала бы
+    чужой реестр так же молча, как описка в Q-номере — чужой класс.
+    """
+    pairs = [(q, lbl) for m in metas for q, lbl in declared_entities(m)]
     labels = verify_qids(client, [q for q, _ in pairs])
 
     ok = True
     print("Сверка классов Викиданных:\n")
     for meta in metas:
-        for qid, declared in meta["qids"]:
+        for qid, declared in declared_entities(meta):
             actual = labels.get(qid)
             if actual is None:
                 print(f"  [НЕТ]      {qid:10s} не найден  ({meta['layer']})")
@@ -215,7 +244,73 @@ def check_directives(meta: dict) -> list[str]:
     if frame is not None and frame != "1897":
         bad.append(f"  [НЕ ТО]    @frame понимает только 1897, а не «{frame}»"
                    f"  ({meta['layer']})")
+    has = meta.get("has")
+    if has is not None:
+        if not re.fullmatch(r"P\d+", has[0]):
+            bad.append(f"  [НЕ ТО]    @has ждёт свойство и его название («P5381 код "
+                       f"ЕГРОКН»), а не «{' '.join(has)}»  ({meta['layer']})")
+        elif meta["scope"] not in TWO_STAGE or meta["kind"] == "event":
+            bad.append(f"  [НЕ ТАМ]   @has работает только у объектов при @scope "
+                       f"country или class  ({meta['layer']})")
+    for prop, name in meta.get("ids", ()):
+        if not re.fullmatch(r"P\d+", prop) or not re.fullmatch(r"[a-z_]+", name):
+            bad.append(f"  [НЕ ТО]    @id ждёт «P5381 egrokn», а не «{prop} {name}»"
+                       f"  ({meta['layer']})")
+        elif meta["scope"] not in TWO_STAGE:
+            bad.append(f"  [НЕ ТАМ]   @id работает только при двухступенчатом сборе"
+                       f"  ({meta['layer']})")
+    skip = meta.get("skip")
+    if skip is not None:
+        unknown = [s for s in skip if s not in BY_SLUG or s == meta["layer"]]
+        if not skip or unknown:
+            bad.append(f"  [НЕ ТО]    @skip ждёт собранные слои через пробел, а не "
+                       f"«{' '.join(unknown) or '(пусто)'}»  ({meta['layer']})")
     return bad
+
+
+def skip_known(records: list, meta: dict, out_dir: Path) -> list:
+    """Убирает объекты, которые уже лежат в слоях из директивы `@skip`.
+
+    Сверка по Q-номеру (`source_id`) с выгрузками `geojson/<слой>.geojson`:
+    храм с кодом ЕГРОКН уже стоит на карте в слое храмов, и второй его точки
+    под другим названием слоя быть не должно. Сколько отсеяно и чем —
+    печатается; выгрузки, которой нет, — тоже: без неё отсев неполный, и
+    это должно быть видно, а не угадано.
+    """
+    skip = meta.get("skip") or []
+    if not skip:
+        return records
+    owner: dict[str, str] = {}
+    for slug in skip:
+        path = out_dir / "geojson" / f"{slug}.geojson"
+        if not path.exists():
+            print(f"  @skip: выгрузки {path.relative_to(out_dir)} нет — объекты слоя "
+                  f"{slug} не отсеяны", file=sys.stderr)
+            continue
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        shared = (payload.get("properties") or {})
+        for feat in payload.get("features", []):
+            props = feat.get("properties") or {}
+            qid = props.get("source_id") or shared.get("source_id")
+            if qid:
+                owner.setdefault(qid, slug)
+    dropped = Counter(owner[r.source_id] for r in records if r.source_id in owner)
+    kept = [r for r in records if r.source_id not in owner]
+    if dropped:
+        print(f"  @skip: уже в других слоях {sum(dropped.values())} — "
+              + ", ".join(f"{slug} {n}" for slug, n in dropped.most_common()))
+    return kept
+
+
+def harvest_order(metas: list[dict]) -> list[dict]:
+    """Порядок сбора: слои с `@skip` — последними.
+
+    Такой слой сверяется с выгрузками других слоёв, а `--all` идёт по
+    алфавиту, и памятники собрались бы раньше монастырей и станций — со
+    сверкой по их прошлой выгрузке, а не по этой. Сортировка устойчивая:
+    остальные слои остаются в прежнем порядке.
+    """
+    return sorted(metas, key=lambda m: bool(m.get("skip")))
 
 
 def place_tokens(meta: dict) -> tuple:
@@ -237,16 +332,18 @@ def collect(client: SparqlClient, meta: dict, spec: LayerSpec, *,
     if bad:
         raise SparqlError(f"{meta['layer']}: {'; '.join(s.strip() for s in bad)}")
     if meta["scope"] in TWO_STAGE:
-        if not classes:
+        has = meta["has"][0] if meta.get("has") else None
+        if not classes and not has:
             raise SparqlError(
                 f"{meta['layer']}: при @scope {meta['scope']} нужен хотя бы один "
-                "@qid — именно эти классы и собираются")
+                "@qid — именно эти классы и собираются — или свойство @has")
         records = collect_layer(
-            client, classes, spec,
+            client, [] if has else classes, spec,
             kind=meta["kind"], countries=layer_countries(meta, countries),
             history=history,
             extra=meta["filters"], with_owner=bool(meta.get("owner")),
             place=place_tokens(meta), labels=tuple(meta.get("labels", ())),
+            has=has, ids=tuple(meta.get("ids", ())),
             require_bbox=not meta.get("frame"),
             max_objects=max_objects, failures=failures, progress=print,
         )
@@ -294,6 +391,7 @@ def probe(client: SparqlClient, meta: dict, spec: LayerSpec) -> int:
           f"способ: {meta['scope']}, государство: {one[0][1]}")
     records = collect(client, meta, spec, paged=False, page_size=5000,
                       countries=one, max_objects=PROBE_OBJECTS)
+    records = skip_known(records, meta, ROOT / "data" / "out")
     print(f"\n  разобрано записей: {len(records)}")
     if not records:
         print(f"  Ничего не разобрано по государству «{one[0][1]}»: проверьте "
@@ -373,6 +471,7 @@ def harvest(client: SparqlClient, meta: dict, spec: LayerSpec, out_dir: Path,
     records = collect(client, meta, spec, paged=paged, page_size=page_size,
                       history=HISTORICAL_COUNTRIES if meta["kind"] == "event" else (),
                       failures=failures)
+    records = skip_known(records, meta, out_dir)
     if meta.get("frame"):
         # Рамка по полигонам уже напечатала, что в ней и что за ней.
         print(f"  с координатами: {len(records)}")
@@ -452,7 +551,7 @@ def main() -> int:
         print(f"В {QUERY_DIR} нет файлов запросов.", file=sys.stderr)
         return 1
 
-    metas = [parse_query(p) for p in files]
+    metas = harvest_order([parse_query(p) for p in files])
     if args.layer:
         wanted = set(args.layer)
         metas = [m for m in metas if m["layer"] in wanted]
