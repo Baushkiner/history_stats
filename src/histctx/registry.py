@@ -91,6 +91,7 @@ from .sources.german_colonies import GERMAN_COLONIES
 from .sources.topo_maps import TOPO_MAPS
 from .sources.earthquakes import EARTHQUAKES
 from .sources.town_plans import TOWN_PLANS
+from .sources.execution_sites import EXECUTION_SITES
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -121,7 +122,8 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      GHETTOS_CAMPS,
                      # Проход 22.11.2026 по новым темам
                      GERMAN_COLONIES, TOPO_MAPS,
-                     EARTHQUAKES, TOWN_PLANS]
+                     EARTHQUAKES, TOWN_PLANS,
+                     EXECUTION_SITES]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
