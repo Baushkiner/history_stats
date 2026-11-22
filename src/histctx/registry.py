@@ -89,6 +89,8 @@ from .sources.archives_by import METRIC_BOOKS_BY
 from .sources.ghettos_camps import GHETTOS_CAMPS
 from .sources.german_colonies import GERMAN_COLONIES
 from .sources.topo_maps import TOPO_MAPS
+from .sources.earthquakes import EARTHQUAKES
+from .sources.town_plans import TOWN_PLANS
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -117,7 +119,9 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      PARISH_BOUNDARIES_EE, PARISH_REGISTERS_EE, MANORS_EE,
                      METRIC_BOOKS_UA, METRIC_BOOKS_BY,
                      GHETTOS_CAMPS,
-                     GERMAN_COLONIES, TOPO_MAPS]
+                     # Проход 22.11.2026 по новым темам
+                     GERMAN_COLONIES, TOPO_MAPS,
+                     EARTHQUAKES, TOWN_PLANS]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
