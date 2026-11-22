@@ -1,0 +1,44 @@
+{
+ "name": "Немецкие колонии и поселения: без точки",
+ "count": 1,
+ "records": [
+  {
+   "uid": "german_colonies:c2b31121afa9",
+   "layer": "german_colonies",
+   "layer_title": "Немецкие колонии и поселения",
+   "group": "admin",
+   "title": "Дочерняя колония Паульсталь, осн. 1865",
+   "category": "Дочерняя колония",
+   "scope": "point",
+   "place_text": "Odessa, Kherson Governorate",
+   "year_from": 1865,
+   "year_to": 1960,
+   "date_precision": "open",
+   "date_approx": false,
+   "period_raw": "с 1865",
+   "summary": "Дочерняя колония, группа «Гросслибенталь»; основана — 1865; конфессия — протестанты; подчинение — Großliebental, Neu-Freudental (P); сейчас — , Odes'ka, Ukraine. По GRSL",
+   "url": "https://sites.google.com/riehl-partner-web.de/grsl-daten/startpage",
+   "source": "Germans from Russia Settlement Locations (GRSL, S. Riehl), листы Google Sheets",
+   "license": "CC BY-SA 4.0 (страница данных GRSL: «Creative Commons Attribution-ShareAlike 4.0 International License… Enjoy, use, distribute»). Берутся факты — точка, имена, год, тип колонии, конфессия — и примечания составителя со ссылкой на карточку места",
+   "confidence": "no_coords",
+   "extra": {
+    "group": "Гросслибенталь",
+    "name_de": "Paulstal",
+    "name_ru": "Паульсталь",
+    "variants": [
+     "Paulstal"
+    ],
+    "cyrillic": [
+     "Полсталь",
+     "Паульсталь"
+    ],
+    "current_country": "Ukraine",
+    "country_at_founding": "Russia",
+    "authority": "Großliebental, Neu-Freudental (P)",
+    "type_en": "Daughter",
+    "religions_en": "Protestant",
+    "notes": "Founded approximately in 1865. Evangelical; parish: Neu-Freudental. Freudental daughter colony."
+   }
+  }
+ ]
+}
