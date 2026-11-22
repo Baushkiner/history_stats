@@ -98,3 +98,12 @@ data/raw/rahvusarhiiv/
 data/raw/wikisource_arkhiv/
 data/raw/ghettos_camps/
 data/raw/archives_by/
+# Листы GRSL с Google Sheets: 40 вкладок «All Colonies» (около 50 МБ CSV),
+# сводный лист «Complete» и страница со списком вкладок. Пересобираются
+# командой scripts/harvest_german_colonies.py --check --refresh; в репозиторий
+# идут только записи слоя.
+data/raw/german_colonies/
+# Частичный разрежённый клон OpenGeoMetadata/big-ten — одна папка
+# metadata-aardvark/Maps/01d-00, около 30 МБ (scripts/harvest_topo_maps.py
+# --check); в репозиторий идут только записи слоя.
+data/raw/topo_maps/
