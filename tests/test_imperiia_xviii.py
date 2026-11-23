@@ -5,8 +5,10 @@
 """
 
 from histctx.sources.imperiia_xviii import (
-    KIRILOV, KIRILOV_FIELDS, REVISIONS, REVISIONS_UEZD, TOWNS_1727, check_item, check_layer,
-    kirilov_record, kirilov_records, revision_record, revision_records,
+    HOUSEHOLDS_1719, KIRILOV, KIRILOV_FIELDS, REVISIONS, REVISIONS_UEZD, TOWNS_1727,
+    UEZD_POPULATION_1766, check_item, check_layer, household_record, household_records,
+    kirilov_record, kirilov_records, population_1766_record, population_1766_records,
+    revision_record, revision_records,
 )
 
 NOVGOROD = {"attributes": {"KID": 16, "Guberniia": "Novgorod", "Location": "Novgorod",
@@ -78,7 +80,7 @@ def test_zero_means_no_data():
 
 
 def test_rights_are_stated_as_facts_only():
-    for spec in (TOWNS_1727, REVISIONS_UEZD):
+    for spec in (TOWNS_1727, REVISIONS_UEZD, HOUSEHOLDS_1719, UEZD_POPULATION_1766):
         assert "только факты" in spec.license and "не выпущен" in spec.license
         assert spec.status == "harvested" and spec.expected_rows
 
@@ -92,3 +94,64 @@ def test_service_checks_stop_on_access_note():
     assert check_item(ok, KIRILOV) == []
     noted = dict(ok, description="This layer is provisional… contact the editor for access")
     assert any("не собирается" in p for p in check_item(noted, KIRILOV))
+
+
+KOSTROMA = {"attributes": {"GorID": 72, "Location": "Kostroma", "Guberniia": "Moskovskaia",
+                           "Province_1": "Kostroma",
+                           "goroda_I_u": "Kostroma, Buj, Sudislav, Liubim, Kaduj",
+                           "dvorov": 36184, "iasachnykh": None, "note": None},
+            "geometry": {"x": 40.93, "y": 57.77}}
+PENZA = {"attributes": {"GorID": 245, "Location": "Penza", "Guberniia": "Kazan",
+                        "Province_1": "Penza", "goroda_I_u": "Penza with Ramzaev area",
+                        "dvorov": 316, "iasachnykh": 5604, "note": None},
+         "geometry": {"x": 45.0, "y": 53.2}}
+
+
+def test_households_given_for_several_towns_at_once():
+    rec = household_record(KOSTROMA)
+    assert rec.layer == HOUSEHOLDS_1719.slug
+    assert rec.title == "Кострома (Kostroma): I ревизия — 36 184 двора"
+    assert rec.category == "несколько городов вместе"
+    assert "36 184 податных двора" in rec.summary
+    assert "Число дано на несколько городов сразу: Кострома, Буй, Судислав, Любим, Кадуй" \
+        in rec.summary
+    assert (rec.year_from, rec.year_to) == (1719, 1724) and rec.confidence == "place_level"
+    assert rec.extra["households"] == 36184 and rec.extra["yasak"] == 0
+
+
+def test_yasak_payers_are_counted_separately():
+    rec = household_record(PENZA)
+    assert rec.category == "город с уездом"
+    assert "316 податных дворов, ясачных — 5 604" in rec.summary
+    assert "В источнике: Penza with Ramzaev area" in rec.summary
+    only_yasak = {"attributes": dict(PENZA["attributes"], dvorov=0), "geometry": None}
+    rec = household_record(only_yasak)
+    assert rec.title.endswith("5 604 ясачных") and rec.confidence == "no_coords"
+
+
+def test_not_recorded_gives_no_record():
+    terek = {"attributes": {"GorID": 257, "Location": "Terek", "Guberniia": "Astrakhan",
+                            "Province_1": "Astrakhan", "goroda_I_u": "Terek", "dvorov": 0,
+                            "iasachnykh": None, "note": "not recorded"},
+             "geometry": {"x": 44.15, "y": 43.48}}
+    assert household_record(terek) is None
+    assert len(household_records([terek, KOSTROMA, PENZA])) == 2
+
+
+def test_population_1766_says_the_unit_is_not_named():
+    feature = {"attributes": {"GorID": 245, "Location": "Penza", "Guberniia": "Kazanskaia",
+                              "Provintsii": "Penzenskaia", "Uezdnye_go": "Penza",
+                              "Uezd_pop": 167788}, "geometry": {"x": 45.0, "y": 53.2}}
+    rec = population_1766_record(feature)
+    assert rec.layer == UEZD_POPULATION_1766.slug
+    assert rec.title == "Пенза (Penza), уезд около 1766 года: 167 788"
+    assert (rec.year_from, rec.year_to) == (1766, 1766) and rec.date_approx
+    assert "единица счёта не названа" in rec.summary
+    assert rec.category == "уезд в провинции" and rec.extra["population"] == 167788
+    # «na» и пусто в поле провинции — провинции нет; ноль — нет данных.
+    astrakhan = {"attributes": dict(feature["attributes"], Provintsii="na", Uezd_pop=3599),
+                 "geometry": feature["geometry"]}
+    assert population_1766_record(astrakhan).category == "уезд без провинции"
+    empty = {"attributes": dict(feature["attributes"], Uezd_pop=0), "geometry": None}
+    assert population_1766_record(empty) is None
+    assert len(population_1766_records([feature, astrakhan, empty])) == 2

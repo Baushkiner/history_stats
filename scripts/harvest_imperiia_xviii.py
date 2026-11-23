@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Сбор двух слоёв XVIII века из Imperiia: города 1727 года по Кирилову и уезды по ревизиям.
+"""Сбор слоёв XVIII века из Imperiia: Кирилов 1727, ревизии, дворы 1719, уезды 1766.
 
-    python3 scripts/harvest_imperiia_xviii.py --check    # сверка четырёх сервисов, разбор
+    python3 scripts/harvest_imperiia_xviii.py --check    # сверка шести сервисов, разбор
     python3 scripts/harvest_imperiia_xviii.py --build    # слои в data/out
 
 Первый запуск — проверочный. `--check` (он же `--probe`) читает карточки
-четырёх сервисов (владелец, доступ, нет ли в описании оговорки о доступе по
+шести сервисов (владелец, доступ, нет ли в описании оговорки о доступе по
 запросу), их поля и число объектов, сверяет с записанным в
 `sources/imperiia_xviii.py`, выгружает объекты в `data/raw/imperiia/` и
 показывает разбор.
@@ -13,8 +13,9 @@
 Права: автор эти слои для скачивания не выпускала — берутся только факты
 (место, год, числа) со ссылкой на слой; решение владельца проекта, 23.11.2026.
 
-На выходе `geojson/towns_1727_kirilov.geojson` и
-`geojson/revisions_uezd_towns.geojson` — оба в репозиторий. Губерния 1897
+На выходе `geojson/towns_1727_kirilov.geojson`,
+`geojson/revisions_uezd_towns.geojson`, `geojson/households_1719.geojson` и
+`geojson/uezd_population_1766.geojson` — все в репозиторий. Губерния 1897
 года — по полигонам `data/out/boundaries`.
 """
 
@@ -33,14 +34,17 @@ from histctx.io_formats import write_geojson, write_jsonl
 from histctx.sources.ghcn import GhcnError
 from histctx.sources.imperiia import ITEM_URL, Client, ImperiiaError
 from histctx.sources.imperiia_xviii import (
-    KIRILOV, KIRILOV_FIELDS, REVISION_FIELDS, REVISIONS, REVISIONS_UEZD, TOWNS_1727,
-    check_item, check_layer, kirilov_records, revision_records,
+    HOUSEHOLD_FIELDS, HOUSEHOLDS, HOUSEHOLDS_1719, KIRILOV, KIRILOV_FIELDS, POPULATION_1766,
+    POPULATION_1766_FIELDS, REVISION_FIELDS, REVISIONS, REVISIONS_UEZD, TOWNS_1727,
+    UEZD_POPULATION_1766, check_item, check_layer, household_records, kirilov_records,
+    population_1766_records, revision_records,
 )
 
 CACHE = ROOT / "data" / "raw" / "imperiia"
 BOUNDARIES = ROOT / "data" / "out" / "boundaries"
-SERVICES = [(KIRILOV, KIRILOV_FIELDS)] + [(r.service, REVISION_FIELDS | {r.field})
-                                          for r in REVISIONS]
+SERVICES = ([(KIRILOV, KIRILOV_FIELDS)]
+            + [(r.service, REVISION_FIELDS | {r.field}) for r in REVISIONS]
+            + [(HOUSEHOLDS, HOUSEHOLD_FIELDS), (POPULATION_1766, POPULATION_1766_FIELDS)])
 
 
 def fetch(cache: Path, client: Client) -> list[str]:
@@ -68,40 +72,46 @@ def load(cache: Path, service) -> list:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def collect(cache: Path):
-    towns = kirilov_records(load(cache, KIRILOV))
+def collect(cache: Path) -> list:
+    """[(слой, записи, счёт рамки)] — по порядку слоёв."""
     revisions = []
     for revision in REVISIONS:
         revisions += revision_records(load(cache, revision.service), revision)
+    layers = [(TOWNS_1727, kirilov_records(load(cache, KIRILOV))),
+              (REVISIONS_UEZD, revisions),
+              (HOUSEHOLDS_1719, household_records(load(cache, HOUSEHOLDS))),
+              (UEZD_POPULATION_1766, population_1766_records(load(cache, POPULATION_1766)))]
     try:
         frame = Frame.load(BOUNDARIES)
     except (GhcnError, OSError, ValueError) as exc:
         raise ImperiiaError(f"рамку взять неоткуда ({exc}): нужны границы из "
                             f"{BOUNDARIES.relative_to(ROOT)} — см. docs/HARVEST.md") from exc
-    # Пометку `place_level` у ревизий рамка не трогает: она ставит только `outside_bbox`.
-    return towns, frame.mark(towns), revisions, frame.mark(revisions)
+    # Пометку `place_level` рамка не трогает: она ставит только `outside_bbox`.
+    return [(spec, recs, frame.mark(recs)) for spec, recs in layers]
 
 
-def report(towns, town_counts, revisions, revision_counts) -> None:
-    print(f"«{TOWNS_1727.title}»: {len(towns)} записей")
-    for what, n in collections.Counter(r.category for r in towns).most_common():
-        print(f"  {n:>4}  {what}")
-    for what, n in town_counts.most_common():
-        print(f"  {what}: {n}")
-    for key in ("churches", "monasteries", "officials", "officers_soldiers", "factories"):
-        print(f"  всего {key}: {sum(r.extra[key] for r in towns)}")
-    print(f"  архиерейских кафедр: {sum(1 for r in towns if r.extra['bishopric'])}")
-    for rec in sorted(towns, key=lambda r: -r.extra["churches"])[:3] + towns[:2]:
-        print(f"    {rec.title} [{rec.region or 'вне губерний 1897 года'}]\n      {rec.summary}")
-    print(f"\n«{REVISIONS_UEZD.title}»: {len(revisions)} записей")
-    for what, n in collections.Counter(r.category for r in revisions).most_common():
-        total = sum(r.extra["population"] for r in revisions if r.category == what)
-        print(f"  {n:>4}  {what}: всего {total:,}".replace(",", " "))
-    for what, n in revision_counts.most_common():
-        print(f"  {what}: {n}")
-    for rec in [r for r in revisions if r.extra["name_latin"] in ("Moskva", "Kazan")]:
-        print(f"    {rec.title}")
-    print(f"      {revisions[-1].summary}")
+def report(layers: list) -> None:
+    for spec, recs, counts in layers:
+        print(f"\n«{spec.title}»: {len(recs)} записей")
+        for what, n in collections.Counter(r.category for r in recs).most_common():
+            print(f"  {n:>4}  {what}")
+        for what, n in counts.most_common():
+            print(f"  {what}: {n}")
+        for key in ("churches", "monasteries", "officials", "officers_soldiers", "factories",
+                    "households", "yasak"):
+            if recs and key in recs[0].extra:
+                print(f"  всего {key}: {sum(r.extra[key] for r in recs)}")
+        if spec is REVISIONS_UEZD or spec is UEZD_POPULATION_1766:
+            by = collections.Counter()
+            for r in recs:
+                by[r.category] += r.extra["population"]
+            for what, total in by.items():
+                print(f"  сумма, {what}: {total:,}".replace(",", " "))
+        print(f"  повторов uid: {len(recs) - len({r.uid for r in recs})}")
+        watch = [r for r in recs if r.extra["name_latin"] in ("Moskva", "Kostroma", "Penza")]
+        for rec in (watch or recs)[:3]:
+            print(f"    {rec.title} [{rec.region or 'вне губерний 1897 года'}]\n"
+                  f"      {rec.summary}")
 
 
 def check(cache: Path) -> int:
@@ -113,15 +123,13 @@ def check(cache: Path) -> int:
             print(f"  {line}", file=sys.stderr)
         return 1
     print("Сервисы на месте: владелец, доступ, поля и число объектов сходятся.")
-    report(*collect(cache))
+    report(collect(cache))
     print("\nРазбор работает — можно запускать --build.")
     return 0
 
 
 def build(cache: Path, out_dir: Path) -> int:
-    towns, town_counts, revisions, revision_counts = collect(cache)
-    for spec, recs, counts in ((TOWNS_1727, towns, town_counts),
-                               (REVISIONS_UEZD, revisions, revision_counts)):
+    for spec, recs, counts in collect(cache):
         if not recs:
             print(f"{spec.slug}: ничего не собрано.", file=sys.stderr)
             return 1

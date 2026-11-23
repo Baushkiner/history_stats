@@ -30,6 +30,15 @@
   не сходится: третья ревизия шла в 1761–1767 годах, а в 1781–1782 — четвёртая.
   Какая из двух стоит в таблице, по набору не установить; запись покрывает
   1762–1785 годы и помечена `date_approx` — интервал расширен, а не угадан.
+* Дворы по I ревизии и население уездов 1766 года (добраны 23.11.2026 на тех
+  же условиях) — из К. И. Арсеньева, «Статистические очерки России» (1848).
+  Число дворов часто дано на несколько городов сразу («Кострома, Буй,
+  Судиславль, Любим, Кадый») — запись стоит в точке первого и перечисляет
+  остальные. У слоя 1766 года в описании сервиса стоит одно слово «Arsenev»:
+  единица счёта не названа, а сумма (7,3 млн) вдвое меньше ревизских итогов
+  Кабузана — похоже на души мужского пола, но это догадка, и запись её так
+  и подаёт. Пометки набора «not recorded» и «unknown» и нули — «нет
+  данных»: записей по ним нет.
 * Названия — латиницей набора и обратной транслитерацией; губерния набора
   (у Кирилова — провинция 1727 года, у ревизий — губерния позднейшего деления)
   остаётся в `place_text`, а `region` — по полигонам 1897 года.
@@ -136,6 +145,43 @@ REVISIONS_UEZD = LayerSpec(
     url=REVISIONS[0].service.url, status="harvested", expected_rows=786,
 )
 
+ARSENEV_SOURCE = ("К. И. Арсеньев, «Статистические очерки России» (СПб., 1848); "
+                  "геопривязка — Imperiia Project (К. О'Нил, Гарвард), ArcGIS Online")
+HOUSEHOLDS = Service("Households_in_1719", "800a78cb81184072b90c9efa2b9bba08", 242)
+HOUSEHOLD_FIELDS = {"GorID", "Location", "Guberniia", "Province_1", "goroda_I_u", "dvorov",
+                    "iasachnykh", "note"}
+POPULATION_1766 = Service("Population_figures_1766", "379ab379ff6b48579e55f9ff1875cf85", 285)
+POPULATION_1766_FIELDS = {"GorID", "Location", "Guberniia", "Provintsii", "Uezdnye_go",
+                          "Uezd_pop"}
+
+HOUSEHOLDS_1719 = LayerSpec(
+    slug="households_1719",
+    title="Податные дворы по I ревизии, 1719 (по Арсеньеву)",
+    group="admin",
+    source=ARSENEV_SOURCE, license=LICENSE,
+    description=(
+        "Сколько податных дворов числилось за городом с уездом по первой ревизии и "
+        "сколько ясачных — по К. И. Арсеньеву (1848), в делении 1719 года на губернии и "
+        "провинции. Число нередко дано сразу на несколько городов. Ревизия не охватывала "
+        "татар, украинцев и большую часть Сибири. Из слоя Imperiia взяты только факты: "
+        "автор его для скачивания не выпускала."
+    ),
+    url=HOUSEHOLDS.url, status="harvested", expected_rows=213,
+)
+UEZD_POPULATION_1766 = LayerSpec(
+    slug="uezd_population_1766",
+    title="Население уездов около 1766 года (по Арсеньеву)",
+    group="admin",
+    source=ARSENEV_SOURCE, license=LICENSE,
+    description=(
+        "Сколько населения числилось в уезде около 1766 года, в делении на губернии и "
+        "провинции того времени; точка — уездный город, число — весь уезд. Единица счёта "
+        "в наборе не названа: сумма вдвое меньше ревизских итогов, похоже на души мужского "
+        "пола. Из слоя Imperiia взяты только факты: автор его для скачивания не выпускала."
+    ),
+    url=POPULATION_1766.url, status="harvested", expected_rows=248,
+)
+
 STATUS_RU = {
     "capital": "город провинции (главный)", "pripisnyj": "приписной город",
     "prigorod": "пригород", "fortress": "крепость",
@@ -178,11 +224,14 @@ def _int(value) -> int:
 
 
 def _plural(n: int, one: str, few: str, many: str) -> str:
+    """«41 приказный служитель», «36 184 податных двора»: число с разрядами и форма."""
     if n % 10 == 1 and n % 100 != 11:
-        return f"{n} {one}"
-    if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
-        return f"{n} {few}"
-    return f"{n} {many}"
+        word = one
+    elif n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
+        word = few
+    else:
+        word = many
+    return f"{_number(n)} {word}"
 
 
 def _number(n: int) -> str:
@@ -317,3 +366,99 @@ def revision_record(feature: dict, revision: Revision) -> Optional[ContextRecord
 
 def revision_records(features: Iterable[dict], revision: Revision) -> list[ContextRecord]:
     return [r for r in (revision_record(f, revision) for f in features) if r is not None]
+
+
+# --- дворы 1719 года и уезды 1766 года (Арсеньев) ----------------------------
+
+def _clean(value) -> str:
+    text = (str(value).strip() if value is not None else "")
+    return "" if text.lower() in ("na", "none") else text
+
+
+def household_record(feature: dict) -> Optional[ContextRecord]:
+    """Дворы по I ревизии. Без дворов и без ясачных («not recorded») записи нет."""
+    attrs = feature.get("attributes") or {}
+    latin = _clean(attrs.get("Location"))
+    households, yasak = _int(attrs.get("dvorov")), _int(attrs.get("iasachnykh"))
+    if not latin or (households <= 0 and yasak <= 0):
+        return None
+    lat, lon = _point(feature)
+    covers = _clean(attrs.get("goroda_I_u"))
+    province, guberniia = _clean(attrs.get("Province_1")), _clean(attrs.get("Guberniia"))
+    name = cyrillic(latin)
+    counted = []
+    if households:
+        counted.append(_plural(households, "податной двор", "податных двора",
+                               "податных дворов"))
+    if yasak:
+        counted.append(f"ясачных — {_number(yasak)}")
+    parts = ["По I ревизии за городом с уездом числится: " + ", ".join(counted)]
+    several = "," in covers
+    if several:
+        parts.append(f"Число дано на несколько городов сразу: {cyrillic(covers)} ({covers}); "
+                     "точка — первый из них")
+    elif covers and covers != latin:
+        parts.append(f"В источнике: {covers}")
+    where = [x for x in (f"провинция — {province}" if province else "",
+                         f"губерния 1719 года — {guberniia}" if guberniia else "") if x]
+    if where:
+        parts.append("В наборе: " + ", ".join(where))
+    parts.append("Ревизия считала податное население и охватывала не всех")
+    title_number = (_plural(households, "двор", "двора", "дворов") if households
+                    else f"{_number(yasak)} ясачных")
+    return HOUSEHOLDS_1719.new_record(
+        title=f"{name} ({latin}): I ревизия — {title_number}",
+        category="несколько городов вместе" if several else "город с уездом",
+        lat=lat, lon=lon,
+        place_text=", ".join(x for x in (covers or latin, province, guberniia) if x),
+        year_from=1719, year_to=1724, date_precision="year",
+        period_raw="I ревизия: 1719 — начало 1720-х",
+        work="К. И. Арсеньев. Статистические очерки России",
+        summary=". ".join(parts) + ".", url=HOUSEHOLDS.url,
+        source_id=f"households1719:{attrs.get('GorID')}",
+        confidence="place_level" if lat is not None else "no_coords",
+        extra={"name_latin": latin, "covers": covers, "province_1719": province,
+               "guberniia_1719": guberniia, "households": households, "yasak": yasak},
+    )
+
+
+def household_records(features: Iterable[dict]) -> list[ContextRecord]:
+    return [r for r in (household_record(f) for f in features) if r is not None]
+
+
+def population_1766_record(feature: dict) -> Optional[ContextRecord]:
+    """Уезд около 1766 года. Ноль и пусто — «нет данных»: записи нет."""
+    attrs = feature.get("attributes") or {}
+    latin = _clean(attrs.get("Location"))
+    population = _int(attrs.get("Uezd_pop"))
+    if not latin or population <= 0:
+        return None
+    lat, lon = _point(feature)
+    uezd_town = _clean(attrs.get("Uezdnye_go"))
+    province, guberniia = _clean(attrs.get("Provintsii")), _clean(attrs.get("Guberniia"))
+    name = cyrillic(latin)
+    parts = [f"Около 1766 года в уезде числится {_number(population)} (число — как в "
+             "наборе; единица счёта не названа, по сумме похоже на души мужского пола)"]
+    parts.append(f"Точка — город {name} ({latin}), число относится ко всему уезду")
+    where = [x for x in (f"провинция — {province}" if province else "",
+                         f"губерния — {guberniia}" if guberniia else "") if x]
+    if where:
+        parts.append("В наборе: " + ", ".join(where))
+    return UEZD_POPULATION_1766.new_record(
+        title=f"{name} ({latin}), уезд около 1766 года: {_number(population)}",
+        category="уезд в провинции" if province else "уезд без провинции",
+        lat=lat, lon=lon,
+        place_text=", ".join(x for x in (uezd_town or latin, province, guberniia) if x),
+        year_from=1766, year_to=1766, date_precision="year", date_approx=True,
+        period_raw="1766 (дата слоя; в описании — только «Arsenev»)",
+        work="К. И. Арсеньев. Статистические очерки России",
+        summary=". ".join(parts) + ".", url=POPULATION_1766.url,
+        source_id=f"population1766:{attrs.get('GorID')}",
+        confidence="place_level" if lat is not None else "no_coords",
+        extra={"name_latin": latin, "uezd_town_source": uezd_town, "province_1766": province,
+               "guberniia_1766": guberniia, "population": population},
+    )
+
+
+def population_1766_records(features: Iterable[dict]) -> list[ContextRecord]:
+    return [r for r in (population_1766_record(f) for f in features) if r is not None]
