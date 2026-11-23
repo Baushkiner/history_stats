@@ -133,3 +133,7 @@ data/raw/pogroms_1903/
 # sitemap-map.xml: пересобираются командой scripts/harvest_pow_camps.py
 # --check --refresh; в репозиторий идут только записи слоя.
 data/raw/pow_camps/
+data/raw/imperiia/
+data/raw/nsidc_ice/
+data/raw/hyde/
+data/raw/eclipses/

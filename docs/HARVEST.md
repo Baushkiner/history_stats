@@ -48,6 +48,11 @@
 | `muse.jhu.edu` | Карта «Энциклопедии лагерей и гетто» USHMM (CC BY-NC-ND 4.0): `robots.txt` и тома `/ushmm/map?json=vol_1.json` … `vol_5.json` — шесть запросов с паузой 2 с. Для всех `robots.txt` раздел `/ushmm/` открывает, а `/chapter` и `/pub` (статьи) закрывает — они не запрашиваются, запись ссылается на карту. ИИ-сборщикам (ClaudeBot, GPTBot и др.) сайт закрыт целиком; сборщик ходит с подписью проекта по правилам для всех |
 | `www.aviv.org.il` | Перечень гетто ZRBG на 01.08.2014: `/pdf/Ghetto-List-1.8.2014.pdf` (1,3 МБ, размер и md5 сверяются); `robots.txt` разрешает всё. Там же новая редакция на 05.12.2022 (`/wp-content/uploads/2024/07/zrbg-Geto-liste.pdf`, пока не сводится); `avivshoa.co.il` отвечает переадресацией сюда |
 | `www.gesetze-im-internet.de` | Перечень концлагерей по § 42 Abs. 2 BEG: `/begdv_6/xml.zip` (664 КБ, размер и md5 сверяются); страница `/begdv_6/anlage.html` — ссылка в записях. `robots.txt` разрешает всё |
+| `services7.arcgis.com`, `www.arcgis.com` | Почтовые станции и почтовые дворы 1820-х годов, проект Imperiia (CC BY-NC-SA 4.0 — по сайту проекта и карточке набора; на карточке сервиса лицензия не указана): карточки двух сервисов `www.arcgis.com/sharing/rest/content/items/<id>` (владелец `koneill_worldmap`, доступ `public`) и сами слои `/iEMmryaM5E3wkdnU/arcgis/rest/services/Post_stations/FeatureServer/0` и `…/Post_houses/FeatureServer/0` — описание, счёт и `query` страницами по 2 000, восемь запросов. Остальные слои атласа Пядышева (`scripts/harvest_atlas_1820.py`) — ещё 35 сервисов той же учётной записи под `/iEMmryaM5E3wkdnU/arcgis/rest/services/<имя>/FeatureServer/0`: 23 точечных (города, сёла, деревни, крепости, монастыри, заводы…), семь линейных (дороги, каналы, укреплённые линии) и пять полигональных (губернии, области, воеводства, особые территории, уезды); на сервис — описание, счёт и выгрузка страницами по 2 000 (уезды — по 500), всего около 130 запросов с паузой 0,3 с. Слои XVIII века (`scripts/harvest_imperiia_xviii.py`) — ещё шесть сервисов: `Orthodox_Churches_1727`, три слоя ревизий `Population_…_by_town`, `Households_in_1719` и `Population_figures_1766`; у каждого сверяется и карточка (`www.arcgis.com/sharing/rest/content/items/<id>`) — владелец, доступ и отсутствие оговорки о доступе по запросу. Эти шесть слоёв автор для скачивания не выпускала: берутся только факты, см. `docs/CATALOG.md`. `robots.txt` у `www.arcgis.com` ничего не закрывает. Файл того же набора на `dataverse.harvard.edu` (doi:10.7910/DVN/DDTKS9) закрыт гостевой книгой и **не запрашивается** |
+| `eclipse.gsfc.nasa.gov` | Каталог солнечных затмений NASA (Ф. Эспенак, Ж. Меёс; воспроизведение — с указанием «Eclipse Predictions by Fred Espenak (NASA's GSFC)»): четыре страницы `/SEcat5/SE1601-1700.html` … `SE1901-2000.html`; ссылка записи — карта затмения `/5MCSEmap/<век>/<дата>.gif`. `robots.txt` у сервера нет (404). Элементы Бесселя (`/SEsearch/SEdata.php`) отвечают ошибкой базы, таблицы полос есть только с 1901 года — полоса считается сборщиком |
+| `ssd.jpl.nasa.gov` | Эфемериды JPL DE440 (общественное достояние): `/ftp/eph/planets/bsp/de440.bsp`, 114 МБ, размер закреплён в коде — положения Солнца, Луны и Земли для расчёта полосы затмения |
+| `archaeology.datastations.nl`, `objectstore.surf.nl` | HYDE 3.2.1, станция данных DANS (CC0 1.0 на карточке; readme набора называет CC BY 3.0): карточка `/api/datasets/:persistentId/?persistentId=doi:10.17026/dans-25g-gez3` (лицензия, имя и размер архива) и архив `/api/access/datafile/5490328` (5,3 ГБ) — API отвечает переадресацией на подписанную ссылку `objectstore.surf.nl`, архив читается кусками по Range: оглавление одним запросом к последнему мегабайту, 81 сетка — по одному запросу на каждую, около 660 МБ. Сайт станции (включая `robots.txt`) закрыт проверкой Anubis, API — нет. Версии 3.3–3.5 лежат в хранилище Yoda (`geo.public.data.uu.nl`), оно закрыто той же проверкой целиком и **не запрашивается** |
+| `nsidc.org` | Страница набора ледостава и вскрытия G01377 — ссылка в записях слоя `ice_phenology`. Сами таблицы лежат на `noaadata.apps.nsidc.org`, чей `robots.txt` — `Disallow: /`: сборщик этот хост **не запрашивает**, таблицы кладутся в `data/raw/nsidc_ice/` руками |
 | `www.ngdc.noaa.gov` | NOAA NCEI Hazard Service (`/hazel/hazard-service/api/v1/`, данные NOAA — общественное достояние): значимые землетрясения (`earthquakes`) и цунами (`tsunamis/events`) 1600–1960 годов в прямоугольниках охвата (`geo.BBOX_RU`, `BBOX_RU_EAST`), набеги волны (`tsunamis/runups`) — по десяти государствам рамки параметром `country`. JSON страницами по 200 записей, 25 запросов. `robots.txt` просит `Crawl-delay: 60` для всех — сборщик ждёт минуту между запросами (первый сбор — около 25 минут), путь `/hazel/` не закрыт. Карточки событий `/hazel/view/hazards/earthquake/event-more-info/<id>`, `…/tsunami/event-more-info/<id>`, `…/tsunami/runup-more-info/<id>` — ссылки в записях |
 | `datapub.gfz-potsdam.de` | EMCA Central Asia Earthquake Catalogue (GFZ Potsdam, CC BY-SA 4.0): `/download/10.5880.GFZ.EWS.2015.001/EMCA_seismocatv1.0.zip`, 450 085 байт (размер и md5 сверяются). Карточка набора — `dataservices.gfz.de` (одностраничное приложение, сборщику не нужна). `robots.txt` сервер не отдаёт (403) |
 | `zenodo.org` | GEM Global Homogenised Earthquake Catalogue v2026 (CC BY-SA 4.0): перечень файлов — `/api/records/20716759/files` (имя, размер, md5), архив — `/api/records/20716759/files/GEM_globcat26.zip/content`, 18,3 МБ (внутри CSV на 91 МБ, весь мир с 1900 года). Путь под `/api/records/*/files`, который robots.txt открывает; карточку записи сборщик не запрашивает, лицензия сверена руками |
@@ -78,8 +83,10 @@
 проход снова упрётся в CONNECT и будет гадать, зачем эти домены нужны.
 Третья такая строка, `dataverse.harvard.edu`, исключением быть перестала:
 22.10.2026 у набора по голоду появился сборщик. Наборы Imperiia Project
-(1820-е годы, CC BY-NC-SA 4.0) стоят в журнале дискавери со статусом «на
-очереди»; лежат они на том же `dataverse.harvard.edu`.
+(1820-е годы, CC BY-NC-SA 4.0) лежат на том же `dataverse.harvard.edu`, но
+закрыты гостевой книгой; почтовые станции из них собраны 22.11.2026 с
+открытого сервиса автора на ArcGIS Online, остальные стоят в журнале
+дискавери со статусом «на очереди».
 
 ## Порядок
 
@@ -322,6 +329,47 @@ python3 scripts/harvest_military_hospitals.py --build
 
 # Выгрузка любого собранного слоя в XLSX — записи, сводка, лист об источнике
 python3 scripts/export_layer_xlsx.py --layer repressions
+
+# Слои 22.11.2026. Почтовые станции 1820-х годов: Imperiia, ArcGIS Online
+# (CC BY-NC-SA 4.0). После шагов 5 и 6: губерния 1897 года и рамка — по полигонам
+python3 scripts/harvest_post_stations.py --check
+python3 scripts/harvest_post_stations.py --build
+
+# Остальные слои атласа Пядышева с тех же сервисов: селения, укрепления, храмы,
+# заводы — четыре слоя записей; дороги и границы 1820-х годов — подложки в
+# data/out/boundaries. --check сверяет геометрию, поля и число объектов 35
+# сервисов; выгруженное лежит в data/raw/imperiia/ и второй раз не качается
+python3 scripts/harvest_atlas_1820.py --check
+python3 scripts/harvest_atlas_1820.py --build
+
+# XVIII век с тех же сервисов: города 1727 года по Кирилову, население уездов
+# по ревизиям (таблица Кабузана), дворы по I ревизии и уезды 1766 года (Арсеньев). Автор эти слои для скачивания не выпускала —
+# берутся только факты со ссылкой; --check останавливается, если в описании
+# слоя появилась оговорка о доступе по запросу
+python3 scripts/harvest_imperiia_xviii.py --check
+python3 scripts/harvest_imperiia_xviii.py --build
+
+# Солнечные затмения по губерниям 1601–1960: каталог NASA, полоса — расчёт по
+# эфемеридам JPL DE440 (114 МБ). Нужен jplephem — только этому сборщику.
+# --check сверяет расчёт на затмениях 1887, 1914 и 1936 годов; --build считает
+# 566 центральных затмений, 10–15 минут. После шага 5
+pip install jplephem
+python3 scripts/harvest_eclipses.py --check
+python3 scripts/harvest_eclipses.py --build
+
+# Ледостав и вскрытие рек и озёр: NSIDC G01377. В сеть не ходит: две таблицы
+# (liag_freeze_thaw_table.csv, liag_physical_character_table.csv) скачиваются
+# руками со страницы набора и кладутся в data/raw/nsidc_ice/. После шагов 5 и 6
+python3 scripts/harvest_ice.py --check
+python3 scripts/harvest_ice.py --build
+
+# Заселённость и распашка уездов 1700–1960: HYDE 3.2.1, DANS (CC0 1.0).
+# Нужен inflate64 — архив сжат Deflate64. --check берёт сетки одного года,
+# --build — все 81 (около 660 МБ по Range, 4–6 минут); окна сеток кэшируются
+# в data/raw/hyde/ (363 МБ), повторная сборка — --build --offline. После шага 5
+pip install inflate64
+python3 scripts/harvest_hyde.py --check
+python3 scripts/harvest_hyde.py --build
 ```
 
 Восьмая команда сети не требует вовсе: `python3 scripts/export_xlsx.py

@@ -96,6 +96,17 @@ from .sources.military_hospitals import MILITARY_HOSPITALS
 from .sources.pogroms_1903 import POGROMS_1903
 from .sources.jewish_cemeteries import JEWISH_CEMETERIES
 from .sources.pow_camps import POW_CAMPS
+from .sources.imperiia import POST_STATIONS
+from .sources.imperiia_xviii import (
+    HOUSEHOLDS_1719, REVISIONS_UEZD, TOWNS_1727, UEZD_POPULATION_1766,
+)
+from .sources.atlas_1820 import (
+    ADMIN_BOUNDARIES_1820, ECONOMY_1820, FAITH_1820, FORTIFICATIONS_1820, ROADS_1820,
+    SETTLEMENTS_1820,
+)
+from .sources.ice import ICE_PHENOLOGY
+from .sources.hyde import POPULATION_HYDE
+from .sources.eclipses import SOLAR_ECLIPSES
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -131,7 +142,12 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      # Собран неполным — 40 карточек из 4 276: сайт ESJF отвечает
                      # сборщику страницей защиты (docs/DISCOVERY.md, 22.11.2026).
                      JEWISH_CEMETERIES,
-                     POW_CAMPS]
+                     POW_CAMPS,
+                     # Проход 22–23.11.2026: атлас Пядышева, небо, лёд, XVIII век
+                     POST_STATIONS, ICE_PHENOLOGY, POPULATION_HYDE, SOLAR_ECLIPSES,
+                     SETTLEMENTS_1820, FORTIFICATIONS_1820, FAITH_1820, ECONOMY_1820,
+                     ROADS_1820, ADMIN_BOUNDARIES_1820,
+                     TOWNS_1727, REVISIONS_UEZD, HOUSEHOLDS_1719, UEZD_POPULATION_1766]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
