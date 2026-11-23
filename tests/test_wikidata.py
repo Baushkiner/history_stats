@@ -250,7 +250,10 @@ def test_all_queries_parse_and_declare_qids():
     for path in files:
         meta = mod.parse_query(path)
         assert meta["sparql"].startswith("SELECT"), path.name
-        assert meta["qids"], f"{path.name}: не объявлен ни один @qid"
+        # Слой реестра отбирается свойством (`@has`), а не классом: тогда
+        # сверять с Викиданными есть что и без `@qid`.
+        assert meta["qids"] or meta.get("has"), (
+            f"{path.name}: не объявлен ни один @qid и нет @has")
         assert meta["layer"], path.name
         # Постраничный сбор добавляет LIMIT сам — в шаблоне его быть не должно.
         assert "LIMIT" not in meta["sparql"].upper(), path.name
@@ -928,3 +931,157 @@ def test_a_layer_may_lose_a_record_or_two_between_harvests(tmp_path):
     assert mod.refuse_to_write([], 12, 0) is None, "новый слой сравнивать не с чем"
     assert mod.refuse_to_write([], 1974, 2964)
     assert mod.refuse_to_write(["первая ступень, Россия: 504"], 2964, 2964)
+
+
+# --- отбор по свойству реестра (@has), значение идентификатора (@id), отсев (@skip) ---
+
+def test_ids_query_by_property_asks_neither_class_nor_country():
+    """Код ЕГРОКН стоит у зданий, могил и мостов: класса у слоя нет."""
+    q = ids_query([], None, ["FILTER(true)"], has="P5381")
+    assert "?item wdt:P5381 []" in q
+    assert "wdt:P625 ?coord" in q
+    assert "?cls" not in q and "P279" not in q
+    assert "wdt:P17" not in q
+    assert "FILTER(true)" in q
+    # Первая ступень остаётся дешёвой, как у классов.
+    assert "SERVICE wikibase:label" not in q
+
+
+def test_ids_query_by_property_keeps_country_and_optional_coordinate():
+    q = ids_query([], "Q159", has="P5381")
+    assert "wdt:P17 wd:Q159" in q
+    bare = ids_query([], None, has="P5381", need_coord=False)
+    assert bare.startswith("SELECT ?item WHERE")
+    assert "P625" not in bare
+
+
+def test_ids_query_by_property_refuses_events():
+    with pytest.raises(ValueError):
+        ids_query([], None, kind="event", has="P5381")
+
+
+def test_stage1_plan_by_property_is_one_query_per_country():
+    assert stage1_plan([], WORLD, has="P5381") == [([], None, "класс P5381")]
+    plan = stage1_plan([], COUNTRIES, has="P5381")
+    assert len(plan) == len(COUNTRIES)
+    assert all(classes == [] and country for classes, country, _ in plan)
+
+
+def test_details_query_carries_identifier_value_into_extra():
+    q = details_query(["Q1"], ids=(("P5381", "egrokn"),))
+    assert "?x_egrokn" in q.split("WHERE", 1)[0], "значение спрашивается в SELECT"
+    assert "OPTIONAL { ?item wdt:P5381 ?x_egrokn . }" in q
+    rows = [_row(item="http://www.wikidata.org/entity/Q1", itemLabel="Земская больница",
+                 coord="Point(38.38 59.86)", start="1882-01-01T00:00:00Z",
+                 x_egrokn="351610305780006")]
+    rec = rows_to_records(rows, SPEC)[0]
+    assert rec.extra["egrokn"] == "351610305780006"
+    assert (rec.year_from, rec.year_to, rec.date_precision) == (1882, 1960, PRECISION_OPEN)
+
+
+def test_details_query_without_identifiers_is_unchanged():
+    """Слои без `@id` спрашивают ровно то же, что и раньше: по ответу считаются uid."""
+    assert details_query(["Q1"]) == details_query(["Q1"], ids=())
+    assert "?x_" not in details_query(["Q1"])
+
+
+def test_collect_layer_by_property_walks_once_and_asks_details():
+    client = _FakeClient(
+        [[_id_row("Q1"), _id_row("Q2")],
+         [_row(item="http://www.wikidata.org/entity/Q1", itemLabel="Училище",
+               coord="Point(38.38 59.86)", start="1899-01-01T00:00:00Z",
+               x_egrokn="1"),
+          _row(item="http://www.wikidata.org/entity/Q2", itemLabel="Братская могила",
+               coord="Point(38.40 59.87)", start="1942-01-01T00:00:00Z")]]
+    )
+    recs = collect_layer(client, [], SPEC, countries=WORLD, has="P5381",
+                         ids=(("P5381", "egrokn"),))
+    assert len(client.asked) == 2, "одна первая ступень на весь слой и одна — подробности"
+    assert "wdt:P5381 []" in client.asked[0]
+    assert "?x_egrokn" in client.asked[1]
+    assert {r.title for r in recs} == {"Училище", "Братская могила"}
+
+
+def test_heritage_query_declares_property_identifier_and_skips():
+    mod = _harvest_module()
+    meta = mod.parse_query(ROOT / "queries" / "heritage_sites.rq")
+    assert meta["scope"] == "class"
+    assert meta["has"] == ("P5381", "регистрационный номер ЕГРОКН")
+    assert meta["ids"] == [("P5381", "egrokn")]
+    assert {"churches", "monasteries", "estates", "railway_stations"} <= set(meta["skip"])
+    assert not meta["qids"], "класс не объявлен: слой держит свойство"
+    assert mod.check_directives(meta) == []
+    assert mod.declared_entities(meta) == [("P5381", "регистрационный номер ЕГРОКН")]
+    # Дата обязательна: недатированный памятник с фактом не сопоставить.
+    assert any("BOUND(?start)" in f for f in meta["filters"])
+
+
+def test_newspapers_query_selects_by_place_of_publication():
+    """У газеты P17 то империя, то СССР: отбор держит страна места издания."""
+    mod = _harvest_module()
+    meta = mod.parse_query(ROOT / "queries" / "newspapers.rq")
+    assert meta["scope"] == "class"
+    assert {q for q, _ in meta["qids"]} == {"Q11032"}
+    assert mod.place_tokens(meta) == ("P291",)
+    assert ("P407", "language") in meta["labels"]
+    assert any("P291" in f and "P17" in f for f in meta["filters"])
+    assert mod.check_directives(meta) == []
+
+
+def test_check_directives_complains_about_bad_has_id_and_skip():
+    mod = _harvest_module()
+    base = {"layer": "heritage_sites", "scope": "class", "kind": "object"}
+    assert mod.check_directives({**base, "has": ("X5381", "код")})
+    assert mod.check_directives({**base, "scope": "box", "has": ("P5381", "код")})
+    assert mod.check_directives({**base, "kind": "event", "has": ("P5381", "код")})
+    assert mod.check_directives({**base, "ids": [("P5381", "ЕГРОКН")]})
+    assert mod.check_directives({**base, "skip": ["нет_такого_слоя"]})
+    assert mod.check_directives({**base, "skip": ["heritage_sites"]}), "сам себя не отсеивает"
+    assert mod.check_directives({**base, "skip": []})
+    assert mod.check_directives({**base, "has": ("P5381", "код"),
+                                 "ids": [("P5381", "egrokn")], "skip": ["churches"]}) == []
+
+
+def test_skip_known_drops_objects_already_collected_elsewhere(tmp_path, capsys):
+    mod = _harvest_module()
+    geo = tmp_path / "geojson"
+    geo.mkdir()
+    (geo / "churches.geojson").write_text(json.dumps({
+        "type": "FeatureCollection",
+        "features": [{"type": "Feature", "properties": {"source_id": "Q1"}}],
+    }), encoding="utf-8")
+    # Слой, собранный после 2026 года, выносит общие свойства в шапку коллекции.
+    (geo / "estates.geojson").write_text(json.dumps({
+        "type": "FeatureCollection", "properties": {"source_id": "Q3"},
+        "features": [{"type": "Feature", "properties": {}}],
+    }), encoding="utf-8")
+    recs = [SPEC.new_record(title=t, lat=55.0, lon=37.0, source_id=q)
+            for t, q in (("храм", "Q1"), ("больница", "Q2"), ("усадьба", "Q3"))]
+    meta = {"skip": ["churches", "estates", "mines"]}
+    kept = mod.skip_known(recs, meta, tmp_path)
+    assert [r.source_id for r in kept] == ["Q2"]
+    out = capsys.readouterr()
+    assert "churches 1" in out.out and "estates 1" in out.out
+    assert "mines" in out.err, "нет выгрузки — сказано вслух, а не промолчано"
+
+
+def test_skip_known_without_directive_keeps_everything(tmp_path):
+    mod = _harvest_module()
+    recs = [SPEC.new_record(title="больница", lat=55.0, lon=37.0, source_id="Q2")]
+    assert mod.skip_known(recs, {}, tmp_path) == recs
+
+
+def test_layers_with_skip_are_harvested_last():
+    """`--all` идёт по алфавиту, а памятникам нужны свежие выгрузки храмов и станций."""
+    mod = _harvest_module()
+    metas = mod.harvest_order([mod.parse_query(p)
+                               for p in sorted((ROOT / "queries").glob("*.rq"))])
+    order = [m["layer"] for m in metas]
+    skipping = [m for m in metas if m.get("skip")]
+    assert skipping, "слой с @skip есть — heritage_sites"
+    for meta in skipping:
+        for other in meta["skip"]:
+            if other in order:
+                assert order.index(other) < order.index(meta["layer"]), (other, meta["layer"])
+    plain = [m["layer"] for m in metas if not m.get("skip")]
+    assert plain == sorted(plain), "остальные слои — в прежнем, алфавитном порядке"

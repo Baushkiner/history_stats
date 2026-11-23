@@ -98,6 +98,41 @@ data/raw/rahvusarhiiv/
 data/raw/wikisource_arkhiv/
 data/raw/ghettos_camps/
 data/raw/archives_by/
+# Листы GRSL с Google Sheets: 40 вкладок «All Colonies» (около 50 МБ CSV),
+# сводный лист «Complete» и страница со списком вкладок. Пересобираются
+# командой scripts/harvest_german_colonies.py --check --refresh; в репозиторий
+# идут только записи слоя.
+data/raw/german_colonies/
+# Частичный разрежённый клон OpenGeoMetadata/big-ten — одна папка
+# metadata-aardvark/Maps/01d-00, около 30 МБ (scripts/harvest_topo_maps.py
+# --check); в репозиторий идут только записи слоя.
+data/raw/topo_maps/
+# Каталоги землетрясений: ответы NOAA NCEI (по странице на запрос, около 1 МБ),
+# архивы EMCA (0,4 МБ) и GEM (18 МБ, весь мир с 1900 года). Пересобираются
+# командой scripts/harvest_earthquakes.py --check (размеры и md5 сверяются);
+# в репозиторий идёт только слой.
+data/raw/earthquakes/
+# Страницы API каталога Imperiia «PSZ Town Plans» (2,7 МБ JSON):
+# пересобираются командой scripts/harvest_town_plans.py --check; в репозиторий
+# идут только записи слоя.
+data/raw/town_plans/
+# Точки карты Yahad – In Unum, 1 762 профиля сёл и места атласа Литвы (около
+# 26 МБ HTML) и карточки обследования ESJF (полный обход — около 230 МБ): в
+# профилях и карточках свидетельства, очерки и снимки, права на которые не
+# выяснены, — в репозиторий идут только слои. Пересобираются сборщиками с --fetch.
+data/raw/execution_sites/
+data/raw/jewish_cemeteries/
+# Справочник госпиталей РККА с soldat.ru: каждый ответ формы поиска (по 20
+# записей на страницу, несколько тысяч страниц) и сводка records.json.
+# Пересобираются командой scripts/harvest_military_hospitals.py --fetch.
+data/raw/military_hospitals/
+# Таблица погромов 1903–1906 годов (перепечатка) и текстовый слой скана AJYB,
+# т. 8: пересобираются командой scripts/harvest_pogroms_1903.py --check.
+data/raw/pogroms_1903/
+# Главная страница карты dekoder (около 2 МБ: в ней точки всех слоёв карты) и
+# sitemap-map.xml: пересобираются командой scripts/harvest_pow_camps.py
+# --check --refresh; в репозиторий идут только записи слоя.
+data/raw/pow_camps/
 data/raw/imperiia/
 data/raw/nsidc_ice/
 data/raw/hyde/

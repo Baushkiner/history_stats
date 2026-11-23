@@ -87,6 +87,15 @@ from .sources.rahvusarhiiv import PARISH_REGISTERS_EE
 from .sources.wikisource_arkhiv import METRIC_BOOKS_UA
 from .sources.archives_by import METRIC_BOOKS_BY
 from .sources.ghettos_camps import GHETTOS_CAMPS
+from .sources.german_colonies import GERMAN_COLONIES
+from .sources.topo_maps import TOPO_MAPS
+from .sources.earthquakes import EARTHQUAKES
+from .sources.town_plans import TOWN_PLANS
+from .sources.execution_sites import EXECUTION_SITES
+from .sources.military_hospitals import MILITARY_HOSPITALS
+from .sources.pogroms_1903 import POGROMS_1903
+from .sources.jewish_cemeteries import JEWISH_CEMETERIES
+from .sources.pow_camps import POW_CAMPS
 from .sources.imperiia import POST_STATIONS
 from .sources.imperiia_xviii import (
     HOUSEHOLDS_1719, REVISIONS_UEZD, TOWNS_1727, UEZD_POPULATION_1766,
@@ -126,6 +135,15 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      PARISH_BOUNDARIES_EE, PARISH_REGISTERS_EE, MANORS_EE,
                      METRIC_BOOKS_UA, METRIC_BOOKS_BY,
                      GHETTOS_CAMPS,
+                     # Проход 22.11.2026 по новым темам
+                     GERMAN_COLONIES, TOPO_MAPS,
+                     EARTHQUAKES, TOWN_PLANS,
+                     EXECUTION_SITES, POGROMS_1903, MILITARY_HOSPITALS,
+                     # Собран неполным — 40 карточек из 4 276: сайт ESJF отвечает
+                     # сборщику страницей защиты (docs/DISCOVERY.md, 22.11.2026).
+                     JEWISH_CEMETERIES,
+                     POW_CAMPS,
+                     # Проход 22–23.11.2026: атлас Пядышева, небо, лёд, XVIII век
                      POST_STATIONS, ICE_PHENOLOGY, POPULATION_HYDE, SOLAR_ECLIPSES,
                      SETTLEMENTS_1820, FORTIFICATIONS_1820, FAITH_1820, ECONOMY_1820,
                      ROADS_1820, ADMIN_BOUNDARIES_1820,
@@ -311,6 +329,38 @@ HARVESTED_WIKIDATA = [
             "заимствованная у храма прихода либо у его села (place_level). Связки "
             "«деревня → приход» здесь нет: перечень сёл прихода в Викиданных "
             "заполнен у 11 приходов из 12 тысяч."
+        ),
+    ),
+    # Проход 22.11.2026 по новым темам: местная пресса и датированная
+    # застройка. Отбор у газет — по месту издания, у памятников — по коду
+    # реестра (директива `@has`), а не по классу; см. заголовки запросов.
+    LayerSpec(
+        slug="newspapers", title="Газеты", group="culture",
+        source="Викиданные", license=WD_CC0, status="harvested", expected_rows=1688,
+        url="https://www.wikidata.org/wiki/Q11032",
+        description=(
+            "Где выходила местная газета и в какие годы: губернские ведомости, "
+            "городские и епархиальные листки, газеты на идише, польском, немецком. "
+            "Объявления о смерти и венчании, списки призванных и розыск печатались "
+            "в газете того города, куда ездили в присутствие, — слой говорит, была "
+            "ли она там в нужный год и на каком языке. Точка — город издания "
+            "(place_level), язык и подпись места — в extra."
+        ),
+    ),
+    LayerSpec(
+        slug="heritage_sites", title="Памятники истории и архитектуры (ЕГРОКН)",
+        group="culture",
+        source="Викиданные: объекты с кодом Единого государственного реестра объектов "
+               "культурного наследия (P5381)",
+        license=WD_CC0 + "; номер в реестре ЕГРОКН — сведения государственного реестра",
+        status="harvested", expected_rows=19842,
+        url="https://www.wikidata.org/wiki/Property:P5381",
+        description=(
+            "Датированная застройка вокруг факта: земская больница, училище, "
+            "присутственные места, дом купца, пожарная каланча, мост, братская "
+            "могила — с годом постройки или установки и номером в реестре ЕГРОКН. "
+            "Храмы, монастыри, усадьбы, станции и заводы с тем же кодом сюда не "
+            "входят: они уже стоят на карте в своих слоях."
         ),
     ),
 ]
