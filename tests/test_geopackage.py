@@ -113,6 +113,15 @@ def test_foreign_format_stops_the_read(tmp_path):
         layers(plain)
 
 
+def test_lines_are_read_too():
+    line = [[1.0, 2.0], [3.0, 4.0]]
+    one = struct.pack("<BII", 1, 2, 2) + struct.pack("<4d", 1.0, 2.0, 3.0, 4.0)
+    assert parse_geometry(gpkg_blob(one)) == {"type": "LineString", "coordinates": line}
+    multi = struct.pack("<BII", 1, 5, 2) + one + one
+    assert parse_geometry(gpkg_blob(multi)) == {"type": "MultiLineString",
+                                                "coordinates": [line, line]}
+
+
 def test_empty_geometry_is_not_an_error():
     """Пустая геометрия помечается флагом в заголовке — это не поломка файла."""
     flags = 0x01 | (1 << 4)

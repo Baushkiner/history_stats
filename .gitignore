@@ -137,3 +137,7 @@ data/raw/imperiia/
 data/raw/nsidc_ice/
 data/raw/hyde/
 data/raw/eclipses/
+# Europe_railways.gpkg из допматериалов Springer к главе Марти-Хеннеберга (7 МБ,
+# достаётся из zip частичным чтением): scripts/harvest_railways_hgise.py --check;
+# в репозиторий идёт только подложка.
+data/raw/railways_hgise/

@@ -5,8 +5,9 @@ GeoPackage — это файл SQLite с оговорённой раскладк
 И sqlite3, и struct есть в стандартной библиотеке, поэтому чтение обходится
 без geopandas и fiona — как и чтение шейпфайла рядом (`shapefile.py`).
 
-Разбирается то, что встречается в границах: Polygon и MultiPolygon. Точки и
-линии в этих наборах не встречаются, и вместо тихого пропуска на них
+Разбирается то, что встречается в границах и сетях: Polygon и MultiPolygon,
+LineString и MultiLineString (линии — с ноября 2026 года, для железных дорог
+HGISE). Точки в этих наборах не встречаются, и вместо тихого пропуска на них
 поднимается ошибка — сменившуюся геометрию надо заметить.
 
 Спецификации: OGC GeoPackage 1.3 (раздел 2.1.3, формат BLOB) и OGC Simple
@@ -19,7 +20,9 @@ import sqlite3
 import struct
 from typing import Optional
 
+WKB_LINESTRING = 2
 WKB_POLYGON = 3
+WKB_MULTILINESTRING = 5
 WKB_MULTIPOLYGON = 6
 
 # Столько же знаков, сколько у шейпфайла: около 10 см на местности.
@@ -104,6 +107,18 @@ def _wkb(data: bytes, offset: int) -> tuple[dict, int]:
     if kind == WKB_POLYGON:
         rings, offset = _rings(data, offset, endian)
         return {"type": "Polygon", "coordinates": rings}, offset
+    if kind == WKB_LINESTRING:
+        # Линия — то же, что одно кольцо: число точек и пары координат.
+        line, offset = _points(data, offset, endian)
+        return {"type": "LineString", "coordinates": line}, offset
+    if kind == WKB_MULTILINESTRING:
+        count = struct.unpack_from(f"{endian}I", data, offset)[0]
+        offset += 4
+        lines = []
+        for _ in range(count):
+            line, offset = _wkb(data, offset)
+            lines.append(line["coordinates"])
+        return {"type": "MultiLineString", "coordinates": lines}, offset
     if kind == WKB_MULTIPOLYGON:
         count = struct.unpack_from(f"{endian}I", data, offset)[0]
         offset += 4
@@ -113,7 +128,7 @@ def _wkb(data: bytes, offset: int) -> tuple[dict, int]:
             polygons.append(polygon["coordinates"])
         return {"type": "MultiPolygon", "coordinates": polygons}, offset
     raise GeoPackageError(
-        f"тип геометрии WKB {kind} не разбирается; здесь ждали полигоны"
+        f"тип геометрии WKB {kind} не разбирается; здесь ждали полигоны или линии"
     )
 
 
@@ -122,10 +137,15 @@ def _rings(data: bytes, offset: int, endian: str) -> tuple[list, int]:
     offset += 4
     rings = []
     for _ in range(count):
-        points = struct.unpack_from(f"{endian}I", data, offset)[0]
-        offset += 4
-        flat = struct.unpack_from(f"{endian}{2 * points}d", data, offset)
-        offset += 16 * points
-        rings.append([[round(flat[2 * i], COORD_PRECISION),
-                       round(flat[2 * i + 1], COORD_PRECISION)] for i in range(points)])
+        ring, offset = _points(data, offset, endian)
+        rings.append(ring)
     return rings, offset
+
+
+def _points(data: bytes, offset: int, endian: str) -> tuple[list, int]:
+    points = struct.unpack_from(f"{endian}I", data, offset)[0]
+    offset += 4
+    flat = struct.unpack_from(f"{endian}{2 * points}d", data, offset)
+    offset += 16 * points
+    return [[round(flat[2 * i], COORD_PRECISION),
+             round(flat[2 * i + 1], COORD_PRECISION)] for i in range(points)], offset
