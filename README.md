@@ -551,6 +551,13 @@ python3 scripts/harvest_historic_synagogues.py --fetch --build
 python3 scripts/harvest_kartenmeister.py --check
 python3 scripts/harvest_kartenmeister.py --fetch --build --partial
 
+# 29.3. Храмы России по реестру temples.ru (с согласия владельца, 24.11.2026):
+#     --fetch — пакетные выгрузки, около полутора часов; --cards дочитывает
+#     карточки с продолжением; после шагов 8 и слоя churches
+python3 scripts/harvest_temples_ru.py --check
+python3 scripts/harvest_temples_ru.py --fetch
+python3 scripts/harvest_temples_ru.py --cards 6000 --pause 1
+python3 scripts/harvest_temples_ru.py --build
 
 # 30. Свести собранное в общий массив и переписать отчёт о качестве
 python3 scripts/build_core.py
@@ -602,6 +609,7 @@ ruff check .
 | Губернии и области переписей 1897 и 1926 годов | 166 | — полигон | 100% |
 | **Церкви, приходы и религиозные общины** | | | |
 | Храмы и церкви | 31 907 | 100% | 51% |
+| Храмы России: реестр temples.ru, с губернией и уездом 1917 года | 32 986 | 84% | 96% |
 | Метрические книги в описях архивов Украины | 21 826 | 9% — село, остальные — уезд | 100% |
 | Кладбища и некрополи | 8 819 | 100% | 28% |
 | Церковные приходы | 7 884 | 100% | 49% |
@@ -825,7 +833,8 @@ src/histctx/
                   colony_lists_odessa3.py, votmoyaderevnya.py,
                   old_maps.py, railways_hgise.py,
                   jewishgen_communities.py, historic_synagogues.py,
-                  kartenmeister.py (вежливый обход с кэшем — polite.py);
+                  kartenmeister.py (вежливый обход с кэшем — polite.py),
+                  temples_ru.py;
                   dataverse.py — файлы Harvard Dataverse, uezd_names.py —
                   сведение уездов с RISTAT, rserial.py — чтение .Rdata;
                   shapefile.py и geopackage.py — чтение границ без geopandas

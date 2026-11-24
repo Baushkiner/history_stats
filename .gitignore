@@ -172,3 +172,7 @@ data/raw/waralbum/
 data/raw/jewishgen_communities/
 data/raw/historic_synagogues/
 data/raw/kartenmeister/
+# Выдача поиска, KML по регионам, губерниям и уездам и разобранные карточки
+# «Храмов России» (temples.ru): около 120 МБ, пересобираются командой
+# scripts/harvest_temples_ru.py --fetch / --cards; в репозиторий идёт слой.
+data/raw/temples_ru/
