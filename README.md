@@ -313,6 +313,15 @@
   реестре: больницы, училища, дома, братские могилы (1 576); храмы,
   монастыри и усадьбы с тем же кодом не дублируются.
 
+**Согласие владельцев, 24.11.2026.** Источники, стоявшие в журнале
+с вердиктом «нужна договорённость», собираются по мере согласия. Среди них —
+**перепись 1897 года по уездам и городам** со сборки приложения
+k-da.dev/russia-1897: население по полу, родной язык, вера и возраст по 764
+уездам и 931 городу, посаду и местечку с отдельной таблицей переписи; с
+губернскими итогами heiDATA суммы сошлись до человека. Координат нет —
+запись подбирается по губернии и уезду; ниже места с отдельной таблицей
+(до села) перепись в томах не разбирала.
+
 Остаются [PastVu](https://pastvu.com/) (сбор написан,
 `scripts/harvest_pastvu.py`) и [История России в фотографиях](https://russiainphoto.ru/)
 (права на снимки у музея и авторов, публичного API нет). Проход по каталогу
@@ -504,6 +513,10 @@ pip install inflate64
 python3 scripts/harvest_hyde.py --check
 python3 scripts/harvest_hyde.py --build
 
+# 29а. Перепись 1897 года по уездам и городам: сборка приложения k-da.dev (с
+#      согласия владельца, 24.11.2026), два запроса; после шага с границами 1897 года
+python3 scripts/harvest_census_1897_kda.py --check
+python3 scripts/harvest_census_1897_kda.py --build
 
 # 30. Свести собранное в общий массив и переписать отчёт о качестве
 python3 scripts/build_core.py
@@ -772,7 +785,8 @@ src/histctx/
                   town_plans.py, military_hospitals.py, pogroms_1903.py,
                   execution_sites.py, pow_camps.py, jewish_cemeteries.py
                   (русские подписи мест — russian_names.py),
-                  german_colonies.py, topo_maps.py;
+                  german_colonies.py, topo_maps.py; census_1897_kda.py
+                  (перепись 1897 года со сборки k-da.dev);
                   dataverse.py — файлы Harvard Dataverse, uezd_names.py —
                   сведение уездов с RISTAT, rserial.py — чтение .Rdata;
                   shapefile.py и geopackage.py — чтение границ без geopandas
