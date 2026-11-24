@@ -115,6 +115,9 @@ from .sources.census_1897_kda import CENSUS_1897_KDA
 from .sources.votmoyaderevnya import SETTLEMENTS_VMD
 from .sources.railways_hgise import RAILWAYS_HGISE
 from .sources.old_maps import OLD_MAPS
+from .sources.jewishgen_communities import JEWISHGEN_COMMUNITIES
+from .sources.historic_synagogues import HISTORIC_SYNAGOGUES
+from .sources.kartenmeister import KARTENMEISTER
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -161,7 +164,9 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      OLD_MAPS,
                      # Фотоархивы, собранные с согласия владельцев (24.11.2026);
                      # «Военный альбом» — неполным, обход продолжается с места.
-                     RUSSIAINPHOTO, AJAPAIK, WARALBUM]
+                     RUSSIAINPHOTO, AJAPAIK, WARALBUM,
+                     # С согласия владельцев (сообщено 24.11.2026)
+                     JEWISHGEN_COMMUNITIES, HISTORIC_SYNAGOGUES, KARTENMEISTER]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
