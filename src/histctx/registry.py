@@ -107,6 +107,7 @@ from .sources.atlas_1820 import (
 from .sources.ice import ICE_PHENOLOGY
 from .sources.hyde import POPULATION_HYDE
 from .sources.eclipses import SOLAR_ECLIPSES
+from .sources.census_1897_kda import CENSUS_1897_KDA
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -147,7 +148,9 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      POST_STATIONS, ICE_PHENOLOGY, POPULATION_HYDE, SOLAR_ECLIPSES,
                      SETTLEMENTS_1820, FORTIFICATIONS_1820, FAITH_1820, ECONOMY_1820,
                      ROADS_1820, ADMIN_BOUNDARIES_1820,
-                     TOWNS_1727, REVISIONS_UEZD, HOUSEHOLDS_1719, UEZD_POPULATION_1766]
+                     TOWNS_1727, REVISIONS_UEZD, HOUSEHOLDS_1719, UEZD_POPULATION_1766,
+                     # Согласие владельца k-da.dev, сообщено 24.11.2026
+                     CENSUS_1897_KDA]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
@@ -441,7 +444,10 @@ EXTERNAL = [
             "Наличное население, возраст, семейное состояние, родной язык, вера и "
             "сословие по губерниям, уездам и городам 1897 года — пятнадцать сводных "
             "таблиц. Закрывает дыру, которую не закрывают взятые наборы границ: "
-            "у heiDATA числа есть только по губерниям, у RISTAT уезды есть, но без чисел."
+            "у heiDATA числа есть только по губерниям, у RISTAT уезды есть, но без чисел. "
+            "С 24.11.2026 уезды и города с этими таблицами дал слой census_1897_kda "
+            "(k-da.dev); Демоскоп остаётся независимой сверкой и источником сословий "
+            "и семейного состояния, которых у k-da.dev пока нет."
         ),
     ),
     LayerSpec(
