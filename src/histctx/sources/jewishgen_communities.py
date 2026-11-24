@@ -73,6 +73,7 @@ JEWISHGEN_COMMUNITIES = LayerSpec(
     ),
     url=BASE,
     status="harvested",
+    expected_rows=17296,
 )
 
 # Эпохи выдачи: колонка, подпись, границы лет.
