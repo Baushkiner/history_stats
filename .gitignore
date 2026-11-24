@@ -137,3 +137,7 @@ data/raw/imperiia/
 data/raw/nsidc_ice/
 data/raw/hyde/
 data/raw/eclipses/
+# Выдача поиска, KML по регионам, губерниям и уездам и разобранные карточки
+# «Храмов России» (temples.ru): около 80 МБ, пересобираются командой
+# scripts/harvest_temples_ru.py --fetch / --cards; в репозиторий идёт слой.
+data/raw/temples_ru/
