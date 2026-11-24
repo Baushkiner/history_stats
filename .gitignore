@@ -158,3 +158,10 @@ data/raw/railways_hgise/
 # Пересобираются командой scripts/harvest_old_maps.py --fetch (продолжает с
 # места); в репозиторий идёт только слой.
 data/raw/old_maps/
+# Фотоархивы, собранные с согласия владельцев 24.11.2026: страницы каталога и
+# карты russiainphoto.ru (сжатый JSON), выдача API Ajapaik по 500 снимков и
+# блоки страниц «Военного альбома». Пересобираются сборщиками с --fetch
+# (продолжают с места); в репозиторий идут только слои.
+data/raw/russiainphoto/
+data/raw/ajapaik/
+data/raw/waralbum/
