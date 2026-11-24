@@ -103,6 +103,9 @@ data/raw/archives_by/
 # командой scripts/harvest_german_colonies.py --check --refresh; в репозиторий
 # идут только записи слоя.
 data/raw/german_colonies/
+# Четыре списка сёл Odessa Digital Library (около 240 КБ текста):
+# scripts/harvest_colony_lists_odessa3.py --check --refresh.
+data/raw/colony_lists_odessa3/
 # Частичный разрежённый клон OpenGeoMetadata/big-ten — одна папка
 # metadata-aardvark/Maps/01d-00, около 30 МБ (scripts/harvest_topo_maps.py
 # --check); в репозиторий идут только записи слоя.

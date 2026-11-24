@@ -88,6 +88,7 @@ from .sources.wikisource_arkhiv import METRIC_BOOKS_UA
 from .sources.archives_by import METRIC_BOOKS_BY
 from .sources.ghettos_camps import GHETTOS_CAMPS
 from .sources.german_colonies import GERMAN_COLONIES
+from .sources.colony_lists_odessa3 import COLONY_LISTS
 from .sources.topo_maps import TOPO_MAPS
 from .sources.earthquakes import EARTHQUAKES
 from .sources.town_plans import TOWN_PLANS
@@ -147,7 +148,9 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      POST_STATIONS, ICE_PHENOLOGY, POPULATION_HYDE, SOLAR_ECLIPSES,
                      SETTLEMENTS_1820, FORTIFICATIONS_1820, FAITH_1820, ECONOMY_1820,
                      ROADS_1820, ADMIN_BOUNDARIES_1820,
-                     TOWNS_1727, REVISIONS_UEZD, HOUSEHOLDS_1719, UEZD_POPULATION_1766]
+                     TOWNS_1727, REVISIONS_UEZD, HOUSEHOLDS_1719, UEZD_POPULATION_1766,
+                     # 24.11.2026: источники, по которым получено согласие владельцев
+                     COLONY_LISTS]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
