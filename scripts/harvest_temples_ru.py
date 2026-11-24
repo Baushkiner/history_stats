@@ -147,9 +147,13 @@ def load_cards(cache: Path) -> dict[int, dict]:
     out: dict[int, dict] = {}
     if path.exists():
         for line in path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
+            if not line.strip():
+                continue
+            try:
                 item = json.loads(line)
-                out[int(item["id"])] = item
+            except json.JSONDecodeError:
+                continue        # строка, оборванная остановкой обхода, — дочитается
+            out[int(item["id"])] = item
     return out
 
 
@@ -167,7 +171,10 @@ def fetch_cards(client: Client, data: Collected, limit: int | None, log=print) -
     log(f"Карточек прочитано {len(done)}, в очереди {len(todo)}")
     path = client.cache_dir / "cards.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
+    torn = path.exists() and path.stat().st_size and not path.read_bytes().endswith(b"\n")
     with path.open("a", encoding="utf-8") as fh:
+        if torn:
+            fh.write("\n")      # оборванная строка остаётся отдельной и пропускается
         for n, cid in enumerate(todo, 1):
             raw = client.fetch(f"card.php?ID={cid}")
             card = parse_card(decode(raw)) or {"missing": True}
@@ -271,7 +278,8 @@ def build(recs: list, out_dir: Path) -> int:
     n = write_geojson(recs, geo, layer_title=TEMPLES_RU.title, hoist_shared=True)
     off = [r for r in recs if not r.has_point]
     json_path = out_dir / f"{slug}.json"
-    write_records_json(off, json_path, title=f"{TEMPLES_RU.title}: без точки")
+    write_records_json(off, json_path, title=f"{TEMPLES_RU.title}: без точки",
+                       hoist_shared=True, compact=True)
     jsonl = out_dir / "jsonl" / f"{slug}.jsonl"
     write_jsonl(recs, jsonl)
     print(f"«{TEMPLES_RU.title}»: {len(recs)} записей, на карте {n}, без точки {len(off)}")
