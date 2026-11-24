@@ -84,7 +84,9 @@ def test_catalog_is_not_only_wikidata():
     Проверяется другое: что источники разных видов есть и что они закрывают
     разные группы, а не одну.
     """
-    assert len(EXTERNAL) >= 5
+    # Считаются все слои не из Викиданных: внешний источник, собранный своим
+    # сборщиком, уходит из EXTERNAL в HARVESTED, но внешним быть не перестаёт.
+    assert len([s for s in ALL_LAYERS if "икиданны" not in s.source]) >= 5
     other_groups = {s.group for s in ALL_LAYERS if "икиданны" not in s.source}
     assert len(other_groups) >= 3, other_groups
 
@@ -98,7 +100,7 @@ AWAITING_COLLECTOR = {
     # в docs/DISCOVERY.md, записи от 23.08.2026.
     "famines",
     # Внешние проекты: нужен разбор формата, а для части — договорённость.
-    "photos_russiainphoto", "weather_chronicles",
+    "weather_chronicles",
     # Найдено проходом по каталогу 23.08.2026: разведка, сборщика ещё нет.
     # Третий найденный тогда же слой, famine_1891, отсюда ушёл 22.10.2026 —
     # собран `scripts/harvest_famine_1891.py`.

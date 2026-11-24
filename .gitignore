@@ -137,3 +137,10 @@ data/raw/imperiia/
 data/raw/nsidc_ice/
 data/raw/hyde/
 data/raw/eclipses/
+# Фотоархивы, собранные с согласия владельцев 24.11.2026: страницы каталога и
+# карты russiainphoto.ru (сжатый JSON), выдача API Ajapaik по 500 снимков и
+# блоки страниц «Военного альбома». Пересобираются сборщиками с --fetch
+# (продолжают с места); в репозиторий идут только слои.
+data/raw/russiainphoto/
+data/raw/ajapaik/
+data/raw/waralbum/

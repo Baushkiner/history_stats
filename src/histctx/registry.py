@@ -96,6 +96,9 @@ from .sources.military_hospitals import MILITARY_HOSPITALS
 from .sources.pogroms_1903 import POGROMS_1903
 from .sources.jewish_cemeteries import JEWISH_CEMETERIES
 from .sources.pow_camps import POW_CAMPS
+from .sources.ajapaik import AJAPAIK
+from .sources.russiainphoto import RUSSIAINPHOTO
+from .sources.waralbum import WARALBUM
 from .sources.imperiia import POST_STATIONS
 from .sources.imperiia_xviii import (
     HOUSEHOLDS_1719, REVISIONS_UEZD, TOWNS_1727, UEZD_POPULATION_1766,
@@ -147,7 +150,10 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      POST_STATIONS, ICE_PHENOLOGY, POPULATION_HYDE, SOLAR_ECLIPSES,
                      SETTLEMENTS_1820, FORTIFICATIONS_1820, FAITH_1820, ECONOMY_1820,
                      ROADS_1820, ADMIN_BOUNDARIES_1820,
-                     TOWNS_1727, REVISIONS_UEZD, HOUSEHOLDS_1719, UEZD_POPULATION_1766]
+                     TOWNS_1727, REVISIONS_UEZD, HOUSEHOLDS_1719, UEZD_POPULATION_1766,
+                     # Фотоархивы, собранные с согласия владельцев (24.11.2026);
+                     # «Военный альбом» — неполным, обход продолжается с места.
+                     RUSSIAINPHOTO, AJAPAIK, WARALBUM]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
@@ -397,19 +403,6 @@ PLANNED = [
 
 EXTERNAL = [
     PASTVU_PHOTOS,
-    LayerSpec(
-        slug="photos_russiainphoto", title="История России в фотографиях", group="culture",
-        source="russiainphoto.ru (Мультимедиа Арт Музей)",
-        license="права музея и правообладателей на снимки — нужна договорённость; "
-                "публичного API нет, метаданные без него не забрать",
-        status="planned", expected_rows=200000,
-        url="https://russiainphoto.ru/",
-        description=(
-            "Архив с датировкой и указанием места по каждому снимку, включая частные "
-            "и семейные фотографии XIX — XX веков. Публичного API нет; условия "
-            "использования выясняются с музеем, а не выводятся из открытости сайта."
-        ),
-    ),
     LayerSpec(
         slug="weather_chronicles", title="Погода по летописям до инструментальных наблюдений",
         group="hardship",
