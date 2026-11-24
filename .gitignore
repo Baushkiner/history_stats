@@ -141,3 +141,8 @@ data/raw/eclipses/
 # достаётся из zip частичным чтением): scripts/harvest_railways_hgise.py --check;
 # в репозиторий идёт только подложка.
 data/raw/railways_hgise/
+# Каталоги старых карт: ответы read_mcodes.php Retromap, отбор Kartenforum SLUB,
+# списки и разобранные страницы карт ЭтоМесто (сами страницы не хранятся).
+# Пересобираются командой scripts/harvest_old_maps.py --fetch (продолжает с
+# места); в репозиторий идёт только слой.
+data/raw/old_maps/

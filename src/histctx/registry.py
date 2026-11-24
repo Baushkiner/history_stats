@@ -108,6 +108,7 @@ from .sources.ice import ICE_PHENOLOGY
 from .sources.hyde import POPULATION_HYDE
 from .sources.eclipses import SOLAR_ECLIPSES
 from .sources.railways_hgise import RAILWAYS_HGISE
+from .sources.old_maps import OLD_MAPS
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -150,7 +151,7 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      ROADS_1820, ADMIN_BOUNDARIES_1820,
                      TOWNS_1727, REVISIONS_UEZD, HOUSEHOLDS_1719, UEZD_POPULATION_1766,
                      # Согласие владельцев, сообщено 24.11.2026
-                     RAILWAYS_HGISE]
+                     RAILWAYS_HGISE, OLD_MAPS]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
