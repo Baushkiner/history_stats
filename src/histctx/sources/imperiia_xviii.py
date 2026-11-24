@@ -9,14 +9,15 @@
 ревизиям из таблицы В. М. Кабузана («Народы России в XVIII веке», 1990,
 табл. 1), поставленное в точку уездного города.
 
-**Права: только факты.** Эти слои автор Imperiia для скачивания не выпускала:
-на Harvard Dataverse, где лежат слои атласа Пядышева, их нет; на карточках
-сервисов стоит пометка `layer_downloadable:False`; у соседнего слоя 1727 года
-в описании прямо сказано, что слой предварительный и за доступом надо
-обращаться к редактору. Владелец проекта решил 23.11.2026 взять из них только
-факты — место, год и числа — со ссылкой на слой; так и записано в `license`.
-Сами числа — из Кирилова (общественное достояние) и из таблицы Кабузана.
-Слой с прямой оговоркой («Guberniia (as town clusters)») не запрашивается.
+**Права.** Эти слои автор Imperiia для скачивания не выпускала: на Harvard
+Dataverse, где лежат слои атласа Пядышева, их нет; на карточках сервисов стоит
+пометка `layer_downloadable:False`; у слоя «Guberniia (as town clusters)» в
+описании сказано, что слой предварительный и за доступом надо обращаться к
+редактору. 23.11.2026 из них взяли только факты; 24.11.2026 владелец проекта
+сообщил, что согласие владельца получено, — с этого дня собрана и вторая серия
+слоёв 1727 года, включая слой с оговоркой, а в `license` записано согласие.
+Сами числа — из Кирилова (общественное достояние), из таблицы Кабузана и из
+Арсеньева; ссылка на слой и первоисточник — в каждой записи.
 
 Что надо знать о числах.
 
@@ -39,6 +40,14 @@
   Кабузана — похоже на души мужского пола, но это догадка, и запись её так
   и подаёт. Пометки набора «not recorded» и «unknown» и нули — «нет
   данных»: записей по ним нет.
+* Вторая серия слоёв 1727 года (добрана 24.11.2026 с согласия владельца) —
+  те же числа Кирилова, но в другой нумерации городов (`GorID`, 321 город, а
+  не 293): сводный слой «Guberniia (as town clusters)» и отдельные слои
+  приказных служителей, офицеров и солдат, заводов, монастырей и архиерейских
+  кафедр. Числа в отдельных слоях совпадают со сводным, со слоем Кирилова —
+  у всех городов, кроме четырёх. В основном слое 27 городов этой серии нет
+  (Землянск, Венев, Ряжск, Керенск, Сергиевск, Семипалатная…) — они и
+  добавлены в слой `towns_1727_kirilov`; остальные 293 там уже есть.
 * Названия — латиницей набора и обратной транслитерацией; губерния набора
   (у Кирилова — провинция 1727 года, у ревизий — губерния позднейшего деления)
   остаётся в `place_text`, а `region` — по полигонам 1897 года.
@@ -56,9 +65,10 @@ from .imperiia import cyrillic
 ITEM_PAGE = "https://www.arcgis.com/home/item.html?id={item}"
 OWNER = "koneill_worldmap"
 LICENSE = (
-    "Права не выяснены, слой автором для скачивания не выпущен (пометка на карточке "
-    "сервиса ArcGIS; на Harvard Dataverse слоя нет): берутся только факты — место, год и "
-    "числа — со ссылкой на слой Imperiia Project (К. О'Нил, Гарвард) и на первоисточник"
+    "© Imperiia Project (К. О'Нил, Гарвард); слой автором для скачивания не выпущен "
+    "(пометка на карточке сервиса ArcGIS, на Harvard Dataverse слоя нет) — собран с "
+    "согласия владельца, полученного владельцем проекта (сообщено 24.11.2026); ссылка на "
+    "слой Imperiia и на первоисточник — в каждой записи"
 )
 
 
@@ -78,6 +88,24 @@ class Service:
 KIRILOV = Service("Orthodox_Churches_1727", "cfcad46e8e704ab1b8e4184234364467", 293)
 KIRILOV_FIELDS = {"KID", "Guberniia", "Location", "Status", "Monasterie", "Orth_chs",
                   "Govt_srvnt", "Offcrs_sol", "Zavodov", "eparchies"}
+
+# Вторая серия слоёв 1727 года: нумерация `GorID`, 321 город. Сводный слой
+# несёт все числа; отдельные — по одному числу, и по ним добираются города,
+# которых в сводном нет. Поле каждого отдельного слоя — его имя в сводном.
+CLUSTERS = Service("Guberniia_as_town_clusters_", "b54e987c9b7a4ac4b173e445aeaef66a", 319)
+CLUSTER_FIELDS = {"GorID", "Location", "Guberniia", "Status", "State_serv", "Officers__",
+                  "Monasterie", "Orthodox_c", "Bishopric", "Factories"}
+GORID_LAYERS = (
+    (Service("Bishoprics_eparkhiia_", "efd4de4d8fcc4ecc834c99e2ec01d38d", 327), "Bishopric"),
+    (Service("Orthodox_Monasteries", "479f12518465428c8a781f31d729873e", 327), "Monasterie"),
+    (Service("Government_officials", "69748b1417214386b4ce4b3da2f8fb8b", 260), "State_serv"),
+    (Service("Officers_Soldiers", "0908fc6523f4406e8fa788240eb31343", 51), "Officers__"),
+    (Service("Factories_craft_centers", "680a797a76444c7c8dadccd0bfb8a700", 66), "Factories"),
+)
+# Поля серии `GorID` → поля слоя Кирилова (`KID`), чтобы запись строилась одним разбором.
+GORID_TO_KIRILOV = {"Orthodox_c": "Orth_chs", "Monasterie": "Monasterie",
+                    "State_serv": "Govt_srvnt", "Officers__": "Offcrs_sol",
+                    "Factories": "Zavodov", "Bishopric": "eparchies"}
 
 
 @dataclass(frozen=True)
@@ -125,10 +153,10 @@ TOWNS_1727 = LayerSpec(
         "Что было за городом в 1727 году: число церквей и монастырей, приказных "
         "служителей, офицеров и солдат, заводов, архиерейская кафедра и место города в "
         "делении на провинции — по описанию И. К. Кирилова. Счёт идёт по городу вместе с "
-        "его округой, а не по самому городу. Из слоя Imperiia взяты только факты: автор "
-        "слой для скачивания не выпускала."
+        "его округой, а не по самому городу. Слои Imperiia автор для скачивания не "
+        "выпускала — собраны с согласия владельца."
     ),
-    url=KIRILOV.url, status="harvested", expected_rows=293,
+    url=KIRILOV.url, status="harvested", expected_rows=320,
 )
 REVISIONS_UEZD = LayerSpec(
     slug="revisions_uezd_towns",
@@ -139,8 +167,8 @@ REVISIONS_UEZD = LayerSpec(
         "Сколько податного населения числилось в уезде по ревизиям XVIII века — I (1719), "
         "II (1743) и срезу 1760-х или 1780-х годов, по таблице В. М. Кабузана; точка — "
         "уездный город, число — весь уезд. Ревизии не охватывали татар, украинцев и "
-        "большую часть Сибири. Из слоёв Imperiia взяты только факты: автор их для "
-        "скачивания не выпускала."
+        "большую часть Сибири. Слои Imperiia автор для скачивания не выпускала — "
+        "собраны с согласия владельца."
     ),
     url=REVISIONS[0].service.url, status="harvested", expected_rows=786,
 )
@@ -163,8 +191,8 @@ HOUSEHOLDS_1719 = LayerSpec(
         "Сколько податных дворов числилось за городом с уездом по первой ревизии и "
         "сколько ясачных — по К. И. Арсеньеву (1848), в делении 1719 года на губернии и "
         "провинции. Число нередко дано сразу на несколько городов. Ревизия не охватывала "
-        "татар, украинцев и большую часть Сибири. Из слоя Imperiia взяты только факты: "
-        "автор его для скачивания не выпускала."
+        "татар, украинцев и большую часть Сибири. Слой Imperiia автор для скачивания не "
+        "выпускала — собран с согласия владельца."
     ),
     url=HOUSEHOLDS.url, status="harvested", expected_rows=213,
 )
@@ -177,7 +205,8 @@ UEZD_POPULATION_1766 = LayerSpec(
         "Сколько населения числилось в уезде около 1766 года, в делении на губернии и "
         "провинции того времени; точка — уездный город, число — весь уезд. Единица счёта "
         "в наборе не названа: сумма вдвое меньше ревизских итогов, похоже на души мужского "
-        "пола. Из слоя Imperiia взяты только факты: автор его для скачивания не выпускала."
+        "пола. Слой Imperiia автор для скачивания не выпускала — собран с согласия "
+        "владельца."
     ),
     url=POPULATION_1766.url, status="harvested", expected_rows=248,
 )
@@ -204,15 +233,14 @@ def check_layer(info: dict, service: Service, required: set,
 
 
 def check_item(item: dict, service: Service) -> list[str]:
-    """Владелец и открытый доступ; оговорка «по запросу у редактора» — остановка."""
+    """Владелец и открытый доступ."""
     problems = []
     if item.get("owner") != OWNER:
         problems.append(f"{service.name}: владелец {item.get('owner')!r}")
     if item.get("access") != "public":
         problems.append(f"{service.name}: доступ {item.get('access')!r}, а не public")
-    if "contact the editor" in (item.get("description") or "").lower():
-        problems.append(f"{service.name}: в описании слоя появилась оговорка о доступе по "
-                        "запросу — такой слой не собирается")
+    # Оговорка «contact the editor for access» у слоёв 1727 года сбор больше не
+    # останавливает: согласие владельца получено (сообщено 24.11.2026).
     return problems
 
 
@@ -248,7 +276,9 @@ def _point(feature: dict) -> tuple[Optional[float], Optional[float]]:
 
 # --- Кирилов, 1727 ----------------------------------------------------------
 
-def kirilov_record(feature: dict) -> Optional[ContextRecord]:
+def kirilov_record(feature: dict, *, url: str = "", source_id: str = "",
+                   note: str = "") -> Optional[ContextRecord]:
+    """Город по Кирилову. `url`, `source_id`, `note` — у городов второй серии."""
     attrs = feature.get("attributes") or {}
     latin = (attrs.get("Location") or "").strip()
     if not latin:
@@ -292,6 +322,8 @@ def kirilov_record(feature: dict) -> Optional[ContextRecord]:
     river = (attrs.get("geo_river") or "").strip()
     if river:
         parts.append(f"Стоит на реке {cyrillic(river)} ({river})")
+    if note:
+        parts.append(note)
     parts.append("Название кириллицей — обратная транслитерация из латиницы набора")
 
     if churches and monasteries:
@@ -316,14 +348,84 @@ def kirilov_record(feature: dict) -> Optional[ContextRecord]:
         lat=lat, lon=lon, place_text=", ".join(x for x in (latin, province) if x),
         year_from=1727, year_to=1727, date_precision="year", period_raw="1727",
         work="И. К. Кирилов. Цветущее состояние Всероссийского государства",
-        summary=". ".join(parts) + ".", url=KIRILOV.url,
-        source_id=f"kirilov:{attrs.get('KID')}",
+        summary=". ".join(parts) + ".", url=url or KIRILOV.url,
+        source_id=source_id or f"kirilov:{attrs.get('KID')}",
         confidence="ok" if lat is not None else "no_coords", extra=extra,
     )
 
 
 def kirilov_records(features: Iterable[dict]) -> list[ContextRecord]:
     return [r for r in (kirilov_record(f) for f in features) if r is not None]
+
+
+GORID_NOTE = ("В основном слое Кирилова у Imperiia этого города нет: он взят из второй серии "
+              "слоёв 1727 года (сводный слой «Guberniia (as town clusters)» и отдельные слои "
+              "служителей, военных, заводов, монастырей и кафедр)")
+
+
+def gorid_towns(clusters: Iterable[dict], layers: dict) -> dict:
+    """{GorID: объект} серии `GorID` в полях слоя Кирилова.
+
+    Основа — сводный слой; город, которого в нём нет, собирается из отдельных
+    слоёв (`layers`: {поле сводного слоя: объекты слоя}). Объект без названия
+    (в слое кафедр есть пустая строка с `GorID` 0) пропускается.
+    """
+    towns: dict = {}
+    for feature in clusters:
+        attrs = feature.get("attributes") or {}
+        if (attrs.get("Location") or "").strip():
+            towns[attrs.get("GorID")] = {"geometry": feature.get("geometry"),
+                                         "attributes": dict(attrs)}
+    for field, features in layers.items():
+        for feature in features:
+            attrs = feature.get("attributes") or {}
+            if not (attrs.get("Location") or "").strip():
+                continue
+            town = towns.setdefault(attrs.get("GorID"), {
+                "geometry": feature.get("geometry"),
+                "attributes": {k: attrs.get(k) for k in
+                               ("GorID", "Location", "Guberniia", "Status")}})
+            town["attributes"].setdefault(field, attrs.get(field))
+    out = {}
+    for gor_id, town in towns.items():
+        attrs = town["attributes"]
+        mapped = {"Location": attrs.get("Location"), "Guberniia": attrs.get("Guberniia"),
+                  "Status": attrs.get("Status"), "GorID": gor_id}
+        for src, dst in GORID_TO_KIRILOV.items():
+            mapped[dst] = attrs.get(src)
+        out[gor_id] = {"geometry": town["geometry"], "attributes": mapped}
+    return out
+
+
+def gorid_mismatches(clusters: Iterable[dict], layers: dict) -> list[str]:
+    """Где отдельный слой расходится со сводным: «Kronshtat: State_serv 14 ≠ 15»."""
+    by_id = {(f.get("attributes") or {}).get("GorID"): f.get("attributes") or {}
+             for f in clusters}
+    out = []
+    for field, features in layers.items():
+        for feature in features:
+            attrs = feature.get("attributes") or {}
+            base = by_id.get(attrs.get("GorID"))
+            if base is not None and (base.get(field) or 0) != (attrs.get(field) or 0):
+                out.append(f"{attrs.get('Location')}: {field} {attrs.get(field)} ≠ "
+                           f"{base.get(field)}")
+    return out
+
+
+def gorid_records(towns: dict, kirilov_features: Iterable[dict]) -> list[ContextRecord]:
+    """Города серии `GorID`, которых нет в основном слое Кирилова (сверка по названию)."""
+    known = {(f.get("attributes") or {}).get("Location") for f in kirilov_features}
+    out = []
+    for gor_id in sorted(t for t in towns if t is not None):
+        town = towns[gor_id]
+        if town["attributes"].get("Location") in known:
+            continue
+        rec = kirilov_record(town, url=CLUSTERS.url, source_id=f"kirilov-gor:{gor_id}",
+                             note=GORID_NOTE)
+        if rec is not None:
+            rec.extra["series"] = "GorID"
+            out.append(rec)
+    return out
 
 
 # --- ревизии ----------------------------------------------------------------

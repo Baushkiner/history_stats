@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """Сбор слоёв XVIII века из Imperiia: Кирилов 1727, ревизии, дворы 1719, уезды 1766.
 
-    python3 scripts/harvest_imperiia_xviii.py --check    # сверка шести сервисов, разбор
+    python3 scripts/harvest_imperiia_xviii.py --check    # сверка двенадцати сервисов, разбор
     python3 scripts/harvest_imperiia_xviii.py --build    # слои в data/out
 
 Первый запуск — проверочный. `--check` (он же `--probe`) читает карточки
-шести сервисов (владелец, доступ, нет ли в описании оговорки о доступе по
-запросу), их поля и число объектов, сверяет с записанным в
-`sources/imperiia_xviii.py`, выгружает объекты в `data/raw/imperiia/` и
-показывает разбор.
+двенадцати сервисов (владелец, доступ), их поля и число объектов, сверяет с
+записанным в `sources/imperiia_xviii.py`, выгружает объекты в
+`data/raw/imperiia/` и показывает разбор. Шесть из них — вторая серия слоёв
+1727 года (нумерация `GorID`: сводный «Guberniia (as town clusters)» и
+отдельные слои служителей, военных, заводов, монастырей, кафедр); из неё в
+слой Кирилова добавляются города, которых нет в основном слое, а расхождения
+отдельных слоёв со сводным печатаются.
 
-Права: автор эти слои для скачивания не выпускала — берутся только факты
-(место, год, числа) со ссылкой на слой; решение владельца проекта, 23.11.2026.
+Права: автор эти слои для скачивания не выпускала; 23.11.2026 взяли только
+факты, 24.11.2026 владелец проекта сообщил о согласии владельца — так и
+записано в `license`.
 
 На выходе `geojson/towns_1727_kirilov.geojson`,
 `geojson/revisions_uezd_towns.geojson`, `geojson/households_1719.geojson` и
@@ -34,9 +38,10 @@ from histctx.io_formats import write_geojson, write_jsonl
 from histctx.sources.ghcn import GhcnError
 from histctx.sources.imperiia import ITEM_URL, Client, ImperiiaError
 from histctx.sources.imperiia_xviii import (
-    HOUSEHOLD_FIELDS, HOUSEHOLDS, HOUSEHOLDS_1719, KIRILOV, KIRILOV_FIELDS, POPULATION_1766,
-    POPULATION_1766_FIELDS, REVISION_FIELDS, REVISIONS, REVISIONS_UEZD, TOWNS_1727,
-    UEZD_POPULATION_1766, check_item, check_layer, household_records, kirilov_records,
+    CLUSTER_FIELDS, CLUSTERS, GORID_LAYERS, HOUSEHOLD_FIELDS, HOUSEHOLDS, HOUSEHOLDS_1719,
+    KIRILOV, KIRILOV_FIELDS, POPULATION_1766, POPULATION_1766_FIELDS, REVISION_FIELDS,
+    REVISIONS, REVISIONS_UEZD, TOWNS_1727, UEZD_POPULATION_1766, check_item, check_layer,
+    gorid_mismatches, gorid_records, gorid_towns, household_records, kirilov_records,
     population_1766_records, revision_records,
 )
 
@@ -44,7 +49,10 @@ CACHE = ROOT / "data" / "raw" / "imperiia"
 BOUNDARIES = ROOT / "data" / "out" / "boundaries"
 SERVICES = ([(KIRILOV, KIRILOV_FIELDS)]
             + [(r.service, REVISION_FIELDS | {r.field}) for r in REVISIONS]
-            + [(HOUSEHOLDS, HOUSEHOLD_FIELDS), (POPULATION_1766, POPULATION_1766_FIELDS)])
+            + [(HOUSEHOLDS, HOUSEHOLD_FIELDS), (POPULATION_1766, POPULATION_1766_FIELDS),
+               (CLUSTERS, CLUSTER_FIELDS)]
+            + [(service, {"GorID", "Location", "Guberniia", field})
+               for service, field in GORID_LAYERS])
 
 
 def fetch(cache: Path, client: Client) -> list[str]:
@@ -77,7 +85,11 @@ def collect(cache: Path) -> list:
     revisions = []
     for revision in REVISIONS:
         revisions += revision_records(load(cache, revision.service), revision)
-    layers = [(TOWNS_1727, kirilov_records(load(cache, KIRILOV))),
+    kirilov = load(cache, KIRILOV)
+    clusters = load(cache, CLUSTERS)
+    separate = {field: load(cache, service) for service, field in GORID_LAYERS}
+    extra_towns = gorid_records(gorid_towns(clusters, separate), kirilov)
+    layers = [(TOWNS_1727, kirilov_records(kirilov) + extra_towns),
               (REVISIONS_UEZD, revisions),
               (HOUSEHOLDS_1719, household_records(load(cache, HOUSEHOLDS))),
               (UEZD_POPULATION_1766, population_1766_records(load(cache, POPULATION_1766)))]
@@ -90,7 +102,13 @@ def collect(cache: Path) -> list:
     return [(spec, recs, frame.mark(recs)) for spec, recs in layers]
 
 
-def report(layers: list) -> None:
+def report(layers: list, cache: Path) -> None:
+    separate = {field: load(cache, service) for service, field in GORID_LAYERS}
+    mismatches = gorid_mismatches(load(cache, CLUSTERS), separate)
+    print(f"Вторая серия 1727 года: расхождений отдельных слоёв со сводным — "
+          f"{len(mismatches)}")
+    for line in mismatches[:10]:
+        print(f"  {line}")
     for spec, recs, counts in layers:
         print(f"\n«{spec.title}»: {len(recs)} записей")
         for what, n in collections.Counter(r.category for r in recs).most_common():
@@ -107,6 +125,9 @@ def report(layers: list) -> None:
                 by[r.category] += r.extra["population"]
             for what, total in by.items():
                 print(f"  сумма, {what}: {total:,}".replace(",", " "))
+        second = sum(1 for r in recs if r.extra.get("series") == "GorID")
+        if second:
+            print(f"  из второй серии 1727 года (GorID): {second}")
         print(f"  повторов uid: {len(recs) - len({r.uid for r in recs})}")
         watch = [r for r in recs if r.extra["name_latin"] in ("Moskva", "Kostroma", "Penza")]
         for rec in (watch or recs)[:3]:
@@ -123,7 +144,7 @@ def check(cache: Path) -> int:
             print(f"  {line}", file=sys.stderr)
         return 1
     print("Сервисы на месте: владелец, доступ, поля и число объектов сходятся.")
-    report(collect(cache))
+    report(collect(cache), cache)
     print("\nРазбор работает — можно запускать --build.")
     return 0
 
