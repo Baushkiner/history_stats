@@ -477,8 +477,11 @@ def test_client_does_not_retry_refusals():
 
 
 def test_signature_names_the_project_without_the_filtered_word():
-    # Сайт отказывает подписи сборщика — подпись под фильтр не подгоняется.
-    assert NARB_USER_AGENT == USER_AGENT
+    # Сбор разрешён (24.11.2026): подпись та же по проекту и версии, но без
+    # слова, на которое срабатывает фильтр сайта, и с пометкой о разрешении.
+    assert "harvesting" not in NARB_USER_AGENT
+    assert "permission of NARB" in NARB_USER_AGENT
+    assert NARB_USER_AGENT.split(";")[0] == USER_AGENT.split(";")[0]
 
 
 def test_card_cache_appends_and_reloads(tmp_path):
