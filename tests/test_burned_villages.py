@@ -139,7 +139,7 @@ def test_layer_card_states_rights_of_both_sources():
     assert BURNED_VILLAGES.slug == "burned_villages_by"
     assert BURNED_VILLAGES.group == "military"
     assert "CC0" in BURNED_VILLAGES.license
-    assert "права не выяснены" in BURNED_VILLAGES.license
+    assert "с согласия архива" in BURNED_VILLAGES.license
     assert BURNED_VILLAGES.url == DATASET_URL
 
 
@@ -382,7 +382,7 @@ def test_matched_card_adds_day_date_and_card_link():
     assert "до войны 26 дворов и 156 жителей" in rec.summary
     assert rec.extra["narb"]["houses_pre"] == "26"
     assert rec.extra["dates_agree"] is True
-    assert "права не выяснены" in rec.license
+    assert "с согласия архива" in rec.license
 
 
 def test_disagreeing_dates_widen_the_interval():
