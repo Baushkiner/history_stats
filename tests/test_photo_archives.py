@@ -276,3 +276,30 @@ def test_waralbum_records():
     assert by_id["3"].confidence == "outside_bbox" and "frame_by" in by_id["3"].extra
     assert by_id["4"].confidence == "no_coords" and by_id["4"].place_text == "Ленинградский фронт"
     assert by_id["1"].url == "https://waralbum.ru/1/" and by_id["1"].actor == "Дмитрий Чернов"
+
+
+def test_russiainphoto_place_text_gives_town_point_when_off_the_map():
+    assert russiainphoto.settlement_query("Олонецкая губ., г. Петрозаводск") == "Петрозаводск"
+    assert russiainphoto.settlement_query("Германия, г. Берлин") == "Берлин, Германия"
+    assert russiainphoto.settlement_query("г. Череповец и Череповецкий район") == "Череповец"
+    assert russiainphoto.settlement_query("Тверская губ., Старицкий у.") is None
+    items = russiainphoto.parse_items(_items(
+        (1, "Улица", "1900-е", "", "Улица, 1900-е, г. Москва"),
+        (2, "Рейхстаг", "1945", "", "Рейхстаг, 1945, Германия, г. Берлин"),
+        (3, "Поле", "1930", "", "Поле, 1930, Тверская губ., Старицкий у."),
+    ))
+    recs, _ = russiainphoto.records(items, {}, gaz=_gaz())
+    by_id = {r.source_id: r for r in recs}
+    assert by_id["1"].confidence == "place_level" and by_id["1"].lat == 55.7558
+    assert by_id["1"].extra["coord_source"].endswith("«Москва»")
+    assert by_id["2"].confidence == "outside_bbox" and by_id["2"].lat is None
+    assert by_id["3"].confidence == "no_coords"
+
+
+def test_gazetteer_strict_mode_refuses_namesakes():
+    g = _gaz()
+    g.add("Каменка", 53.19, 44.05, "city_population")             # город в Пензенской
+    g.add("Каменка", 56.35, 41.00, "settlements", "Россия")       # посёлок Ивановской
+    assert g.locate("Каменка").lat == 53.19
+    assert g.locate("Каменка", strict=True) is None
+    assert g.locate("Москва", strict=True).lat == 55.7558

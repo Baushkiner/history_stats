@@ -340,8 +340,15 @@ class Gazetteer:
                     g.add(title, lat, lon, layer, extra.get("country"))
         return g
 
-    def locate(self, place: Optional[str], km: float = 30.0) -> Optional[Place]:
-        """Однозначная точка по первому звену места или None."""
+    def locate(self, place: Optional[str], km: float = 30.0, *, strict: bool = False
+               ) -> Optional[Place]:
+        """Однозначная точка по первому звену места или None.
+
+        `strict` — место названо с областью или районом («Ивановская обл.,
+        пос. Каменка»): тогда тёзок ищут во всех слоях указателя, а не только
+        в первом по доверию, — иначе посёлок встаёт в одноимённый город
+        другой области.
+        """
         country = country_of(place)
         if country in FOREIGN or is_foreign_place(place):
             return None
@@ -361,7 +368,8 @@ class Gazetteer:
                 if not pool:
                     continue
                 first = pool[0]
-                if all(haversine_km(first.lat, first.lon, c.lat, c.lon) <= km for c in pool):
+                check = cands if strict else pool
+                if all(haversine_km(first.lat, first.lon, c.lat, c.lon) <= km for c in check):
                     return first
                 return None      # неоднозначно: тёзки в разных местах
         return None

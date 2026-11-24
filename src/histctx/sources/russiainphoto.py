@@ -28,8 +28,14 @@
 (`photos_count = 1` — тогда средняя точка и есть точка снимка, а номер
 снимка дан, `confidence = ok`) или не сузится до 5 знаков геохеша (около
 5 × 5 км) — тогда снимки ячейки берутся третьим адресом, и точка у них
-общая, средняя по ячейке (`place_level`). Снимок вне карты остаётся в слое без точки (`no_coords`), с текстом
-места в `place_text`.
+общая, средняя по ячейке (`place_level`).
+
+Снимку вне карты точка ставится по «Месту съемки» (`settlement_query`):
+последнее звено («г. Петрозаводск») ищется в указателе мест «Военного
+альбома» (`waralbum.Gazetteer` — слои проекта), однозначное совпадение даёт
+точку населённого пункта (`place_level`, `extra.coord_source`). Место за
+рубежом без точки — `outside_bbox` с `extra.frame_by`; остальные — без
+точки (`no_coords`), с местом в `place_text`.
 """
 
 from __future__ import annotations
@@ -44,6 +50,7 @@ from typing import Callable, Iterable, Iterator, Optional
 
 from ..schema import ContextRecord, LayerSpec, clean_text
 from .photo_common import CONSENT, Fetcher, photo_years
+from .waralbum import FOREIGN, country_of, is_foreign_place
 
 BASE = "https://russiainphoto.ru"
 SEARCH = BASE + "/search/ajax/?page={page}&page_size={size}"
@@ -77,7 +84,8 @@ RUSSIAINPHOTO = LayerSpec(
              "странице снимка); метаданные — russiainphoto.ru; " + CONSENT),
     description=(
         "Снимки 1840–1960 годов из музейных и частных собраний с местом съёмки, датировкой "
-        "и автором; точка — с карты сайта (ячейка геохеша до 5 км), у остальных — место текстом."
+        "и автором; точка — с карты сайта (ячейка геохеша до 5 км) или населённый пункт "
+        "по месту съёмки текстом."
     ),
     url="https://russiainphoto.ru/",
     status="harvested",
@@ -274,13 +282,22 @@ def crawl_grid(rect: tuple, get_grid: Callable[[tuple], dict], *, leaf_precision
     return leaves
 
 
-def cached_grid(cache: Path, fetcher: Fetcher, log=print) -> Callable[[tuple], dict]:
+def cached_grid(cache: Path, fetcher: Optional[Fetcher], log=print) -> Callable[[tuple], dict]:
+    """Ответ карты из кэша, а нет — с сайта. Без `fetcher` — только кэш.
+
+    Без сети недостающая рамка отвечает пустым списком и считается в
+    `get.missing`: так слой собирается из оборванного обхода, и видно,
+    сколько рамок карты не пройдено.
+    """
     counter = {"n": 0}
 
     def get(rect: tuple) -> dict:
         path = cache / "grid" / f"{_key(rect)}.json.gz"
         if path.exists():
             return _read(path)
+        if fetcher is None:
+            get.missing += 1
+            return {"results": []}
         n, w, s, e = (round(x, 7) for x in rect)
         payload = _json(fetcher, GRID.format(n=n, w=w, s=s, e=e))
         _write(path, {"total": payload.get("total"), "results": payload.get("results") or []})
@@ -288,6 +305,7 @@ def cached_grid(cache: Path, fetcher: Fetcher, log=print) -> Callable[[tuple], d
         if counter["n"] % 200 == 1:
             log(f"  карта: запрос {counter['n']}, рамка {n},{w},{s},{e}")
         return payload
+    get.missing = 0
     return get
 
 
@@ -341,8 +359,32 @@ def points(leaves: dict[str, Leaf], cache: Path) -> dict[int, tuple[float, float
 
 # --- записи ------------------------------------------------------------------
 
-def records(items: Iterable[Item], pts: dict, spec: LayerSpec = RUSSIAINPHOTO
+_RE_UNIT = re.compile(r"(?:\bобл\.?|\bгуб\.?|\bу\.|\bр-н\b|район|край|ССР|АССР|\bо\.|округ|"
+                      r"генерал-губернаторство|республика|\bуезд)", re.I)
+_RE_SETTLEMENT = re.compile(r"^(?:г\.|гор\.|с\.|д\.|пос\.|пгт|ст\.|м\.|сл\.|выселок)\s*(.+)$")
+
+
+def settlement_query(place: Optional[str]) -> Optional[str]:
+    """«Олонецкая губ., г. Петрозаводск» → «Петрозаводск»; «Германия, г. Берлин» →
+    «Берлин, Германия» (страна — для указателя мест); область без города — None."""
+    parts = [p.strip() for p in (place or "").split(",") if p.strip()]
+    if not parts:
+        return None
+    last = parts[-1]
+    m = _RE_SETTLEMENT.match(last)
+    name = m.group(1).strip() if m else (None if _RE_UNIT.search(last) else last)
+    if not name:
+        return None
+    name = re.split(r"\s+(?:и|\()", name)[0].strip()     # «г. Череповец и Череповецкий район»
+    if len(parts) > 1 and not _RE_UNIT.search(parts[0]):
+        return f"{name}, {parts[0]}"
+    return name
+
+
+def records(items: Iterable[Item], pts: dict, spec: LayerSpec = RUSSIAINPHOTO, *, gaz=None
             ) -> tuple[list[ContextRecord], dict]:
+    """Записи слоя. Снимку вне карты сайта точка ставится по месту текстом
+    (`gaz` — `waralbum.Gazetteer`): населённый пункт, `place_level`."""
     out: list[ContextRecord] = []
     seen: set = set()
     skipped = {"повтор": 0, "без года или позже горизонта": 0}
@@ -358,10 +400,22 @@ def records(items: Iterable[Item], pts: dict, spec: LayerSpec = RUSSIAINPHOTO
         lo, hi, precision, approx, raw = dating
         point = pts.get(item.id)
         extra: dict = {}
+        confidence = "no_coords"
         if point:
             extra["geohash"] = point[2]
             if point[3] > 1:
                 extra["cell_photos"] = point[3]
+            confidence = "ok" if point[3] == 1 else "place_level"
+        elif gaz is not None and item.place:
+            query = settlement_query(item.place)
+            found = gaz.locate(query, strict="," in item.place)
+            if found:
+                point = (found.lat, found.lon)
+                extra["coord_source"] = f"место текстом → {found.source}: «{found.name}»"
+                confidence = "place_level"
+            elif query and (country_of(query) in FOREIGN or is_foreign_place(query)):
+                confidence = "outside_bbox"
+                extra["frame_by"] = "по месту вне РИ/СССР в «Месте съемки» (точки нет)"
         out.append(spec.new_record(
             title=item.title or "Фотография",
             category="фотография",
@@ -376,7 +430,7 @@ def records(items: Iterable[Item], pts: dict, spec: LayerSpec = RUSSIAINPHOTO
             url=f"{BASE}/photos/{item.id}/",
             image_url=item.thumb,
             source_id=str(item.id),
-            confidence=("ok" if point[3] == 1 else "place_level") if point else "no_coords",
+            confidence=confidence,
             extra=extra,
         ))
     return out, skipped

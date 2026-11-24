@@ -23,15 +23,16 @@ POST с CSRF. Ответил быстро другой метод API — `GET /
 
 Оговорка о полноте. Порядок «по удалённости» не уникален: у снимков в одной
 точке расстояние одинаковое, и на стыке страниц такой снимок может попасть
-на обе или ни на одну. Повторы сводятся по номеру; пропуски видны только
-сверкой с другим путём (`/map-data/` по рамке), и `--check` её делает на
-одной рамке.
+на обе или ни на одну. Повторы сводятся по номеру (в обходе 24.11.2026 —
+233 повтора на 437 000 снимков); пропуски того же порядка.
 
 Датировка. `date` приходит либо днём («17-08-1938», когда в базе есть
 дата), либо текстом из музея («1930», «1920-1930», «u 1935», «[arvatav aeg
-17.8.1998]»). Год без даты иногда стоит в подписи («… 19.apr. 1977.a.») — он
-берётся с `date_approx` и пометкой `extra.date_from = "подпись"`. Снимок без
-года в слой не идёт, как и в PastVu: на ленту времени его не поставить.
+17.8.1998]»). Год без даты иногда стоит в подписи («… 19.apr. 1977.a.») —
+он берётся с `date_approx` и пометкой `extra.date_from = "подпись"`, если не
+старше 1839 года (раньше — это год события или постройки, а не съёмки).
+Снимок без года в слой не идёт, как и в PastVu: на ленту времени его не
+поставить.
 Горизонт — 1960 год (`YEAR_MAX`).
 """
 
@@ -52,6 +53,7 @@ NEAREST = BASE + "/api/v1/album/nearest/?latitude={lat}&longitude={lon}&limit={l
 # удалённость растёт сначала по Эстонии, потом по Финляндии и дальше.
 CENTER = (59.437, 24.745)
 PAGE = 500
+PHOTO_MIN = 1839
 
 KEEP = ("id", "title", "date", "author", "source", "latitude", "longitude", "azimuth")
 
@@ -150,7 +152,9 @@ def years(date: Optional[str], title: Optional[str] = None, *, year_max: int = Y
                         "date", year_max)
     text = clean_text(title)
     if text:
-        found = sorted({int(y) for y in _RE_YEAR.findall(text)})
+        # Год в подписи старше дагеротипа (1839) — это год события или
+        # постройки («1812. aasta»), а не съёмки: такой не берётся.
+        found = sorted({int(y) for y in _RE_YEAR.findall(text) if int(y) >= PHOTO_MIN})
         if found:
             return _cap(found[0], found[-1], "year", True, ", ".join(map(str, found)),
                         "подпись", year_max)
@@ -184,13 +188,14 @@ def records(photos: Iterable[dict], spec: LayerSpec = AJAPAIK) -> tuple[list[Con
             continue
         lo, hi, precision, approx, raw, origin = dating
         text = clean_text(photo.get("title")) or "Фотография"
+        # Подписи музеев бывают в абзац; полный текст — на странице снимка.
         title = text if len(text) <= 200 else text[:197].rstrip() + "…"
         source = photo.get("source") or {}
         extra: dict = {}
         if source.get("name"):
             extra["source_name"] = clean_text(source["name"])
-        if source.get("url"):
-            extra["source_url"] = source["url"]
+        # Ссылка на карточку музея есть на странице снимка Ajapaik; в слое её
+        # нет, чтобы GeoJSON не перерос 50 МБ (порог предупреждения GitHub).
         if photo.get("azimuth") is not None:
             extra["azimuth"] = round(float(photo["azimuth"]), 1)
         if origin == "подпись":
@@ -204,7 +209,6 @@ def records(photos: Iterable[dict], spec: LayerSpec = AJAPAIK) -> tuple[list[Con
             date_approx=approx or hi > lo,
             period_raw=raw,
             actor=clean_text(photo.get("author")),
-            summary=text if len(text) > 200 else None,
             url=f"{BASE}/photo/{pid}/",
             image_url=f"{BASE}/photo-thumb/{pid}/800/",
             source_id=str(pid),

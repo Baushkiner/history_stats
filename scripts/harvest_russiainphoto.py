@@ -14,7 +14,11 @@
 3. ячейки, где снимков больше одного, — `/search/ajax/?geohash=…`.
 
 Ответы ложатся в `data/raw/russiainphoto/` (catalog, grid, cells — сжатый
-JSON); повторный запуск берёт готовое из кэша. Одно соединение, пауза
+JSON); повторный запуск берёт готовое из кэша. `--build` сети не трогает:
+обход карты повторяется по кэшу, и оборванный обход даёт то, что успел
+(отчёт пишет, сколько рамок и ячеек не пройдено). Снимкам вне карты точка
+ставится по месту текстом — указатель мест слоёв `occupation_cities`,
+`city_population`, `renamed_places`, `settlements` (`waralbum.Gazetteer`). Одно соединение, пауза
 секунда после ответа, отступ на 429 и 5xx.
 
 Собрано с согласия владельца, полученного владельцем проекта (сообщено
@@ -43,6 +47,7 @@ from _paths import ROOT
 from histctx.frame import Frame
 from histctx.io_formats import write_geojson, write_jsonl, write_records_json
 from histctx.sources.photo_common import Fetcher, FetchError
+from histctx.sources.waralbum import Gazetteer
 from histctx.sources.russiainphoto import (
     RUSSIAINPHOTO, cached_grid, catalog_items, crawl_grid, fetch_catalog, fetch_cells,
     load_leaves, points, records, save_leaves, world_tiles,
@@ -50,6 +55,7 @@ from histctx.sources.russiainphoto import (
 
 CACHE = ROOT / "data" / "raw" / "russiainphoto"
 BOUNDARIES = ROOT / "data" / "out" / "boundaries"
+GEOJSON = ROOT / "data" / "out" / "geojson"
 # Рамка проверки: Тверская губерния с краем Московской — города, сёла и
 # одиночные снимки вперемешку, обход на пару сотен запросов.
 CHECK_RECT = (57.5, 34.0, 56.5, 36.0)
@@ -73,13 +79,24 @@ def collect(cache: Path, *, check: bool, fetch: bool) -> tuple[list, dict]:
             print(f"  плитка {tile}: листьев всего {len(leaves)}, запросов {fetcher.requests}",
                   flush=True)
         meta["requests"] = fetcher.requests
-    leaves = load_leaves(leaves_path)
+    if check and not fetch:
+        leaves = load_leaves(leaves_path)
+    else:
+        # Слой собирается из кэша карты без сети: обход повторяется по
+        # сохранённым ответам, и оборванная плитка даёт то, что успела.
+        offline = cached_grid(cache, None)
+        leaves = {}
+        for tile in reversed(world_tiles()):
+            leaves.update(crawl_grid(tile, offline))
+        meta["grid_missing"] = offline.missing
+        meta["cells_missing"] = sum(1 for l in leaves.values() if l.count > 1 and not (
+            cache / "cells" / f"{l.geohash}.json.gz").exists())
     pts = points(leaves, cache)
     meta.update(leaves=len(leaves), mapped=len(pts),
                 on_map=sum(l.count for l in leaves.values()))
     items = list(catalog_items(cache))
     meta["items"] = len(items)
-    recs, skipped = records(items, pts)
+    recs, skipped = records(items, pts, gaz=Gazetteer.load(GEOJSON))
     meta["skipped"] = skipped
     meta["frame"] = Frame.load(BOUNDARIES).mark(recs)
     return recs, meta
@@ -90,6 +107,9 @@ def report(recs: list, meta: dict) -> None:
           f"прочитано {meta['items']}; запросов в этот запуск {meta.get('requests', 0)}")
     print(f"  карта: листьев {meta['leaves']}, снимков на них {meta['on_map']}, "
           f"сведено с номером {meta['mapped']}")
+    if "grid_missing" in meta:
+        print(f"  не пройдено: рамок карты {meta['grid_missing']}, "
+              f"ячеек без списка снимков {meta['cells_missing']}")
     print(f"  записей {len(recs)}, с точкой {sum(1 for r in recs if r.has_point)}")
     for what, n in meta["skipped"].items():
         print(f"  отброшено ({what}): {n}")
@@ -112,7 +132,8 @@ def build(recs: list, out_dir: Path) -> int:
     off_map = [r for r in recs if not r.has_point]
     json_path = out_dir / f"{slug}.json"
     if off_map:
-        write_records_json(off_map, json_path, title=f"{RUSSIAINPHOTO.title}: без точки")
+        write_records_json(off_map, json_path, title=f"{RUSSIAINPHOTO.title}: без точки",
+                           hoist_shared=True, compact=True)
     jsonl = out_dir / "jsonl" / f"{slug}.jsonl"
     write_jsonl(recs, jsonl)
     print(f"«{RUSSIAINPHOTO.title}»: {len(recs)} записей, на карте {n}, без точки {len(off_map)}")
@@ -142,8 +163,7 @@ def main() -> int:
     if not recs:
         print("Ни одного снимка не разобрано: проверьте выдачу сайта.", file=sys.stderr)
         return 1
-    if args.check or args.fetch:
-        report(recs, meta)
+    report(recs, meta)
     if args.build:
         return build(recs, args.out)
     return 0

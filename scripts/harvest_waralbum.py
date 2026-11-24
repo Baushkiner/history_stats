@@ -102,7 +102,8 @@ def build(recs: list, meta: dict, out_dir: Path) -> int:
     off_map = [r for r in recs if not r.has_point]
     json_path = out_dir / f"{slug}.json"
     if off_map:
-        write_records_json(off_map, json_path, title=f"{WARALBUM.title}: без точки")
+        write_records_json(off_map, json_path, title=f"{WARALBUM.title}: без точки",
+                           hoist_shared=True, compact=True)
     jsonl = out_dir / "jsonl" / f"{slug}.jsonl"
     write_jsonl(recs, jsonl)
     print(f"«{WARALBUM.title}»: {len(recs)} записей, на карте {n}, без точки {len(off_map)}")
