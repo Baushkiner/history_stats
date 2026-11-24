@@ -480,6 +480,8 @@ python3 scripts/harvest_jewish_cemeteries.py --build --offline --partial
 #     и год (коллекция Индианы в OpenGeoMetadata; нужен git)
 python3 scripts/harvest_german_colonies.py --check
 python3 scripts/harvest_german_colonies.py --build
+python3 scripts/harvest_colony_lists_odessa3.py --check   # списки Odessa3, точки из GRSL
+python3 scripts/harvest_colony_lists_odessa3.py --build
 python3 scripts/harvest_topo_maps.py --check
 python3 scripts/harvest_topo_maps.py --build
 
@@ -556,6 +558,7 @@ ruff check .
 | Перепись 1939 года по районам: национальный состав | 3 789 | 21% — райцентр, остальные — район | 100% |
 | Мызы Эстляндии и северной Лифляндии до 1917 года | 2 513 | 100% | 46% |
 | Население городов 1800–1959 годов | 2 325 | 100% | 100% |
+| Списки колоний Odessa3: Поволжье, Причерноморье, Крым, меннониты | 2 116 | 59% — точка GRSL | 37% — год основания |
 | Губернии, уезды, волости | 1 683 | 100% | 34% |
 | Населённые места: год основания | 935 | 100% | 94% |
 | Население уездов по ревизиям XVIII века (таблица Кабузана) | 786 | 100% — уездный город | 100% |
@@ -785,8 +788,9 @@ src/histctx/
                   town_plans.py, military_hospitals.py, pogroms_1903.py,
                   execution_sites.py, pow_camps.py, jewish_cemeteries.py
                   (русские подписи мест — russian_names.py),
-                  german_colonies.py, topo_maps.py; census_1897_kda.py
-                  (перепись 1897 года со сборки k-da.dev);
+                  german_colonies.py, topo_maps.py; 24.11.2026 —
+                  census_1897_kda.py (перепись 1897 года со сборки k-da.dev),
+                  colony_lists_odessa3.py;
                   dataverse.py — файлы Harvard Dataverse, uezd_names.py —
                   сведение уездов с RISTAT, rserial.py — чтение .Rdata;
                   shapefile.py и geopackage.py — чтение границ без geopandas

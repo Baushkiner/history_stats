@@ -35,6 +35,7 @@
 | `download.geonames.org` | Альтернативные названия GeoNames по странам (`/export/dump/alternatenames/XX.zip`, CC BY 4.0) — русские имена городов слоя населения городов: у каждого имени есть язык и флаги «основное» и «историческое» |
 | `dataverse.harvard.edu` | Набор по голоду 1891–1892 годов (CC0 1.0): список файлов — `/api/datasets/:persistentId/`, сами файлы — `/api/access/datafile/{id}`, тот же путь, что у heiDATA; карточка набора — через `doi.org` |
 | `www.soldat.ru` | Справочник «Освобождение городов» (1985): шесть страниц раздела СССР `/spravka/freedom/1-ssr-1…6.html` и хроника освобождения `application2.html`, cp1251. Соединение рвётся примерно на каждом третьем запросе — сборщик повторяет. `robots.txt` закрывает только `/s/`. Сверка дат — набором Grunewald с `dataverse.harvard.edu` (CC0) |
+| `www.odessa3.org` | Odessa Digital Library (© составители списков; собрано с согласия владельца, полученного владельцем проекта, сообщено 24.11.2026): четыре списка сёл — `/collections/refs/link/volgavl.txt`, `odessavl.txt`, `crimeavl.txt`, `menvil.txt` (вместе около 240 КБ, пауза 1,5 с). `robots.txt` закрывает `/collections/` — согласие снимает запрет, нагрузка — четыре запроса |
 | `db.narb.by` | База НАРБ «Белорусские деревни, сожжённые в годы Великой Отечественной войны» (права не выяснены — берутся факты и ссылка): `robots.txt`, `sitemap_index.xml` и карточки `/village/<slug>/`. `/wp-json/`, `/search` и адреса с параметрами закрыты `robots.txt` и не запрашиваются. Рвёт соединение примерно через запрос, подпись со словом «harvesting» не пропускает; до договорённости с архивом карточки не собираются, см. раздел о сожжённых деревнях |
 | `en.mapofmemory.org` | «Некрополь террора и ГУЛАГа», английская версия: главная страница с 411 точками карты и карточки мест `/<код>` (`/59-01`). `robots.txt` просит `Crawl-delay: 10` — обход идёт чуть больше часа. Русский `mapofmemory.org` из среды не отвечает |
 | `zenodo.org` | «Suomen kylät 1540–1940», Национальный архив Финляндии (CC BY 4.0): перечень файлов — `/api/records/10408884/files` (имя, размер, md5), таблица — `/api/records/10408884/files/Suomen_kylat_v1.csv/content`, 4,9 МБ. Путь под `/api/records/*/files`, который robots.txt открывает; карточку записи сборщик не запрашивает, лицензия сверена руками |
@@ -333,6 +334,11 @@ python3 scripts/harvest_military_hospitals.py --build
 #     boundaries/districts_1897.geojson (шаг 5), губернии сверяются с heiDATA
 python3 scripts/harvest_census_1897_kda.py --check
 python3 scripts/harvest_census_1897_kda.py --build
+# 41. Списки колоний Odessa Digital Library: Поволжье (Heinle), Причерноморье
+#     (Gutenberg), Крым (Wahl), меннониты (Janzen) — с согласия владельца, только
+#     факты. После шага 33: точки берутся из german_colonies.geojson (GRSL)
+python3 scripts/harvest_colony_lists_odessa3.py --check
+python3 scripts/harvest_colony_lists_odessa3.py --build
 
 # Выгрузка любого собранного слоя в XLSX — записи, сводка, лист об источнике
 python3 scripts/export_layer_xlsx.py --layer repressions
@@ -2586,6 +2592,41 @@ CShapes; 61 точка у берега получила губернию по б
 На выходе `geojson/german_colonies.geojson` (19 451 точка, 22,1 МБ),
 `german_colonies.json` (одно место без координаты) — оба в репозиторий — и
 `jsonl/german_colonies.jsonl` (в `.gitignore`).
+
+## Списки колоний Odessa3: вторая запись колоний к GRSL
+
+Odessa Digital Library (odessa3.org, Р. Эрих) хранит четыре списка сёл,
+сведённых генеалогами GRHS в 1996–1999 годах по Штумпу, Саллету, Бератцу и
+Гизингеру: «Volga Area Villages» (R. Heinle, 814 строк), «Odessa Area
+Villages» (B. Gutenberg, 540), «Crimea Area Villages» (D. L. Wahl, 319) и
+«Mennonite Villages in Russia» (T. P. Janzen, 443). Сбор —
+`python3 scripts/harvest_colony_lists_odessa3.py --check`, затем `--build`;
+разбор — `sources/colony_lists_odessa3.py`. Шапки списков запрещают
+перепубликацию без разрешения, robots.txt закрывает `/collections/`: собрано
+24.11.2026 с согласия владельца (получено владельцем проекта), берутся только
+факты — имя, район, год, конфессия, население, поселение — со ссылкой на файл.
+
+**Таблицы.** Текст с колонками фиксированной ширины: границы колонок — по
+линейке из дефисов под шапкой, у Крыма линейки нет — по словам заголовка. У
+Поволжья таблица кончается линейкой перед примечаниями. Меннонитский список
+переносит длинные строки: строка, начатая скобкой или отступом, — продолжение
+предыдущей. Повторы одного села списки делают сами («Little effort has been
+made to prevent multiple entries») — строки не схлопываются.
+
+**Точка — из GRSL.** Имя строки (немецкое, затем русское и другие, умлаут
+«ue» пробуется и как «ü») ищется в `german_colonies.geojson` среди групп
+своего края; несколько кандидатов разводятся годом основания, затем районом.
+Год расходится больше чем на десять лет — точка не берётся, кандидат остаётся
+в `extra.grsl_candidate`: Rosenthal Хортицы 1790 года и Rosenthal GRSL 1927
+года — разные сёла. 24.11.2026: с точкой 1 243 строки (по имени 1 006, по году
+142, по району 95), без точки 873 — в GRSL нет 655, не развелось 196, год
+расходится 22. У 94 строк с точкой год расходится с GRSL на 1–10 лет
+(`extra.grsl_year`) — материал для сверки годов основания. Губерния без точки
+— по самому списку (у меннонитов — из строки, у Поволжья — по стороне Волги).
+
+На выходе `geojson/colony_lists_odessa3.geojson` (1 243 точки, 1,3 МБ),
+`colony_lists_odessa3.json` (873 строки без точки, 1,6 МБ) — оба в
+репозиторий — и `jsonl/colony_lists_odessa3.jsonl` (в `.gitignore`).
 
 ## Топографические карты: коллекция Индианы в OpenGeoMetadata
 
