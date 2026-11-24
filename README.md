@@ -504,6 +504,13 @@ pip install inflate64
 python3 scripts/harvest_hyde.py --check
 python3 scripts/harvest_hyde.py --build
 
+# 29.1. Малочисленные селения России («Вот моя деревня», собрано с согласия
+#       владельцев): JSON-API сайта, полный обход — около десяти минут,
+#       прерванный продолжается из кэша; губерния 1897 года — после шага 8
+python3 scripts/harvest_votmoyaderevnya.py --check
+python3 scripts/harvest_votmoyaderevnya.py --fetch --gaps
+python3 scripts/harvest_votmoyaderevnya.py --build
+
 
 # 30. Свести собранное в общий массив и переписать отчёт о качестве
 python3 scripts/build_core.py
@@ -772,7 +779,7 @@ src/histctx/
                   town_plans.py, military_hospitals.py, pogroms_1903.py,
                   execution_sites.py, pow_camps.py, jewish_cemeteries.py
                   (русские подписи мест — russian_names.py),
-                  german_colonies.py, topo_maps.py;
+                  german_colonies.py, topo_maps.py; votmoyaderevnya.py;
                   dataverse.py — файлы Harvard Dataverse, uezd_names.py —
                   сведение уездов с RISTAT, rserial.py — чтение .Rdata;
                   shapefile.py и geopackage.py — чтение границ без geopandas
