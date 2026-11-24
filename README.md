@@ -504,6 +504,17 @@ pip install inflate64
 python3 scripts/harvest_hyde.py --check
 python3 scripts/harvest_hyde.py --build
 
+# 29a. С согласия владельцев (24.11.2026): общины JewishGen с уездом и губернией
+#      по эпохам, синагоги Historic Synagogues of Europe, места Восточной Пруссии
+#      Kartenmeister. --fetch продолжает оборванный обход из кэша; у Kartenmeister
+#      около 18 000 карточек (5–6 часов), --partial собирает то, что есть
+python3 scripts/harvest_jewishgen_communities.py --check
+python3 scripts/harvest_jewishgen_communities.py --fetch --build
+python3 scripts/harvest_historic_synagogues.py --check
+python3 scripts/harvest_historic_synagogues.py --fetch --build
+python3 scripts/harvest_kartenmeister.py --check
+python3 scripts/harvest_kartenmeister.py --fetch --build --partial
+
 
 # 30. Свести собранное в общий массив и переписать отчёт о качестве
 python3 scripts/build_core.py
@@ -772,7 +783,10 @@ src/histctx/
                   town_plans.py, military_hospitals.py, pogroms_1903.py,
                   execution_sites.py, pow_camps.py, jewish_cemeteries.py
                   (русские подписи мест — russian_names.py),
-                  german_colonies.py, topo_maps.py;
+                  german_colonies.py, topo_maps.py; с согласия владельцев
+                  24.11.2026 — jewishgen_communities.py,
+                  historic_synagogues.py, kartenmeister.py (вежливый
+                  обход с кэшем — polite.py);
                   dataverse.py — файлы Harvard Dataverse, uezd_names.py —
                   сведение уездов с RISTAT, rserial.py — чтение .Rdata;
                   shapefile.py и geopackage.py — чтение границ без geopandas

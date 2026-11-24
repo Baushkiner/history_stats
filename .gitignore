@@ -137,3 +137,10 @@ data/raw/imperiia/
 data/raw/nsidc_ice/
 data/raw/hyde/
 data/raw/eclipses/
+# Выдача JewishGen Communities, карточки Historic Synagogues of Europe и
+# Kartenmeister (сжатые gzip, вместе около 100 МБ): собраны с согласия
+# владельцев 24.11.2026, пересобираются сборщиками с --fetch; в репозиторий
+# идут только слои.
+data/raw/jewishgen_communities/
+data/raw/historic_synagogues/
+data/raw/kartenmeister/

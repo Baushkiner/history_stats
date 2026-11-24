@@ -66,6 +66,10 @@
 | `war.dekoder.org` | Карта dekoder «Karte der NS-Verbrechen» (права не выяснены — факты и ссылка): главная `/de/map` — около 2 МБ, в данных страницы (куски `self.__next_f.push`) GeoJSON всех слоёв карты с номерами листов-источников; `sitemap-map.xml` — адреса карточек `/de/map/pow_camps/<имя>-<id>`. Два запроса с паузой 1 с, оба — в кэш. `robots.txt` — `Allow: /`. Первоисточник перечня — `moosburg.org/info/stalag/laglist.html` (robots.txt закрывает только `/archiv/` и `/gif/`); сборщик его не запрашивает |
 | `www.esjf-cemeteries.org` | Обследование еврейских кладбищ ESJF (права не выяснены — факты и ссылка): `robots.txt`, карты сайта `/survey-sitemap.xml` … `/survey-sitemap5.xml` (4 276 карточек на 22.11.2026) и карточки `/survey/<slug>/`. `/wp-json/` и адреса с параметрами закрыты `robots.txt` и не запрашиваются. Перед сайтом — защита хостинга: на частые запросы отвечает 429 со страницей проверки «Захищена сторінка», без `Retry-After`; после серии отказов пропускает около карточки в минуту. Сборщик ждёт минуту после отказа и после пяти отказов подряд останавливается. **Полный обход — только после договорённости** (info@esjf-cemeteries.org); собрано 40 карточек |
 | `www.soldat.ru` | «Справочник дислокации госпиталей РККА в 1941–1945 годах» (права не выяснены, сайт требует активную ссылку): форма поиска `POST /hospital.html` в cp1251 (поля `fields[number]`, `fields[hosptype.bigname]`, `fields[hosppoint.name]`, `fields[hospobl.name]`, метасимволы `*` и `?`), страницы выдачи — `POST /hospital.html?page=N` со скрытыми полями формы `frm`, по 20 записей, не больше 500 на запрос; форма правки `POST /hospital_edit.html` (`pid`) — выборочная сверка пропусков нумерации. Обход — около 4 500 запросов с паузой не меньше секунды, около четырёх часов; соединение рвётся примерно на каждом третьем запросе, сборщик повторяет (таймаут 30 с, пауза растёт до 15 с). `robots.txt` закрывает только `/s/` |
+| `www.jewishgen.org` | JewishGen Communities Database (с согласия владельца, сообщено 24.11.2026): выдача поиска `/Communities/jgcd.php` — затравка `POST` по названию столицы в каждой стране формы, дальше `GET ?get=y&prov1900=…` и `?get=y&prov1930=…` по ссылкам выдачи, волной. Пауза 2 с (`Crawl-delay: 2`). Карточка `community.php` с ноября 2026 года отвечает 302 на `/Auth0/login.php` — вход по учётной записи; сборщик её не запрашивает |
+| `historicsynagogueseurope.org` | Historic Synagogues of Europe (с согласия владельца, сообщено 24.11.2026): страница карты `/synagogue-map` (0,6 МБ, строка `predata` со всеми точками) и карточки `/browser.php?mode=set&id=N` — 3 427 запросов, пауза 1 с. Сервер не отдаёт промежуточный сертификат Sectigo DV R36 — проверка TLS без него падает («unable to get local issuer certificate») |
+| `crt.sectigo.com` | Промежуточный сертификат `SectigoPublicServerAuthenticationCADVR36.crt` по адресу из поля AIA сертификата `historicsynagogueseurope.org` — один запрос по http, файл ложится в кэш сборщика; проверка TLS не отключается |
+| `www.kartenmeister.com` | Kartenmeister (с согласия владельца, сообщено 24.11.2026): форма `POST /preview/Results.asp` по нынешней области (Kaliningrad, Klaip), страницы `results.asp?pg=N&p=100&s5=…` и карточки `City.asp?CitNum=N` — около 18 100 запросов, пауза 1 с. Только **http**: по https соединение обрывается (connection reset); `robots.txt` нет (404) |
 
 Без части доменов работает часть сбора: Викиданные, PastVu и погода
 независимы друг от друга.
@@ -326,6 +330,19 @@ python3 scripts/harvest_jewish_cemeteries.py --build --offline --partial
 python3 scripts/harvest_military_hospitals.py --check
 python3 scripts/harvest_military_hospitals.py --fetch
 python3 scripts/harvest_military_hospitals.py --build
+
+# 40. С согласия владельцев (сообщено 24.11.2026): общины JewishGen Communities
+#     (обход волной по губерниям, пауза 2 с), синагоги Historic Synagogues of
+#     Europe (3 427 карточек, около часа; промежуточный сертификат — по AIA) и
+#     места Восточной Пруссии Kartenmeister (около 18 000 карточек, 5–6 часов,
+#     только http). После шагов 3 (указатель написаний) и 5–6 (губерния и рамка);
+#     --fetch продолжает обход из кэша, --partial собирает неполный слой
+python3 scripts/harvest_jewishgen_communities.py --check
+python3 scripts/harvest_jewishgen_communities.py --fetch --build
+python3 scripts/harvest_historic_synagogues.py --check
+python3 scripts/harvest_historic_synagogues.py --fetch --build
+python3 scripts/harvest_kartenmeister.py --check
+python3 scripts/harvest_kartenmeister.py --fetch --build --partial
 
 # Выгрузка любого собранного слоя в XLSX — записи, сводка, лист об источнике
 python3 scripts/export_layer_xlsx.py --layer repressions
