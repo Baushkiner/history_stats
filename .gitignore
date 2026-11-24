@@ -145,3 +145,7 @@ data/raw/imperiia/
 data/raw/nsidc_ice/
 data/raw/hyde/
 data/raw/eclipses/
+# Ответы JSON-API «Вот моя деревня» (около 6 МБ: дерево разделов и карточки
+# селений с текстами рубрик): пересобираются командой
+# scripts/harvest_votmoyaderevnya.py --fetch --gaps; в репозиторий идёт слой.
+data/raw/votmoyaderevnya/

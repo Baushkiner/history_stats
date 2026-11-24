@@ -109,6 +109,7 @@ from .sources.ice import ICE_PHENOLOGY
 from .sources.hyde import POPULATION_HYDE
 from .sources.eclipses import SOLAR_ECLIPSES
 from .sources.census_1897_kda import CENSUS_1897_KDA
+from .sources.votmoyaderevnya import SETTLEMENTS_VMD
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -151,7 +152,7 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      ROADS_1820, ADMIN_BOUNDARIES_1820,
                      TOWNS_1727, REVISIONS_UEZD, HOUSEHOLDS_1719, UEZD_POPULATION_1766,
                      # 24.11.2026: источники, по которым получено согласие владельцев
-                     CENSUS_1897_KDA, COLONY_LISTS]
+                     CENSUS_1897_KDA, COLONY_LISTS, SETTLEMENTS_VMD]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых

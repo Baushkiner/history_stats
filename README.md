@@ -519,6 +519,13 @@ python3 scripts/harvest_hyde.py --build
 #      согласия владельца, 24.11.2026), два запроса; после шага с границами 1897 года
 python3 scripts/harvest_census_1897_kda.py --check
 python3 scripts/harvest_census_1897_kda.py --build
+# 29.1. Малочисленные селения России («Вот моя деревня», собрано с согласия
+#       владельцев): JSON-API сайта, полный обход — около десяти минут,
+#       прерванный продолжается из кэша; губерния 1897 года — после шага 8
+python3 scripts/harvest_votmoyaderevnya.py --check
+python3 scripts/harvest_votmoyaderevnya.py --fetch --gaps
+python3 scripts/harvest_votmoyaderevnya.py --build
+
 
 # 30. Свести собранное в общий массив и переписать отчёт о качестве
 python3 scripts/build_core.py
@@ -790,7 +797,7 @@ src/histctx/
                   (русские подписи мест — russian_names.py),
                   german_colonies.py, topo_maps.py; 24.11.2026 —
                   census_1897_kda.py (перепись 1897 года со сборки k-da.dev),
-                  colony_lists_odessa3.py;
+                  colony_lists_odessa3.py, votmoyaderevnya.py;
                   dataverse.py — файлы Harvard Dataverse, uezd_names.py —
                   сведение уездов с RISTAT, rserial.py — чтение .Rdata;
                   shapefile.py и geopackage.py — чтение границ без geopandas
