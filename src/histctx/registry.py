@@ -88,6 +88,7 @@ from .sources.wikisource_arkhiv import METRIC_BOOKS_UA
 from .sources.archives_by import METRIC_BOOKS_BY
 from .sources.ghettos_camps import GHETTOS_CAMPS
 from .sources.german_colonies import GERMAN_COLONIES
+from .sources.colony_lists_odessa3 import COLONY_LISTS
 from .sources.topo_maps import TOPO_MAPS
 from .sources.earthquakes import EARTHQUAKES
 from .sources.town_plans import TOWN_PLANS
@@ -96,6 +97,9 @@ from .sources.military_hospitals import MILITARY_HOSPITALS
 from .sources.pogroms_1903 import POGROMS_1903
 from .sources.jewish_cemeteries import JEWISH_CEMETERIES
 from .sources.pow_camps import POW_CAMPS
+from .sources.ajapaik import AJAPAIK
+from .sources.russiainphoto import RUSSIAINPHOTO
+from .sources.waralbum import WARALBUM
 from .sources.imperiia import POST_STATIONS
 from .sources.imperiia_xviii import (
     HOUSEHOLDS_1719, REVISIONS_UEZD, TOWNS_1727, UEZD_POPULATION_1766,
@@ -107,6 +111,14 @@ from .sources.atlas_1820 import (
 from .sources.ice import ICE_PHENOLOGY
 from .sources.hyde import POPULATION_HYDE
 from .sources.eclipses import SOLAR_ECLIPSES
+from .sources.census_1897_kda import CENSUS_1897_KDA
+from .sources.votmoyaderevnya import SETTLEMENTS_VMD
+from .sources.railways_hgise import RAILWAYS_HGISE
+from .sources.old_maps import OLD_MAPS
+from .sources.jewishgen_communities import JEWISHGEN_COMMUNITIES
+from .sources.historic_synagogues import HISTORIC_SYNAGOGUES
+from .sources.kartenmeister import KARTENMEISTER
+from .sources.temples_ru import TEMPLES_RU
 
 CURATED = [LITERARY, TENISHEV, BATTLES, PROKUDIN, STATE_EVENTS]
 
@@ -147,7 +159,17 @@ HARVESTED_SOURCES = [SETTLEMENTS, GULAG_CAMPS, ADMIN_GIS, RISTAT_BOUNDARIES,
                      POST_STATIONS, ICE_PHENOLOGY, POPULATION_HYDE, SOLAR_ECLIPSES,
                      SETTLEMENTS_1820, FORTIFICATIONS_1820, FAITH_1820, ECONOMY_1820,
                      ROADS_1820, ADMIN_BOUNDARIES_1820,
-                     TOWNS_1727, REVISIONS_UEZD, HOUSEHOLDS_1719, UEZD_POPULATION_1766]
+                     TOWNS_1727, REVISIONS_UEZD, HOUSEHOLDS_1719, UEZD_POPULATION_1766,
+                     # 24.11.2026: источники, по которым получено согласие владельцев
+                     CENSUS_1897_KDA, COLONY_LISTS, SETTLEMENTS_VMD, RAILWAYS_HGISE,
+                     OLD_MAPS,
+                     # Фотоархивы, собранные с согласия владельцев (24.11.2026);
+                     # «Военный альбом» — неполным, обход продолжается с места.
+                     RUSSIAINPHOTO, AJAPAIK, WARALBUM,
+                     # С согласия владельцев (сообщено 24.11.2026)
+                     JEWISHGEN_COMMUNITIES, HISTORIC_SYNAGOGUES, KARTENMEISTER,
+                     # С согласия владельца, 24.11.2026
+                     TEMPLES_RU]
 
 # --- слои, собранные из Викиданных ---------------------------------------
 # Запрос каждого лежит в queries/<slug>.rq — кроме переименований, у которых
@@ -398,19 +420,6 @@ PLANNED = [
 EXTERNAL = [
     PASTVU_PHOTOS,
     LayerSpec(
-        slug="photos_russiainphoto", title="История России в фотографиях", group="culture",
-        source="russiainphoto.ru (Мультимедиа Арт Музей)",
-        license="права музея и правообладателей на снимки — нужна договорённость; "
-                "публичного API нет, метаданные без него не забрать",
-        status="planned", expected_rows=200000,
-        url="https://russiainphoto.ru/",
-        description=(
-            "Архив с датировкой и указанием места по каждому снимку, включая частные "
-            "и семейные фотографии XIX — XX веков. Публичного API нет; условия "
-            "использования выясняются с музеем, а не выводятся из открытости сайта."
-        ),
-    ),
-    LayerSpec(
         slug="weather_chronicles", title="Погода по летописям до инструментальных наблюдений",
         group="hardship",
         source="Е. П. Борисенков, В. М. Пасецкий. Тысячелетняя летопись необычайных явлений "
@@ -441,7 +450,10 @@ EXTERNAL = [
             "Наличное население, возраст, семейное состояние, родной язык, вера и "
             "сословие по губерниям, уездам и городам 1897 года — пятнадцать сводных "
             "таблиц. Закрывает дыру, которую не закрывают взятые наборы границ: "
-            "у heiDATA числа есть только по губерниям, у RISTAT уезды есть, но без чисел."
+            "у heiDATA числа есть только по губерниям, у RISTAT уезды есть, но без чисел. "
+            "С 24.11.2026 уезды и города с этими таблицами дал слой census_1897_kda "
+            "(k-da.dev); Демоскоп остаётся независимой сверкой и источником сословий "
+            "и семейного состояния, которых у k-da.dev пока нет."
         ),
     ),
     LayerSpec(

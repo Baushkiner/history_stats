@@ -1,12 +1,13 @@
-"""Города 1727 года по Кирилову и уезды по ревизиям (слои Imperiia): только факты.
+"""Города 1727 года по Кирилову и уезды по ревизиям (слои Imperiia, с согласия владельца).
 
 Сети в тестах нет. Образцы — объекты сервисов в том виде, в каком их отдаёт
 сервер (23.11.2026).
 """
 
 from histctx.sources.imperiia_xviii import (
-    HOUSEHOLDS_1719, KIRILOV, KIRILOV_FIELDS, REVISIONS, REVISIONS_UEZD, TOWNS_1727,
-    UEZD_POPULATION_1766, check_item, check_layer, household_record, household_records,
+    CLUSTERS, HOUSEHOLDS_1719, KIRILOV, KIRILOV_FIELDS, REVISIONS, REVISIONS_UEZD, TOWNS_1727,
+    UEZD_POPULATION_1766, check_item, check_layer, gorid_mismatches, gorid_records,
+    gorid_towns, household_record, household_records,
     kirilov_record, kirilov_records, population_1766_record, population_1766_records,
     revision_record, revision_records,
 )
@@ -79,21 +80,60 @@ def test_zero_means_no_data():
     assert a.uid != b.uid
 
 
-def test_rights_are_stated_as_facts_only():
+def test_rights_state_the_owner_consent():
     for spec in (TOWNS_1727, REVISIONS_UEZD, HOUSEHOLDS_1719, UEZD_POPULATION_1766):
-        assert "только факты" in spec.license and "не выпущен" in spec.license
+        assert "не выпущен" in spec.license and "согласия владельца" in spec.license
+        assert "24.11.2026" in spec.license
         assert spec.status == "harvested" and spec.expected_rows
 
 
-def test_service_checks_stop_on_access_note():
+def test_service_checks_no_longer_stop_on_access_note():
     info = {"geometryType": "esriGeometryPoint",
             "fields": [{"name": n} for n in KIRILOV_FIELDS]}
     assert check_layer(info, KIRILOV, KIRILOV_FIELDS, KIRILOV.count) == []
     assert check_layer(info, KIRILOV, KIRILOV_FIELDS | {"Нет"}, KIRILOV.count - 1)
     ok = {"owner": "koneill_worldmap", "access": "public", "description": "Kirilov"}
     assert check_item(ok, KIRILOV) == []
+    # Согласие владельца получено (24.11.2026): оговорка о доступе сбор не держит.
     noted = dict(ok, description="This layer is provisional… contact the editor for access")
-    assert any("не собирается" in p for p in check_item(noted, KIRILOV))
+    assert check_item(noted, CLUSTERS) == []
+    assert check_item(dict(ok, owner="someone"), CLUSTERS)
+
+
+# Вторая серия 1727 года: сводный слой и отдельные, нумерация GorID.
+ZEMLIANSK = {"attributes": {"GorID": 162, "Location": "Zemliansk", "Guberniia": "Voronezhskaia",
+                            "Status": "pripisnyj", "State_serv": 3, "Officers__": 0,
+                            "Monasterie": 0, "Orthodox_c": 23, "Bishopric": 0, "Factories": 0},
+             "geometry": {"x": 38.74, "y": 51.91}}
+NOVGOROD_GOR = {"attributes": {"GorID": 16, "Location": "Novgorod", "Guberniia": "Novgorod",
+                               "Status": "capital", "State_serv": 41, "Officers__": 52,
+                               "Monasterie": 98, "Orthodox_c": 736, "Bishopric": 1,
+                               "Factories": 2}, "geometry": {"x": 31.27, "y": 58.52}}
+DMITREEV = {"attributes": {"GorID": 254, "Location": "Dmitreev", "Guberniia": "Astrakhanskaia",
+                           "Status": "pripisnyj", "Bishopric": 0}, "geometry": {"x": 52.4, "y": 53.9}}
+EMPTY = {"attributes": {"GorID": 0, "Location": None, "Guberniia": None, "Bishopric": 0},
+         "geometry": None}
+
+
+def test_second_series_adds_only_towns_missing_from_kirilov_layer():
+    towns = gorid_towns([ZEMLIANSK, NOVGOROD_GOR], {"Bishopric": [DMITREEV, EMPTY]})
+    assert sorted(towns) == [16, 162, 254]
+    recs = gorid_records(towns, [NOVGOROD])
+    assert [r.source_id for r in recs] == ["kirilov-gor:162", "kirilov-gor:254"]
+    zem = recs[0]
+    assert zem.layer == TOWNS_1727.slug and zem.url == CLUSTERS.url
+    assert zem.title == "Землянск (Zemliansk) в 1727 году: 23 церкви"
+    assert "3 приказных служителя" in zem.summary
+    assert "этого города нет" in zem.summary and zem.extra["series"] == "GorID"
+    # Город только из отдельного слоя: чисел нет, запись остаётся.
+    assert recs[1].category == "без церквей в описании"
+
+
+def test_separate_layers_are_checked_against_the_summary_layer():
+    officials = {"attributes": dict(ZEMLIANSK["attributes"], State_serv=4), "geometry": None}
+    assert gorid_mismatches([ZEMLIANSK], {"State_serv": [officials]}) == [
+        "Zemliansk: State_serv 4 ≠ 3"]
+    assert gorid_mismatches([ZEMLIANSK], {"State_serv": [ZEMLIANSK]}) == []
 
 
 KOSTROMA = {"attributes": {"GorID": 72, "Location": "Kostroma", "Guberniia": "Moskovskaia",

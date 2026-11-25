@@ -103,6 +103,9 @@ data/raw/archives_by/
 # командой scripts/harvest_german_colonies.py --check --refresh; в репозиторий
 # идут только записи слоя.
 data/raw/german_colonies/
+# Четыре списка сёл Odessa Digital Library (около 240 КБ текста):
+# scripts/harvest_colony_lists_odessa3.py --check --refresh.
+data/raw/colony_lists_odessa3/
 # Частичный разрежённый клон OpenGeoMetadata/big-ten — одна папка
 # metadata-aardvark/Maps/01d-00, около 30 МБ (scripts/harvest_topo_maps.py
 # --check); в репозиторий идут только записи слоя.
@@ -133,7 +136,43 @@ data/raw/pogroms_1903/
 # sitemap-map.xml: пересобираются командой scripts/harvest_pow_camps.py
 # --check --refresh; в репозиторий идут только записи слоя.
 data/raw/pow_camps/
+# Страница и сборка приложения k-da.dev/russia-1897 (около 5 МБ JS, в ней
+# поуездные таблицы переписи 1897 года): чужая работа, взята с согласия
+# владельца ради чисел; пересобирается командой
+# scripts/harvest_census_1897_kda.py --check --refresh.
+data/raw/census_1897_kda/
 data/raw/imperiia/
 data/raw/nsidc_ice/
 data/raw/hyde/
 data/raw/eclipses/
+# Ответы JSON-API «Вот моя деревня» (около 6 МБ: дерево разделов и карточки
+# селений с текстами рубрик): пересобираются командой
+# scripts/harvest_votmoyaderevnya.py --fetch --gaps; в репозиторий идёт слой.
+data/raw/votmoyaderevnya/
+# Europe_railways.gpkg из допматериалов Springer к главе Марти-Хеннеберга (7 МБ,
+# достаётся из zip частичным чтением): scripts/harvest_railways_hgise.py --check;
+# в репозиторий идёт только подложка.
+data/raw/railways_hgise/
+# Каталоги старых карт: ответы read_mcodes.php Retromap, отбор Kartenforum SLUB,
+# списки и разобранные страницы карт ЭтоМесто (сами страницы не хранятся).
+# Пересобираются командой scripts/harvest_old_maps.py --fetch (продолжает с
+# места); в репозиторий идёт только слой.
+data/raw/old_maps/
+# Фотоархивы, собранные с согласия владельцев 24.11.2026: страницы каталога и
+# карты russiainphoto.ru (сжатый JSON), выдача API Ajapaik по 500 снимков и
+# блоки страниц «Военного альбома». Пересобираются сборщиками с --fetch
+# (продолжают с места); в репозиторий идут только слои.
+data/raw/russiainphoto/
+data/raw/ajapaik/
+data/raw/waralbum/
+# Выдача JewishGen Communities, карточки Historic Synagogues of Europe и
+# Kartenmeister (сжатые gzip, вместе около 100 МБ): собраны с согласия
+# владельцев 24.11.2026, пересобираются сборщиками с --fetch; в репозиторий
+# идут только слои.
+data/raw/jewishgen_communities/
+data/raw/historic_synagogues/
+data/raw/kartenmeister/
+# Выдача поиска, KML по регионам, губерниям и уездам и разобранные карточки
+# «Храмов России» (temples.ru): около 120 МБ, пересобираются командой
+# scripts/harvest_temples_ru.py --fetch / --cards; в репозиторий идёт слой.
+data/raw/temples_ru/

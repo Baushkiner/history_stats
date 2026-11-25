@@ -84,8 +84,8 @@ def test_partial_layer_says_so_in_its_card():
     assert JEWISH_CEMETERIES.expected_rows < jc.EXPECTED_CARDS
     assert "неполным" in JEWISH_CEMETERIES.description
     assert JEWISH_CEMETERIES.group == "faith"
-    assert "права не выяснены" in JEWISH_CEMETERIES.license
-    assert "договорённост" in JEWISH_CEMETERIES.license
+    assert "согласия ESJF" in JEWISH_CEMETERIES.license
+    assert "белый список" in JEWISH_CEMETERIES.license
 
 
 def test_sitemap_gives_only_survey_cards():
